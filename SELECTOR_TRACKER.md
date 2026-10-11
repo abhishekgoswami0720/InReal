@@ -16,7 +16,7 @@ python scraper.py --source <name> --dry-run
 |---|---|---|---|---|---|
 | 1 | Internshala | `internshala` | `sites/internshala.py` | Playwright + HTML | ✅ |
 | 2 | Unstop | `unstop` | `sites/unstop.py` | Playwright + site's JSON API (HTML fallback) | ✅ |
-| 3 | Naukri | `naukri` | `sites/naukri.py` | Playwright + HTML + schema.org JSON on detail pages | 🟡 |
+| 3 | Naukri | `naukri` | `sites/naukri.py` | Playwright (visible Chrome) + HTML + schema.org JSON on detail pages | ✅ |
 | 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | 🟡 |
 | 5 | Shine | `shine` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 6 | Foundit | `foundit` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
@@ -91,7 +91,7 @@ On 12 Oct it returned 590 open internships, each with the full description, skil
 
 Risk: this is an internal API, not a promised one. If it changes, the scraper logs a warning and falls back to the ~20 cards on the page.
 
-## 3. Naukri 🟡
+## 3. Naukri ✅
 
 URL: `https://www.naukri.com/ai-ml-internship-jobs-in-india?qcstipend=0To10&qcstipend=10To20&qcstipend=20To30&qcstipend=30To40&qcstipend=40To50` (paid internships only)
 Checked on the live site: 12 Oct 2026. The page is built in the browser (the raw HTML has no cards), so Playwright is needed.
@@ -117,6 +117,7 @@ What we found:
 - Loading page 2 or 3 directly with the filter in the URL drops the filter (it showed 0 results), so the scraper clicks "Next" like a person.
 - Naukri's own job API answers `recaptcha required`, so we don't use it.
 - **Laptop test 1 (01:17): blocked.** Headless Chromium got no job cards in 20 s. Naukri now runs in a visible window of the installed Google Chrome (falls back to Playwright's Chromium), without a fake user agent. If a check appears, the scraper waits 60 s for you to solve it, and saves `test_output/naukri_blocked.png` + `.html` so we can see what Naukri showed.
+- **Laptop test 2 (01:50, visible Chrome): passed.** 3 pages, 58 paid listings, **15 kept**, 15 detail pages read; 4 kept posts are flagged as copied from another site. One earlier web run stopped after page 2 ("page 3 did not load"), so the Next-page step can be flaky.
 - CSS classes on the detail page are hashed (`styles_jhc__stat__PgY67`) and change on every Naukri release, so we read the schema.org JSON block instead, plus partial class matches.
 
 ## 4. LinkedIn (guest search) 🟡
