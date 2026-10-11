@@ -101,7 +101,7 @@ def check_listing(item: dict):
         flags.append("Stipend amount not stated")
 
     if item.get("aggregated"):
-        flags.append("Copied by the portal from another site; check the company's own page")
+        flags.append("Copied by the portal from another site, so confirm on the company's own page")
 
     if re.search(COMMISSION_RE, text, re.I):
         flags.append("Pay depends on commission or performance")

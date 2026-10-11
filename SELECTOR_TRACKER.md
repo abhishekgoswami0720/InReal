@@ -112,7 +112,7 @@ Checked on the live site: 12 Oct 2026. The page is built in the browser (the raw
 
 What we found:
 - 531 of the 594 "AI ML internship" results are marked **Unpaid**. Some of these are probably not really unpaid: Tower Research Capital's AI/ML intern post says "Unpaid" but is a copied post. We can't check the real pay, so we ask Naukri for paid ones only: 59 results, 3 pages.
-- Many posts say *"This job posting has been aggregated from external source"*. Naukri copied them from somewhere else. We keep them but add the flag "Copied by the portal from another site; check the company's own page".
+- Many posts say *"This job posting has been aggregated from external source"*. Naukri copied them from somewhere else. We keep them but add the flag "Copied by the portal from another site, so confirm on the company's own page".
 - Loading page 2 or 3 directly with the filter in the URL drops the filter (it showed 0 results), so the scraper clicks "Next" like a person.
 - Naukri's own job API answers `recaptcha required`, so we don't use it.
 - **Laptop test 1 (01:17): blocked.** Headless Chromium got no job cards in 20 s. Naukri now runs in a visible window of the installed Google Chrome (falls back to Playwright's Chromium), without a fake user agent. If a check appears, the scraper waits 60 s for you to solve it, and saves `test_output/naukri_blocked.png` + `.html` so we can see what Naukri showed.

@@ -617,6 +617,33 @@ body {
     color: #fbbf24;
 }
 
+.trust {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.45;
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+}
+
+.trust i {
+    font-size: 15px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.trust-ok {
+    background-color: rgba(16, 185, 129, 0.08);
+    color: #34d399;
+}
+
+.trust-warn {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #fbbf24;
+}
+
 .match-score-badge {
     position: absolute;
     top: 16px;

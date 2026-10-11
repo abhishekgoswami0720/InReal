@@ -318,13 +318,19 @@ function renderListings() {
     filtered.forEach((item, index) => {
         if (!existingIds.has(item.id)) {
             const isNewHtml = item.is_new ? `<div class="new-badge">New</div>` : '';
-            const stipendDisp = escapeHtml(item.stipend ? item.stipend : "Unpaid / Not Disclosed");
+            const stipendDisp = escapeHtml(item.stipend ? item.stipend : "Stipend not disclosed");  // unpaid listings are never saved
             const durDisp = escapeHtml(item.duration ? item.duration : "N/A");
             const locDisp = escapeHtml(item.location ? item.location : item.location_type);
             const skillsDisp = escapeHtml(item.required_skills ? item.required_skills : "Not specified");
             const scoreBadge = item.match_score ? `<div class="match-score-badge ${item.match_score >= 80 ? 'high-score' : (item.match_score >= 60 ? 'med-score' : 'low-score')}">${item.match_score}% Match</div>` : '';
             const orgBadge = item.org_type ? `<span class="tag tag-org"><i class="ph ph-bank"></i> ${escapeHtml(item.org_type)}</span>` : '';
             const roleBadge = item.role_type ? `<span class="tag tag-role"><i class="ph ph-flask"></i> ${escapeHtml(item.role_type)}</span>` : '';
+            const durBadge = item.duration ? `<span class="tag tag-dur"><i class="ph ph-clock"></i> ${durDisp}</span>` : '';
+            // Genuine check (genuine.py): listings that failed it are never saved; softer warnings arrive in trust_flags
+            const flags = String(item.trust_flags || "").split(";").map(f => f.trim()).filter(Boolean);
+            const trustHtml = flags.length
+                ? `<div class="trust trust-warn"><i class="ph ph-warning"></i><span><strong>Check before applying:</strong> ${flags.map(escapeHtml).join(" &bull; ")}</span></div>`
+                : `<div class="trust trust-ok"><i class="ph ph-shield-check"></i><span>No warning signs found</span></div>`;
 
             const safeCompany = escapeHtml(item.company_name);
             const safeRole = escapeHtml(item.role_title);
@@ -353,9 +359,12 @@ function renderListings() {
                 <div class="tags">
                     <span class="tag tag-loc"><i class="ph ph-map-pin"></i> ${locDisp}</span>
                     <span class="tag tag-stipend"><i class="ph ph-money"></i> ${stipendDisp}</span>
+                    ${durBadge}
                     ${orgBadge}
                     ${roleBadge}
                 </div>
+
+                ${trustHtml}
                 
                 <div class="skills-list">
                     <strong>Skills:</strong> ${skillsDisp}
