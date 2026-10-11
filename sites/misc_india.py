@@ -70,30 +70,7 @@ def parse_job_card(html, selectors, source_name, url_base=""):
             
     return results
 
-@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
-def scrape_shine():
-    results = []
-    with sync_playwright() as p:
-        try:
-            browser = p.chromium.launch(headless=True, args=get_playwright_stealth_args())
-            page = browser.new_page()
-            Stealth().apply_stealth_sync(page)
-            url = "https://www.shine.com/job-search/ai-machine-learning-internship-jobs"
-            page.goto(url, timeout=30000)
-            human_delay(3.0, 5.0)
-            
-            selectors = {
-                "card_tag": "div", "card_class": "jobCardNova_bigCard",
-                "title_tag": "h3", "title_class": "",
-                "comp_tag": "span", "comp_class": "jobCardNova_bigCardTopTitleName",
-                "loc_tag": "div", "loc_class": "jobCardNova_bigCardCenterListLoc"
-            }
-            results = parse_job_card(page.content(), selectors, "Shine", "https://www.shine.com")
-            browser.close()
-        except Exception as e:
-            logger.error(f"Shine error: {e}")
-            raise e
-    return results
+# scrape_shine moved to sites/shine.py (Shine changed its page structure, Oct 2026)
 
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 def scrape_foundit():

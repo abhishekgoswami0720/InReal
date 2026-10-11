@@ -38,6 +38,14 @@ COMMISSION_RE = (
     r"|\bno\s+fixed\s+(stipend|salary|pay)\b"
 )
 
+# Training institutes selling a "programme" as an internship (seen on Shine and LinkedIn, Oct 2026)
+TRAINING_RE = (
+    r"\bjob placement\b|\bplacement\s+(assistance|support|guarantee|guaranteed)\b|\b100\s*%\s*placement\b"
+    r"|\bjob guarantee\b|\bcareer[- ]oriented program(me)?\b|\bcertification program(me)?\b"
+    r"|\btraining program(me)?\s+(with|and)\b|\bcourse fee\b"
+)
+MANY_TOWNS = 6
+
 # A selective internship does not "hire" this many people.
 MASS_HIRE_TOTAL = 10_000
 MASS_HIRE_PER_POST = 20
@@ -101,6 +109,13 @@ def check_listing(item: dict):
         pass  # e.g. LinkedIn never shows pay on its cards; not the employer's fault
     elif item.get("stipend_numeric") in (None, 0) and "unpaid" not in str(item.get("stipend", "")).lower():
         flags.append("Stipend amount not stated")
+
+    towns = [t for t in str(item.get("location", "")).split(",") if t.strip()]
+    if len(towns) >= MANY_TOWNS:
+        flags.append(f"One post listed for {len(towns)} towns")
+
+    if re.search(TRAINING_RE, text, re.I):
+        flags.append("Sounds like a training programme sold as an internship")
 
     if item.get("repeat_note"):  # set by scraper.mark_repeated_posts
         flags.append(item["repeat_note"])

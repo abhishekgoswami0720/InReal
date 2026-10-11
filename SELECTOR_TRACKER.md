@@ -18,7 +18,7 @@ python scraper.py --source <name> --dry-run
 | 2 | Unstop | `unstop` | `sites/unstop.py` | Playwright + site's JSON API (HTML fallback) | ✅ |
 | 3 | Naukri | `naukri` | `sites/naukri.py` | Playwright (visible Chrome) + HTML + schema.org JSON on detail pages | ✅ |
 | 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | ✅ |
-| 5 | Shine | `shine` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
+| 5 | Shine | `shine` | `sites/shine.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | 🟡 |
 | 6 | Foundit | `foundit` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 7 | Apna | `apna` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 8 | Cutshort | `cutshort` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
@@ -152,18 +152,27 @@ Limits: LinkedIn rate-limits guests. The scraper runs up to 65 searches × 2 pag
 
 **Lesson from this run:** the first version of "Same post repeated in N locations" also hit DoorDash, Amazon, Qualcomm, Crowe and Kinaxis, which normally post one internship in several big cities. It now fires only when all the places are in one state (Sparks To Ideas: Amreli, Porbandar, Gandhinagar, Surendranagar, all Gujarat) or a copy of the post is known to be aggregated or from a staffing firm. On the same 854 cards it now flags only Sparks To Ideas.
 
-## 5. Shine 🔴
+## 5. Shine 🟡
 
-URL: `https://www.shine.com/job-search/ai-machine-learning-internship-jobs`
+URL: `https://www.shine.com/job-search/ai-machine-learning-internship-jobs` (page N: `…-jobs-N`). Checked on the live site: 12 Oct 2026. Code moved to `sites/shine.py`.
 
 | Field | Old selector | New selector | Status |
 |---|---|---|---|
-| Card | `div` class matching `jobCardNova_bigCard` | | 🔴 |
-| Title | `h3` | | 🔴 |
-| Company | `span` class matching `jobCardNova_bigCardTopTitleName` | | 🔴 |
-| Location | `div` class matching `jobCardNova_bigCardCenterListLoc` | | 🔴 |
-| Link | first `a` in the card | | 🔴 |
-| Stipend | not read | | 🔴 |
+| Card | `div` class matching `jobCardNova_bigCard` | `article[class*="result-card_card"]` (schema.org ListItem) | ❌ old one gone (0 on the page), fixed |
+| Link | first `a` in the card | `meta[itemprop="url"]` (fallback `a[class*="result-card_hit"]`) | ❌ fixed |
+| Title | `h3` | `h3[itemprop="name"]` | still an h3 |
+| Company | `span` matching `jobCardNova_bigCardTopTitleName` | `[class*="result-card_company"]` | ❌ fixed |
+| Location | `div` matching `jobCardNova_bigCardCenterListLoc` | 3rd `[class*="result-card_meta-text"]` | ❌ fixed |
+| Experience / salary | (not read) | 1st and 2nd `[class*="result-card_meta-text"]` | new (cards needing 3+ years are skipped) |
+| Skills | (not read; old code wrote "AI/ML" on every card) | `[class*="result-card_skills-item"]` | new |
+| Posted | (not read) | `[class*="result-card_posted"]` | new |
+| Job page | (not read) | `script[type="application/ld+json"]` JobPosting: description, skills, dates, industry | new |
+
+Class names are CSS-module hashes (`result-card_role__tUHBe`); the part after `__` changes on Shine releases, so we match the prefix only.
+
+What we found: Shine's search is loose (7,132 results) and full of training institutes. Example: Maxgen Technologies' "MACHINE LEARNING AI INTERNSHIP AT AHMEDABAD" says *"machine learning program with job placement … Career oriented Program"*, and its "Generative Ai Internship in Pune" lists 8 towns (Yavatmal, Akola, Pune, Amravati, Nanded, Satara, Jalna, Sangli). New flags, for every portal: **Sounds like a training programme sold as an internship** (placement guarantee / certification programme / course-fee wording) and **One post listed for N towns** (6 or more). No fee was written in the description we read.
+
+Scope: first 5 pages (100 cards, sorted by relevance), at most 40 job pages read. Not tested on the laptop yet.
 
 ## 6. Foundit 🔴
 
