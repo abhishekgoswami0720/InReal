@@ -44,7 +44,16 @@ def test_end_to_end():
     assert out[("Meril", "Bengaluru, Karnataka, India")][:2] == (False, "Not labelled as an internship")
     sparks = out[("Sparks To Ideas", "Amreli, Gujarat, India")]
     assert sparks[0] is True
-    assert "Same post repeated in 3 locations" in sparks[2] and "Copied by the portal" in sparks[2]
+    assert "Same post repeated in 3 towns of Gujarat" in sparks[2] and "Copied by the portal" in sparks[2]
+
+
+def test_big_company_in_many_cities_is_not_flagged():
+    # Live result 12 Oct: DoorDash posted one ML intern role in 4 US cities; that is normal
+    base = parse_search_html(load("linkedin_search.html"), "USA · ML")[0]
+    recs = [{**base, "id": str(n), "company_name": "DoorDash", "role_title": "Machine Learning Intern (Masters) - Summer 2027",
+             "location": loc} for n, loc in enumerate(["San Francisco, CA", "Sunnyvale, CA", "New York, NY", "Seattle, WA"])]
+    assert all(kept and flags == "" for (_, kept, _), flags in
+               ((r, r[0].get("trust_flags", "")) for r in evaluate("linkedin", recs)))
 
 
 def test_dashboard_checkboxes_still_choose_searches():

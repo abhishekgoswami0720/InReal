@@ -102,9 +102,8 @@ def check_listing(item: dict):
     elif item.get("stipend_numeric") in (None, 0) and "unpaid" not in str(item.get("stipend", "")).lower():
         flags.append("Stipend amount not stated")
 
-    repeats = item.get("repeat_count") or 0
-    if repeats >= 3:
-        flags.append(f"Same post repeated in {repeats} locations")
+    if item.get("repeat_note"):  # set by scraper.mark_repeated_posts
+        flags.append(item["repeat_note"])
 
     if item.get("aggregated"):
         flags.append("Copied by the portal from another site, so confirm on the company's own page")

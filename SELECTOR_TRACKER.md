@@ -17,7 +17,7 @@ python scraper.py --source <name> --dry-run
 | 1 | Internshala | `internshala` | `sites/internshala.py` | Playwright + HTML | ✅ |
 | 2 | Unstop | `unstop` | `sites/unstop.py` | Playwright + site's JSON API (HTML fallback) | ✅ |
 | 3 | Naukri | `naukri` | `sites/naukri.py` | Playwright (visible Chrome) + HTML + schema.org JSON on detail pages | ✅ |
-| 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | 🟡 |
+| 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | ✅ |
 | 5 | Shine | `shine` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 6 | Foundit | `foundit` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 7 | Apna | `apna` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
@@ -120,7 +120,7 @@ What we found:
 - **Laptop test 2 (01:50, visible Chrome): passed.** 3 pages, 58 paid listings, **15 kept**, 15 detail pages read; 4 kept posts are flagged as copied from another site. One earlier web run stopped after page 2 ("page 3 did not load"), so the Next-page step can be flaky.
 - CSS classes on the detail page are hashed (`styles_jhc__stat__PgY67`) and change on every Naukri release, so we read the schema.org JSON block instead, plus partial class matches.
 
-## 4. LinkedIn (guest search) 🟡
+## 4. LinkedIn (guest search) ✅
 
 Checked on the live site: 12 Oct 2026.
 
@@ -146,7 +146,11 @@ What we found in one live search ("machine learning internship", India, 10 cards
 - "Sparks To Ideas", an "IT training" company in the *Staffing and Recruiting* industry, posted the same "Machine Learning Internship" in Amreli and in Porbandar, while the description says the work is on-site in Ahmedabad. The post ends with "This job is provided by Shine.com". New flags for this: **Same post repeated in N locations** (3 or more, works for every portal) and **Copied by the portal from another site**.
 - "Applied Scientist" (Meril) shows up under the Internship filter; our "must say intern" rule drops it.
 
-Limits: LinkedIn rate-limits guests. The scraper runs up to 64 searches × 2 pages and at most 60 detail calls, waits 20 s once on HTTP 429/999, then stops LinkedIn and keeps what it has. Not tested on the laptop yet.
+Limits: LinkedIn rate-limits guests. The scraper runs up to 65 searches × 2 pages and at most 60 detail calls, waits 20 s on HTTP 429/999, and if it is refused again stops LinkedIn and keeps what it has.
+
+**Laptop test, 12 Oct 02:12–02:20:** 65 searches, **854 unique cards, 339 kept** (60 in India; the rest in Singapore, Canada, USA, Europe …). Dropped: 230 not AI/ML, 208 not labelled as internships, 68 PhD-only. LinkedIn answered HTTP 429 four times; each time the scraper waited and carried on. Flags on kept posts: 2 "pay depends on commission or performance" (Devryxa, Vortenza Systems).
+
+**Lesson from this run:** the first version of "Same post repeated in N locations" also hit DoorDash, Amazon, Qualcomm, Crowe and Kinaxis, which normally post one internship in several big cities. It now fires only when all the places are in one state (Sparks To Ideas: Amreli, Porbandar, Gandhinagar, Surendranagar, all Gujarat) or a copy of the post is known to be aggregated or from a staffing firm. On the same 854 cards it now flags only Sparks To Ideas.
 
 ## 5. Shine 🔴
 

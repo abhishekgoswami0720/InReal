@@ -45,19 +45,44 @@ logger.add("scraper_errors.log", rotation="1 MB", level="ERROR")
 # Human-readable logs for the UI
 logger.add("scraper_run.log", rotation="5 MB", level="INFO", format="{time:YYYY-MM-DD HH:mm:ss} | {message}")
 
+def _region(location: str) -> str:
+    """'Amreli, Gujarat, India' -> 'gujarat'; 'San Francisco, CA' -> 'ca'."""
+    parts = [p.strip().lower() for p in str(location).split(",") if p.strip()]
+    if len(parts) >= 3:
+        return parts[-2]
+    return parts[-1] if parts else ""
+
+
+def mark_repeated_posts(raw_listings: list):
+    """
+    Same company + same title posted in 3+ places. Big companies do this across
+    major cities (DoorDash: SF, Sunnyvale, NYC, Seattle), so it is only flagged when
+    the places are all in one state (Sparks To Ideas: 4 small towns in Gujarat, while
+    the work is in Ahmedabad) or a copy of the post is known to be aggregated or
+    from a staffing firm.
+    """
+    groups = {}
+    for item in raw_listings:
+        key = (str(item.get("company_name", "")).strip().lower(), str(item.get("role_title", "")).strip().lower())
+        groups.setdefault(key, []).append(item)
+    for items in groups.values():
+        places = {str(i.get("location", "")).strip().lower() for i in items}
+        if len(places) < 3:
+            continue
+        regions = {_region(pl) for pl in places}
+        evidence = any(i.get("aggregated") or "staffing" in str(i.get("industries", "")).lower() for i in items)
+        if len(regions) == 1 or evidence:
+            where = f"towns of {_region(next(iter(places))).title()}" if len(regions) == 1 else "locations"
+            for i in items:
+                i["repeat_note"] = f"Same post repeated in {len(places)} {where}"
+
+
 def evaluate(source_name: str, raw_listings: list):
     """
     Runs every filter on every listing.
     Returns a list of (item, kept: bool, reason: str).
     """
-    # The same company posting the same title in many towns is a spam pattern
-    locations = {}
-    for item in raw_listings:
-        key = (str(item.get("company_name", "")).strip().lower(), str(item.get("role_title", "")).strip().lower())
-        locations.setdefault(key, set()).add(str(item.get("location", "")).strip().lower())
-    for item in raw_listings:
-        key = (str(item.get("company_name", "")).strip().lower(), str(item.get("role_title", "")).strip().lower())
-        item["repeat_count"] = len(locations[key])
+    mark_repeated_posts(raw_listings)
 
     results = []
     for item in raw_listings:
