@@ -56,7 +56,8 @@ Checked on the live site: 12 Oct 2026.
 | Openings (detail page) | not read | `.section_heading` "Number of openings" → next element | new |
 
 **Laptop test, 12 Oct 2026, 00:43:** 393 listings scraped from 10 pages, 146 of 147 detail pages read, 0 failures.
-With the tighter AI/ML rule (below) the same data gives **81 kept**. 264 were not AI/ML, 21 unpaid, 21 under ₹5,000, 4 had excluded title words and 2 were mass programmes (Reducate.ai: 21,755 people "hired" from 1,189 posts).
+With the tighter AI/ML rule (below) the same data gives **81 kept**.
+**Laptop test 2, 01:27, latest code:** 393 scraped, **81 kept** (confirmed, same as the estimate), 80 of 81 detail pages read. Flags on kept listings: 13 new employers with no hires yet, 5 very short, 5 "posts a lot, hires few", 1 commission/performance pay. 264 were not AI/ML, 21 unpaid, 21 under ₹5,000, 4 had excluded title words and 2 were mass programmes (Reducate.ai: 21,755 people "hired" from 1,189 posts).
 
 What the first run taught us: about half of the 147 kept listings were not AI/ML at all (Digital Marketing, Graphic Design, HR, Video Editor) and got in only because Internshala tags them with the skill "Artificial intelligence". Now a listing needs AI/ML in the title, or at least two real ML skill tags (Machine Learning, Deep Learning, NLP, PyTorch, OpenCV …).
 
