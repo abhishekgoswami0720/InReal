@@ -17,7 +17,7 @@ python scraper.py --source <name> --dry-run
 | 1 | Internshala | `internshala` | `sites/internshala.py` | Playwright + HTML | ✅ |
 | 2 | Unstop | `unstop` | `sites/unstop.py` | Playwright + site's JSON API (HTML fallback) | ✅ |
 | 3 | Naukri | `naukri` | `sites/naukri.py` | Playwright + HTML + schema.org JSON on detail pages | 🟡 |
-| 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | Playwright + HTML | 🔴 |
+| 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | 🟡 |
 | 5 | Shine | `shine` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 6 | Foundit | `foundit` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 7 | Apna | `apna` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
@@ -119,21 +119,33 @@ What we found:
 - **Laptop test 1 (01:17): blocked.** Headless Chromium got no job cards in 20 s. Naukri now runs in a visible window of the installed Google Chrome (falls back to Playwright's Chromium), without a fake user agent. If a check appears, the scraper waits 60 s for you to solve it, and saves `test_output/naukri_blocked.png` + `.html` so we can see what Naukri showed.
 - CSS classes on the detail page are hashed (`styles_jhc__stat__PgY67`) and change on every Naukri release, so we read the schema.org JSON block instead, plus partial class matches.
 
-## 4. LinkedIn (guest search) 🔴
+## 4. LinkedIn (guest search) 🟡
 
-URL: `https://www.linkedin.com/jobs/search/?keywords={kw}&location={loc}&f_JT=I&f_E=1` (about 70 keyword/location pairs)
+Checked on the live site: 12 Oct 2026.
+
+**The real problem: the old URL now hits a sign-up wall.** `https://www.linkedin.com/jobs/search/?keywords=…` redirects a logged-out visitor to `/authwall` ("Join LinkedIn"), so the old scraper found 0 cards. The card selectors themselves still work, on LinkedIn's guest API:
+
+- Search: `/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=…&location=…&f_JT=I&f_E=1&start=0,10,…` (10 cards per call)
+- Details: `/jobs-guest/jobs/api/jobPosting/<id>` (description, employment type, industry, applicants)
 
 | Field | Old selector | New selector | Status |
 |---|---|---|---|
-| Cookie / popups | `button[action-type='ACCEPT']`, `button.modal__dismiss`, `button[aria-label='Dismiss']` | | 🔴 |
-| Card | `div` with class containing `base-card`; fallback `li` in `jobs-search__results-list` | | 🔴 |
-| Title | `h3.base-search-card__title` (fallback any `h3`) | | 🔴 |
-| Company | `h4.base-search-card__subtitle` / `a.hidden-nested-link` | | 🔴 |
-| Location | `span.job-search-card__location` | | 🔴 |
-| Link | `a.base-card__full-link` | | 🔴 |
-| Stipend | not on the card ("Check Listing") | | — |
+| URL | `/jobs/search/?keywords=…` | guest search API above | ❌ authwall, fixed |
+| Card | `div` class containing `base-card` | `div.base-card` (id in `data-entity-urn`) | still works |
+| Title | `h3.base-search-card__title` | same | still works |
+| Company | `h4.base-search-card__subtitle` | same | still works |
+| Location | `span.job-search-card__location` | same | still works |
+| Link | `a.base-card__full-link` | same (tracking params removed) | still works |
+| Posted | (not read) | `time[datetime]` | new |
+| Stipend | made up: 5000 INR / 1500 USD "Check Listing" | `.job-search-card__salary-info` if present, else empty | ❌ old one invented pay, fixed |
+| Popups | `button[action-type='ACCEPT']`, `button.modal__dismiss` | not needed with the API | removed |
+| Description, employment type, industry, applicants | (not read) | `.show-more-less-html__markup`, `.description__job-criteria-item`, `.num-applicants__caption` | new |
 
-Check: LinkedIn may show a sign-in wall to guests after a few pages; 70 searches in one run is a lot.
+What we found in one live search ("machine learning internship", India, 10 cards):
+- "Sparks To Ideas", an "IT training" company in the *Staffing and Recruiting* industry, posted the same "Machine Learning Internship" in Amreli and in Porbandar, while the description says the work is on-site in Ahmedabad. The post ends with "This job is provided by Shine.com". New flags for this: **Same post repeated in N locations** (3 or more, works for every portal) and **Copied by the portal from another site**.
+- "Applied Scientist" (Meril) shows up under the Internship filter; our "must say intern" rule drops it.
+
+Limits: LinkedIn rate-limits guests. The scraper runs up to 64 searches × 2 pages and at most 60 detail calls, waits 20 s once on HTTP 429/999, then stops LinkedIn and keeps what it has. Not tested on the laptop yet.
 
 ## 5. Shine 🔴
 
@@ -211,6 +223,8 @@ Check: each feed still returns items. Code issue: in `rss_feeds.py` the function
 ## 12–13. DuckDuckGo search and universities 🔴 (no selectors)
 
 Uses the `ddgs` package (falls back to `duckduckgo_search`). Check: the package still returns results and is not rate-limited; `universities.py` runs 54 queries in one go.
+
+**Web run on the laptop, 12 Oct 01:52 (not asked for yet, but it ran):** `universities` saved 52 "matches" to `internships.csv`. Most are **not internship posts**: blog lists ("15 AI and Machine Learning Internship Programs"), guides ("Google DeepMind AI Research Internship 2026: Complete Guide"), a GitHub list, a 2025 PDF, an Internshala category page, a Foundit career-advice article. Only a handful are direct job posts (NVIDIA, SmartRecruiters, Wellfound, ByteDance, iCIMS). These must not appear in a "genuine internships" list until there is a "direct job post only" rule. `government` saved 1 placeholder ("AI/ML Internship Opportunities (AICTE Internship Portal)").
 
 ## 14–16. Link-only sources ⚪
 

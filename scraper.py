@@ -50,6 +50,15 @@ def evaluate(source_name: str, raw_listings: list):
     Runs every filter on every listing.
     Returns a list of (item, kept: bool, reason: str).
     """
+    # The same company posting the same title in many towns is a spam pattern
+    locations = {}
+    for item in raw_listings:
+        key = (str(item.get("company_name", "")).strip().lower(), str(item.get("role_title", "")).strip().lower())
+        locations.setdefault(key, set()).add(str(item.get("location", "")).strip().lower())
+    for item in raw_listings:
+        key = (str(item.get("company_name", "")).strip().lower(), str(item.get("role_title", "")).strip().lower())
+        item["repeat_count"] = len(locations[key])
+
     results = []
     for item in raw_listings:
         skills = item.get("required_skills", "")

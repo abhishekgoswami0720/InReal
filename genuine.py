@@ -97,8 +97,14 @@ def check_listing(item: dict):
     if posted and posted >= 200 and (hired or 0) / posted < 0.05:
         flags.append(f"Posts a lot, hires few ({posted} posts, {hired or 0} hired)")
 
-    if item.get("stipend_numeric") in (None, 0) and "unpaid" not in str(item.get("stipend", "")).lower():
+    if item.get("stipend_hidden_by_site"):
+        pass  # e.g. LinkedIn never shows pay on its cards; not the employer's fault
+    elif item.get("stipend_numeric") in (None, 0) and "unpaid" not in str(item.get("stipend", "")).lower():
         flags.append("Stipend amount not stated")
+
+    repeats = item.get("repeat_count") or 0
+    if repeats >= 3:
+        flags.append(f"Same post repeated in {repeats} locations")
 
     if item.get("aggregated"):
         flags.append("Copied by the portal from another site, so confirm on the company's own page")
