@@ -424,10 +424,10 @@ function openDetailDrawer(id) {
   const modBox = document.getElementById('drawer-mod-box');
   const view = MOD_VIEWS[item.moderation_status || ''] || MOD_VIEWS[''];
   modBox.className = `p-3 rounded-lg border text-xs ${view.box}`;
-  const risk = item.scam_risk !== '' && item.scam_risk != null ? ` · risk ${Number(item.scam_risk).toFixed(2)}` : '';
+  const risk = item.scam_risk !== '' && item.scam_risk != null && !isNaN(Number(item.scam_risk)) ? ` · scam risk ${Math.round(Number(item.scam_risk) * 100)}%` : '';
   document.getElementById('drawer-mod-title').innerText = `${view.label}${risk}`;
   const reasons = String(item.moderation_reasons || '').split(' | ').map(r => r.trim()).filter(Boolean);
-  document.getElementById('drawer-mod-reasons').innerHTML = reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('');
+  document.getElementById('drawer-mod-reasons').innerHTML = reasons.map(plainReason).filter(Boolean).map(r => `<li>${escapeHtml(r)}</li>`).join('');
 
   const desc = String(item.description || '').trim();
   document.getElementById('drawer-desc-box').classList.toggle('hidden', !desc);
@@ -1181,3 +1181,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+
+// ==========================================
+// 16. Scam-check reasons in plain words (no raw API errors in the drawer)
+// ==========================================
+function plainReason(r) {
+  let m;
+  if ((m = r.match(/^LLM:\s*(\w+),\s*probability\s*([\d.]+)\s*[—-]\s*(.*)$/i))) {
+    const word = { genuine: 'looks genuine', suspicious: 'is unsure', scam: 'thinks it is a scam' }[m[1].toLowerCase()] || m[1];
+    return `AI reviewer ${word} (${Math.round(Number(m[2]) * 100)}% scam chance): ${m[3]}`;
+  }
+  if (/^Embedding failed/i.test(r)) return 'Wording check skipped: the similarity service did not answer in time. The AI reviewer and the rules decided.';
+  if (/^LLM judge unavailable/i.test(r)) return 'AI reviewer did not answer, so the wording check and the rules decided.';
+  if ((m = r.match(/^Vector match,\s*(.*?)\s*\(similarity\s*([\d.]+)\):\s*"?(.*?)"?$/i))) return `Wording close to a known scam (${m[1]}): "${m[3]}"`;
+  if (/disagree/i.test(r)) return 'The AI reviewer and the wording check disagree, so a person should look at this one.';
+  if ((m = r.match(/^Scraper warnings?:\s*(.*)$/i))) return `Note from the listing: ${m[1]}`;
+  if (/[{}]|AxiosError|stack/.test(r)) return '';   // any other raw error text
+  return r;
+}
