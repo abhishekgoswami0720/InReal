@@ -136,7 +136,7 @@ def check_listing(item: dict):
         flags.append("Sounds like a training programme sold as an internship")
     elif (item.get("org_type") not in ("Government", "Institution")
           and re.search(TRAINING_COMPANY_RE, str(item.get("company_name", "")), re.I)):
-        flags.append("Employer's name sounds like a training institute; make sure it isn't selling a course")
+        flags.append("Employer's name sounds like a training institute, so make sure it isn't selling a course")
 
     min_exp = _num(item.get("min_experience"))
     if min_exp:
@@ -164,4 +164,5 @@ def check_listing(item: dict):
     if re.search(COMMISSION_RE, text, re.I):
         flags.append("Pay depends on commission or performance")
 
-    return None, flags
+    # trust_flags is stored as one ";"-separated string, so a ";" inside a flag splits it in two
+    return None, [f.replace(";", ",") for f in flags]

@@ -122,7 +122,27 @@ def evaluate(source_name: str, raw_listings: list):
                 flags.append("Company name hidden")
             item["trust_flags"] = "; ".join(flags)
         results.append((item, reason is None, reason or ""))
+    flag_other_posts_of_training_sellers(results)
     return collapse_copies(results)
+
+
+TRAINING_FLAG = "Sounds like a training programme sold as an internship"
+
+
+def flag_other_posts_of_training_sellers(results):
+    """
+    A firm that sells a course in one post is not trustworthy in its next post either
+    (AICTE, 12 Oct 2026: Metataaraka's "1 Year Fully Online Remote Internship with
+    Employment Opportunity" was flagged, its plain "Ai & Machine Learning Engineer
+    Intern" was not; same for Kitech Vista's "Machine Learning with Python").
+    """
+    sellers = {_company_key(i.get("company_name", "")) for i, kept, _ in results
+               if kept and TRAINING_FLAG in str(i.get("trust_flags", ""))}
+    sellers.discard("")
+    for item, kept, _ in results:
+        flags = str(item.get("trust_flags", ""))
+        if kept and TRAINING_FLAG not in flags and _company_key(item.get("company_name", "")) in sellers:
+            item["trust_flags"] = "; ".join(f for f in [flags, "Another post by this employer sounds like a training programme"] if f)
 
 
 # Company names portals print when the employer hides it ("**********", "Confidential")

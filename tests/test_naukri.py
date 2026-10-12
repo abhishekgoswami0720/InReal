@@ -97,6 +97,7 @@ def test_training_institute_name_is_a_flag():
     reason, flags = check_listing({"role_title": "AI Intern", "company_name": "Fireblaze Ai School",
                                    "stipend": "5,000/month", "stipend_numeric": 5000})
     assert reason is None and any("training institute" in f for f in flags)
+    assert all(";" not in f for f in flags)   # ";" separates flags in the CSV (07:42 dashboard counted this one as 2)
     _, gov = check_listing({"role_title": "AI Intern", "company_name": "School of Planning", "org_type": "Government",
                             "stipend": "5,000/month", "stipend_numeric": 5000})
     assert not any("training institute" in f for f in gov)
@@ -117,3 +118,17 @@ def test_general_ai_word_is_not_enough_for_non_ml_work():
     for t in ["AI Intern", "AI-Intern", "Data & AI Intern (Brazil)", "Research and AI Intern",
               "Internship in Agentic AI and human-centered design", "AI Engineer Intern - Marketing Tech"]:
         assert r(t, [], "naukri") is None, t
+
+
+def test_training_seller_flag_spreads_to_its_other_posts():
+    def gov(title, company):
+        return {"role_title": title, "company_name": company, "stipend": "₹5,000 / month", "stipend_numeric": 5000,
+                "stipend_currency": "INR", "required_skills": "", "location": "Remote", "duration": "3 Months"}
+    out = {i["role_title"]: i.get("trust_flags", "") for i, kept, _ in evaluate("government", [
+        gov("Ai & Machine Learning Engineer Intern", "METATAARAKA™ AI INNOVATIONS PRIVATE LIMITED"),
+        gov("Ai & Machine Learning Engineer Intern – 1 Year Fully Online Remote Internship with Employment "
+            "Opportunity (Based on Successful Completion)", "METATAARAKA™ AI INNOVATIONS PRIVATE LIMITED"),
+        gov("Machine Learning Intern", "TECHGRATION TECHNOLOGIES PRIVATE LIMITED"),
+    ])}
+    assert out["Ai & Machine Learning Engineer Intern"] == "Another post by this employer sounds like a training programme"
+    assert out["Machine Learning Intern"] == ""
