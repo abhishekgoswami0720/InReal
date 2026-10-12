@@ -61,8 +61,8 @@ def trigger_scrape():
     return jsonify({"status": "started", "message": "Scraper started successfully. This might take a while."})
 
 def notify_n8n():
-    """Starts the n8n moderation workflow after a scrape, if N8N_WEBHOOK_URL is set in .env."""
-    url = os.environ.get("N8N_WEBHOOK_URL", "").strip()
+    """Starts the n8n moderation workflow after a scrape, if INREAL_N8N_WEBHOOK is set in .env."""
+    url = os.environ.get("INREAL_N8N_WEBHOOK", "").strip()
     if not url:
         return
     from loguru import logger

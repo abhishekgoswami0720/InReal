@@ -67,7 +67,7 @@ n8n ─ Config ─ Fetch pattern bank ─ Fetch pending listings
 
 7. **Automatic runs:** click **Publish** (older n8n: the *Active* switch). From then on the workflow runs
    every 30 minutes, and after every scrape started from the dashboard, because `.env` has
-   `N8N_WEBHOOK_URL=http://localhost:5678/webhook/inreal-moderate`. Restart `python app.py` after editing `.env`.
+   `INREAL_N8N_WEBHOOK=http://localhost:5678/webhook/inreal-moderate`. Restart `python app.py` after editing `.env`.
 
 ## Tuning
 
