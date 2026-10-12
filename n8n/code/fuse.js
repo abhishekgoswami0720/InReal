@@ -76,13 +76,9 @@ function fuse(listing, item, resp, cfg) {
   }
   reasons.push(...stageReasons(item));
 
-  // Neither AI stage ran (both APIs down / out of quota): don't approve on rules alone,
-  // put the post back in the queue so the next run checks it properly.
-  const nothingRan = pAdj === null && item.stage1 && item.stage1.error;
-  if (nothingRan) reasons.unshift("Both AI checks failed this time; queued again");
   return {
     id: item.id,
-    status: nothingRan ? "retry" : decide(risk, cfg, disagree),
+    status: decide(risk, cfg, disagree),
     scam_risk: Number(Math.min(0.99, Math.max(0, risk)).toFixed(2)),
     reasons,
     decided_by: llm.ok ? "fusion" : "vector_search",
@@ -91,22 +87,11 @@ function fuse(listing, item, resp, cfg) {
   };
 }
 
-// Azure OpenAI chat answer or Gemini answer -> the JSON text the model wrote
-function answerText(resp) {
-  if (resp && resp.choices) {
-    const c = resp.choices[0];
-    if (c.finish_reason === "content_filter") throw new Error("blocked by Azure content filter");
-    if (c.message && c.message.refusal) throw new Error("model refused: " + c.message.refusal);
-    return c.message.content;
-  }
-  return resp.candidates[0].content.parts.map(p => p.text || "").join("");
-}
-
 // One mini-batch answer -> one Gemini-shaped answer per post, so fuse() judges each post alone
 function splitBatch(posts, resp) {
   let results = null, error = null;
   try {
-    const text = answerText(resp);
+    const text = resp.candidates[0].content.parts.map(p => p.text || "").join("");
     results = JSON.parse(text).results || [];
   } catch (e) {
     error = resp && resp.error ? resp.error : { message: String(e.message || e) };

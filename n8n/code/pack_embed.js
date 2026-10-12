@@ -24,13 +24,7 @@ function packEmbeds(posts, bank) {
     for (const c of p.chunks) cur.requests.push(embedItem(c, bank));
     cur.texts += p.chunks.length;
   });
-  return batches.map(b => ({
-    members: b.members,
-    // Azure OpenAI: {input: [...texts], dimensions}; Gemini: {requests: [...]}
-    embedRequest: bank.provider === "azure"
-      ? { input: b.requests.map(r => r.content.parts[0].text), dimensions: bank.dims }
-      : { requests: b.requests },
-  }));
+  return batches.map(b => ({ members: b.members, embedRequest: { requests: b.requests } }));
 }
 
 // ==== n8n glue (below this line runs only inside n8n) ====
