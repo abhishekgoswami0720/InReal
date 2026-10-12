@@ -3,428 +3,650 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>InReal · Scam-checked AI/ML internships</title>
-  <meta name="description" content="AI and ML internships from Indian job sites, each one checked for scams before it is listed.">
+  <title>InReal // Robotics & AI Opportunity Radar</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              yellow: '#FBBF24',
+              orange: '#F97316',
+              blue: '#2563EB',
+              teal: '#0D9488',
+              emerald: '#059669',
+              slate: '#0F172A',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
   <style>
+    /* Warm Vibrant Yellow & Translucent Frosted Glass Palette */
     :root {
-      --paper: #F3F5F9;
-      --sheet: #FFFFFF;
-      --ink: #18223B;
-      --ink-2: #3A4560;
-      --muted: #5A6378;
-      --rule: #D8DEE9;
-      --rule-soft: #E8ECF3;
-      --pass: #12805C;   --pass-bg: #E7F4EE;
-      --look: #9A5800;   --look-bg: #FBF0DD;
-      --scam: #B8322A;   --scam-bg: #FBE9E7;
-      --wait: #6B7385;   --wait-bg: #EEF0F4;
-      --focus: #3559E0;
-      --radius: 10px;
-      --font: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --bg-amber-warmth: radial-gradient(circle at 10% 10%, rgba(251, 191, 36, 0.16) 0%, transparent 45%),
+                         radial-gradient(circle at 90% 15%, rgba(249, 115, 22, 0.12) 0%, transparent 40%),
+                         radial-gradient(circle at 50% 85%, rgba(13, 148, 136, 0.10) 0%, transparent 50%),
+                         #FFFDF7;
     }
-    *, *::before, *::after { box-sizing: border-box; }
-    html { -webkit-text-size-adjust: 100%; }
+
     body {
-      margin: 0; background: var(--paper); color: var(--ink);
-      font-family: var(--font); font-size: 15px; line-height: 1.5;
-      font-variant-numeric: tabular-nums;
+      background: var(--bg-amber-warmth);
+      background-attachment: fixed;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: #0F172A;
     }
-    a { color: inherit; }
-    button, input, select { font: inherit; color: inherit; }
-    :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
-    .hidden { display: none !important; }
-    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
 
-    /* ── Header ───────────────────────────────── */
-    .topbar { background: var(--ink); color: #fff; }
-    .topbar .wrap { display: flex; align-items: center; gap: 16px; min-height: 60px; }
-    .brand { display: flex; align-items: baseline; gap: 10px; text-decoration: none; }
-    .brand b { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
-    .brand b i { font-style: normal; color: #7FD6B1; }
-    .brand span { font-size: 13px; color: #B9C2D6; }
-    .topbar .spacer { flex: 1; }
-    .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #C9D0E0; }
-    .status .dot { width: 8px; height: 8px; border-radius: 50%; background: #5CC79A; }
-    .status .dot.busy { background: #F2B544; animation: pulse 1.2s ease-in-out infinite; }
-    @keyframes pulse { 50% { opacity: .35; } }
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px;
-      padding: 9px 14px; font-weight: 600; font-size: 14px; cursor: pointer; border: 1px solid var(--rule);
-      background: var(--sheet); color: var(--ink); text-decoration: none; white-space: nowrap; }
-    .btn:hover { border-color: #AEB7C8; }
-    .btn-ink { background: var(--ink); color: #fff; border-color: var(--ink); }
-    .btn-ink:hover { background: #27345A; border-color: #27345A; }
-    .btn-light { background: #fff; color: var(--ink); border-color: #fff; }
-    .btn-light:hover { background: #E9EDF6; }
-    .btn-quiet { background: transparent; border-color: transparent; color: var(--muted); padding: 9px 10px; }
-    .btn-quiet:hover { color: var(--ink); background: var(--rule-soft); }
-    .btn.on { background: var(--ink); color: #fff; border-color: var(--ink); }
-
-    /* ── Intro + pipeline ─────────────────────── */
-    .intro { padding-top: 40px; padding-bottom: 20px; }
-    .intro h1 { font-size: clamp(28px, 4.2vw, 44px); line-height: 1.08; letter-spacing: -0.025em;
-      font-weight: 800; margin: 0; max-width: 17ch; }
-    .intro p { margin: 14px 0 0; color: var(--ink-2); font-size: 16px; max-width: 64ch; }
-    .pipeline { margin-top: 28px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-      background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
-    .stage { position: relative; text-align: left; border: 0; background: transparent; cursor: pointer;
-      padding: 18px 22px 16px; border-right: 1px solid var(--rule-soft); }
-    .stage:last-child { border-right: 0; }
-    .stage:not(:last-child)::after { content: ""; position: absolute; right: -7px; top: 50%; width: 12px; height: 12px;
-      background: var(--sheet); border-top: 1px solid var(--rule); border-right: 1px solid var(--rule);
-      transform: translateY(-50%) rotate(45deg); z-index: 1; }
-    .stage .n { display: block; font-size: clamp(26px, 3.4vw, 38px); font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
-    .stage .l { display: block; margin-top: 8px; font-size: 14px; font-weight: 600; }
-    .stage .s { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
-    .stage:hover { background: #F8F9FC; }
-    .stage[aria-pressed="true"] { box-shadow: inset 0 -3px 0 var(--ink); background: #F8F9FC; }
-    .stage.pass .n { color: var(--pass); } .stage.look .n { color: var(--look); } .stage.scam .n { color: var(--scam); }
-    .pipe-note { margin-top: 10px; font-size: 13px; color: var(--muted); }
-    .pipe-note:empty { display: none; }
-
-    /* ── Filters ──────────────────────────────── */
-    .filters { position: sticky; top: 0; z-index: 20; background: rgba(243, 245, 249, .94);
-      backdrop-filter: blur(8px); border-bottom: 1px solid var(--rule); }
-    .filters .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 12px; padding-bottom: 12px; }
-    .search { position: relative; flex: 1 1 260px; }
-    .search input { width: 100%; padding: 10px 12px 10px 36px; border: 1px solid var(--rule); border-radius: 8px; background: var(--sheet); }
-    .search input::placeholder { color: #8A93A6; }
-    .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #8A93A6; }
-    .select { appearance: none; padding: 10px 30px 10px 12px; border: 1px solid var(--rule); border-radius: 8px; cursor: pointer;
-      background: var(--sheet) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235A6378' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 11px center; }
-    .select:hover, .search input:hover { border-color: #AEB7C8; }
-    .summary { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 14px 0 10px; color: var(--muted); font-size: 14px; }
-    .summary .grow { flex: 1; }
-    .summary .btn { padding: 6px 12px; font-size: 14px; }
-    .summary strong { color: var(--ink); font-size: 16px; }
-    .summary .queue { color: var(--look); font-weight: 600; }
-
-    /* ── Listing rows ─────────────────────────── */
-    .list { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; margin-bottom: 48px; }
-    .row { display: grid; grid-template-columns: 4px minmax(0, 1fr) 210px 130px 44px; align-items: center;
-      gap: 0 18px; padding: 16px 12px 16px 0; border-bottom: 1px solid var(--rule-soft); cursor: pointer; }
-    .row:last-child { border-bottom: 0; }
-    .row:hover { background: #F8F9FC; }
-    .row:focus-visible { outline-offset: -2px; border-radius: 0; }
-    .row .bar { align-self: stretch; margin: -16px 0; background: var(--wait); }
-    .row.pass .bar { background: var(--pass); } .row.look .bar { background: #E0A43A; }
-    .row.scam .bar { background: var(--scam); } .row.closed .bar { background: #B7BECC; }
-    .row h3 { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.3; letter-spacing: -0.005em; }
-    .meta { margin-top: 3px; font-size: 14px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 14px; }
-    .meta .co { color: var(--ink-2); font-weight: 600; }
-    .tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
-    .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--rule-soft); color: var(--ink-2); }
-    .tag.new { background: #E4EBFF; color: #2A44B8; font-weight: 600; }
-    .tag.warn { background: var(--look-bg); color: var(--look); }
-    .pay { text-align: right; }
-    .pay b { display: block; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .pay span { font-size: 13px; color: var(--muted); }
-    .verdict { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
-      padding: 4px 10px; border-radius: 6px; border: 1.5px solid currentColor; white-space: nowrap; }
-    .verdict.pass { color: var(--pass); background: var(--pass-bg); }
-    .verdict.look { color: var(--look); background: var(--look-bg); }
-    .verdict.scam { color: var(--scam); background: var(--scam-bg); }
-    .verdict.wait, .verdict.closed { color: var(--wait); background: var(--wait-bg); }
-    .save { width: 36px; height: 36px; border-radius: 8px; border: 1px solid transparent; background: transparent;
-      cursor: pointer; color: #8A93A6; display: grid; place-items: center; }
-    .save:hover { border-color: var(--rule); color: var(--ink); }
-    .save[aria-pressed="true"] { color: var(--scam); }
-    .save[aria-pressed="true"] svg { fill: currentColor; }
-
-    .empty { padding: 48px 24px; text-align: center; }
-    .empty h3 { margin: 0; font-size: 18px; }
-    .empty p { margin: 6px 0 16px; color: var(--muted); }
-
-    /* ── Drawer ───────────────────────────────── */
-    .overlay { position: fixed; inset: 0; background: rgba(24, 34, 59, .35); z-index: 50; }
-    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--sheet);
-      display: flex; flex-direction: column; transform: translateX(100%); transition: transform .22s ease-out;
-      box-shadow: -12px 0 40px rgba(24, 34, 59, .18); }
-    .drawer.open { transform: none; }
-    .d-head { display: flex; align-items: flex-start; gap: 12px; padding: 22px 24px 16px; border-bottom: 1px solid var(--rule-soft); }
-    .d-head h2 { margin: 0; font-size: 22px; line-height: 1.2; letter-spacing: -0.015em; }
-    .d-head .co { margin-top: 4px; color: var(--ink-2); font-weight: 600; }
-    .d-head .x { margin-left: auto; flex: none; }
-    .d-body { flex: 1; overflow-y: auto; padding: 18px 24px 24px; }
-    .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--rule-soft);
-      border: 1px solid var(--rule-soft); border-radius: 8px; overflow: hidden; margin: 0; }
-    .facts div { background: var(--sheet); padding: 10px 12px; }
-    .facts dt { font-size: 12px; color: var(--muted); }
-    .facts dd { margin: 2px 0 0; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
-    .d-sec { margin-top: 22px; }
-    .d-sec h4 { margin: 0 0 10px; font-size: 15px; }
-    .check { border: 1.5px solid var(--rule); border-radius: 10px; overflow: hidden; }
-    .check-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; }
-    .check-top b { font-size: 16px; }
-    .check-top .risk { font-size: 13px; color: var(--muted); }
-    .check.pass { border-color: #9BD3BC; } .check.pass .check-top { background: var(--pass-bg); color: var(--pass); }
-    .check.look { border-color: #E9C987; } .check.look .check-top { background: var(--look-bg); color: var(--look); }
-    .check.scam { border-color: #E5A49E; } .check.scam .check-top { background: var(--scam-bg); color: var(--scam); }
-    .check.wait .check-top, .check.closed .check-top { background: var(--wait-bg); color: var(--ink-2); }
-    .steps { list-style: none; margin: 0; padding: 4px 14px 12px; }
-    .steps > li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--rule-soft); }
-    .steps > li:first-child { border-top: 0; }
-    .steps .ic { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; margin-top: 1px; }
-    .ic.ok { background: var(--pass); } .ic.flag { background: #D48A12; } .ic.bad { background: var(--scam); } .ic.skip { background: #A3AABA; }
-    .steps .t { font-weight: 600; font-size: 14px; }
-    .steps .d { font-size: 14px; color: var(--ink-2); }
-    .steps .d q { font-style: italic; }
-    .steps .d ul { margin: 4px 0 0; padding-left: 18px; }
-    .note { margin: 0 14px 12px; padding: 9px 12px; border-radius: 8px; background: var(--look-bg); color: var(--look); font-size: 14px; }
-    .skills { display: flex; flex-wrap: wrap; gap: 6px; }
-    .desc { white-space: pre-line; color: var(--ink-2); font-size: 14px; max-height: 320px; overflow-y: auto;
-      border-left: 3px solid var(--rule-soft); padding-left: 12px; }
-    .d-foot { display: flex; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--rule-soft); }
-    .d-foot .btn-ink { flex: 1; padding: 12px; }
-    .d-src { margin-top: 18px; font-size: 13px; color: var(--muted); }
-
-    /* ── Modal, banner, toasts ────────────────── */
-    .modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(24, 34, 59, .35); }
-    .modal-card { background: var(--sheet); border-radius: 12px; width: min(520px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 22px 24px; }
-    .modal-card h3 { margin: 0; font-size: 19px; }
-    .modal-card > p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
-    fieldset { border: 0; padding: 0; margin: 18px 0 0; }
-    legend { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
-    .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
-    .opt { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 8px; cursor: pointer; font-size: 14px; }
-    .opt:has(input:checked) { border-color: var(--ink); background: #F5F7FB; }
-    .opt input { accent-color: var(--ink); }
-    .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
-    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
-    .modal-actions .btn-ink { flex: 1; }
-
-    #action-banner { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 70; width: min(560px, calc(100% - 32px));
-      background: var(--ink); color: #fff; border-radius: 10px; padding: 14px 16px; display: flex; gap: 14px; align-items: center;
-      box-shadow: 0 12px 30px rgba(24, 34, 59, .3); }
-    #action-banner h4 { margin: 0; font-size: 15px; }
-    #action-banner p { margin: 2px 0 0; font-size: 14px; color: #C9D0E0; }
-    #action-banner > div { flex: 1; }
-
-    #toast-stack { position: fixed; right: 16px; bottom: 16px; z-index: 80; display: flex; flex-direction: column; gap: 8px; width: min(380px, calc(100% - 32px)); }
-    .toast { background: var(--sheet); border: 1px solid var(--rule); border-left: 4px solid var(--wait); border-radius: 8px;
-      padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; box-shadow: 0 10px 28px rgba(24, 34, 59, .16); transition: opacity .3s; }
-    .toast.success { border-left-color: var(--pass); } .toast.error { border-left-color: var(--scam); }
-    .toast b { display: block; font-size: 14px; } .toast span { font-size: 14px; color: var(--ink-2); }
-    .toast div { flex: 1; } .toast button { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; }
-
-    footer { padding: 0 0 40px; color: var(--muted); font-size: 13px; }
-
-    /* ── Small screens ────────────────────────── */
-    @media (max-width: 820px) {
-      .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .stage:nth-child(2) { border-right: 0; }
-      .stage:nth-child(-n+2) { border-bottom: 1px solid var(--rule-soft); }
-      .stage::after { display: none; }
-      .row { grid-template-columns: 4px minmax(0, 1fr) 44px; grid-template-areas: "bar main save" "bar side save"; padding-right: 8px; }
-      .row .bar { grid-area: bar; } .row .main { grid-area: main; } .row .save { grid-area: save; align-self: start; }
-      .row .side { grid-area: side; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 10px; }
-      .pay { text-align: left; } .pay b, .pay span { display: inline; } .pay span::before { content: " · "; }
-      .topbar .brand span, .status #scraper-status-text { display: none; }
-      .filters { position: static; }
-      .filters .wrap { display: grid; grid-template-columns: 1fr 1fr; }
-      .filters .search { grid-column: 1 / -1; }
-      .filters label, .filters .select { width: 100%; min-width: 0; }
-      .pay b { white-space: normal; }
-      .tags .tag:nth-child(n+5) { display: none; }
-      .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* Glassmorphism Frosted Panels with Crisp 14px / 16px Corners */
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 2px 6px -2px rgba(15, 23, 42, 0.02);
+      border-radius: 16px;
     }
-    @media (min-width: 821px) { .row .side { display: contents; } }
-    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+    /* Modern Professional Job Cards (14px radius, clean shadow) */
+    .glass-card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.04), 0 2px 4px -1px rgba(15, 23, 42, 0.02);
+      border-radius: 14px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .glass-card:hover {
+      transform: translateY(-3px);
+      border-color: #CBD5E1;
+      box-shadow: 0 16px 32px -8px rgba(15, 23, 42, 0.08), 0 4px 8px -2px rgba(15, 23, 42, 0.03);
+    }
+
+    /* Flat Avatar Graphic Box (Corporate logo wrapper) */
+    .company-logo-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #E2E8F0;
+      background: #FFFFFF;
+      box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+      flex-shrink: 0;
+    }
+
+    /* Translucent Interactive Buttons */
+    .glass-btn {
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+      box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+      transition: all 0.16s ease;
+    }
+    .glass-btn:hover {
+      background: #F8FAFC;
+      border-color: #94A3B8;
+      color: #0F172A;
+    }
+    .glass-btn:active {
+      background: #F1F5F9;
+    }
+
+    .glass-btn-primary {
+      background: #0F172A;
+      color: #FFFFFF;
+      border: 1px solid #0F172A;
+      box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.25);
+    }
+    .glass-btn-primary:hover {
+      background: #1E293B;
+      color: #FFFFFF;
+      border-color: #1E293B;
+    }
+
+    /* Filter Select Dropdowns */
+    .filter-select {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 9px;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.15s ease;
+    }
+    .filter-select:hover {
+      border-color: #CBD5E1;
+      background: #F8FAFC;
+    }
+    .filter-select:focus {
+      border-color: #F97316;
+      box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+    }
+
+    /* Segmented Control Pill Group (Apple iOS style) */
+    .pill-segmented-group {
+      background: #F1F5F9;
+      padding: 3px;
+      border-radius: 10px;
+      display: inline-flex;
+      gap: 2px;
+      border: 1px solid #E2E8F0;
+    }
+
+    .pill-segmented-item {
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748B;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .pill-segmented-item:hover {
+      color: #0F172A;
+    }
+    .pill-segmented-item.active {
+      background: #FFFFFF;
+      color: #0F172A;
+      box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
+    }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.6); }
   </style>
 </head>
-<body>
 
-  <div id="action-banner" class="hidden" role="alert">
-    <div>
-      <h4 id="action-title">Action needed</h4>
-      <p id="action-message">A site needs you in its browser window.</p>
+<body class="min-h-screen text-[#0F172A] flex flex-col relative antialiased selection:bg-orange-500 selection:text-white">
+
+  <!-- Interactive 3D Flat Geometric Mesh Background Canvas -->
+  <canvas id="topo-radar-canvas" class="fixed inset-0 pointer-events-none z-0 opacity-45"></canvas>
+
+  <!-- Translucent Notification Banner -->
+  <div id="action-banner" class="hidden fixed top-6 right-6 z-50 max-w-sm w-full glass-panel p-4 shadow-xl border-l-4 border-l-orange-500">
+    <div class="flex items-start gap-3">
+      <div class="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-sm shrink-0">
+        <i class="ph ph-bell-ringing font-bold"></i>
+      </div>
+      <div class="flex-1">
+        <h4 id="action-title" class="font-bold text-xs uppercase tracking-wide text-slate-800">Notification</h4>
+        <p id="action-message" class="text-xs text-slate-600 mt-0.5 font-medium leading-relaxed">Action required in browser window.</p>
+      </div>
+      <button id="action-dismiss-btn" class="glass-btn px-3 py-1.5 text-xs text-slate-700">
+        Dismiss
+      </button>
     </div>
-    <button id="action-dismiss-btn" class="btn btn-light" type="button">Done</button>
   </div>
 
-  <header class="topbar">
-    <div class="wrap">
-      <a class="brand" href="/" aria-label="InReal home"><b>In<i>Real</i></b><span>Scam-checked AI/ML internships</span></a>
-      <div class="spacer"></div>
-      <div id="status-indicator-pill" class="status" aria-live="polite">
-        <span id="ping-dot" class="dot"></span><span id="scraper-status-text">Ready</span>
+  <!-- Corporate Header with Clear Value Proposition & Actions -->
+  <header class="sticky top-0 z-30 w-full bg-white/85 backdrop-blur-xl border-b border-slate-200/80 shadow-xs">
+    <div class="max-w-7xl mx-auto px-6 h-18 py-3.5 flex items-center justify-between gap-4">
+      
+      <!-- Brand & Sharp Corporate Subline -->
+      <div class="flex items-center gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-slate-900 shadow-sm flex items-center justify-center text-white">
+          <i class="ph ph-cpu text-xl font-bold text-orange-400"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xl font-extrabold tracking-tight text-slate-900">InReal</span>
+            <span class="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[11px] font-bold">Talent Radar</span>
+          </div>
+          <div class="text-[12px] text-slate-500 font-medium hidden sm:block">
+            Direct endpoints and lab-verified fellowships for students entering frontier tech.
+          </div>
+        </div>
       </div>
-      <button id="trigger-scrape-btn" class="btn btn-light" type="button">Scrape sites</button>
+
+      <!-- Header Action Buttons (Browse Openings & Submit an Opportunity) -->
+      <div class="flex items-center gap-3">
+        <!-- Live System Status Dot -->
+        <div id="status-indicator-pill" class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600">
+          <span id="ping-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span id="scraper-status-text" class="text-[11px]">System Ready</span>
+        </div>
+
+        <!-- Secondary Outlined Button -->
+        <a href="#listings-container" class="glass-btn px-4 py-2 flex items-center gap-1.5 text-slate-700 hover:text-slate-900">
+          <i class="ph ph-list-magnifying-glass text-base"></i>
+          <span>Browse Openings</span>
+        </a>
+
+        <!-- Primary Accent Action Button -->
+        <button id="trigger-scrape-btn" class="glass-btn glass-btn-primary px-4 py-2 flex items-center gap-1.5">
+          <i class="ph ph-paper-plane-tilt text-base text-orange-400"></i>
+          <span>Submit an Opportunity</span>
+        </button>
+      </div>
     </div>
   </header>
 
-  <main>
-    <section class="intro wrap" aria-labelledby="intro-title">
-      <h1 id="intro-title">AI and ML internships, checked for scams before you see them.</h1>
-      <p>We collect internship posts from Indian job sites and check each one in three steps: the apply link and contact details,
-        how close its wording is to known scam posts, and an AI reviewer that has to quote the post to back up its verdict.</p>
+  <!-- Main Content Layout -->
+  <main class="relative z-10 max-w-7xl mx-auto px-6 py-6 flex-1 w-full flex flex-col gap-6">
 
-      <div class="pipeline" role="group" aria-label="Scam check results. Choose one to filter the list.">
-        <button class="stage" type="button" data-show="all"><span class="n" id="pipe-all">0</span><span class="l">Collected</span><span class="s">from <span id="pipe-sites">0</span> sites</span></button>
-        <button class="stage pass" type="button" data-show="verified"><span class="n" id="pipe-pass">0</span><span class="l">Passed the check</span><span class="s">shown by default</span></button>
-        <button class="stage look" type="button" data-show="review"><span class="n" id="pipe-look">0</span><span class="l">Need a closer look</span><span class="s">mixed signals</span></button>
-        <button class="stage scam" type="button" data-show="blocked"><span class="n" id="pipe-scam">0</span><span class="l">Likely scams</span><span class="s">hidden from the list</span></button>
+    <!-- Hero Section: Flat Illustration of People & Community Mission -->
+    <section class="glass-panel p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden bg-gradient-to-r from-amber-50/80 via-white/90 to-orange-50/80 border border-slate-200/80">
+      
+      <!-- Left: Headline & Community Story -->
+      <div class="flex-1 z-10">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-100 border border-orange-200 text-orange-800 text-xs font-bold mb-3.5">
+          <span class="w-2 h-2 rounded-full bg-orange-600 animate-pulse"></span>
+          Lab-Verified Fellowships & Residencies
+        </div>
+        <h1 class="text-2xl md:text-3xl lg:text-4xl font-extrabold text-slate-900 leading-tight tracking-tight">
+          Where Next-Gen Builders Find Their Breakthrough.
+        </h1>
+        <p class="text-sm md:text-base text-slate-600 mt-2.5 max-w-xl font-medium leading-relaxed">
+          Aggregating top internships across Google DeepMind, Anthropic, Figure AI, Tesla Autopilot, and leading robotics institutes with transparent stipends and direct application links.
+        </p>
+
+        <!-- People Flat Avatars & Social Proof Block -->
+        <div class="flex flex-wrap items-center gap-4 mt-6">
+          <div class="flex -space-x-2 overflow-hidden p-0.5">
+            <div class="w-9 h-9 rounded-full bg-[#EF4444] border-2 border-white flex items-center justify-center text-white font-bold text-xs shadow-xs" title="Researcher">
+              <svg viewBox="0 0 36 36" class="w-6 h-6" fill="currentColor"><circle cx="18" cy="12" r="7"/><path d="M18 21c-6 0-11 3.5-11 8v2h22v-2c0-4.5-5-8-11-8z"/></svg>
+            </div>
+            <div class="w-9 h-9 rounded-full bg-[#06B6D4] border-2 border-white flex items-center justify-center text-white font-bold text-xs shadow-xs" title="Robotics Engineer">
+              <svg viewBox="0 0 36 36" class="w-6 h-6" fill="currentColor"><circle cx="18" cy="12" r="7"/><path d="M18 21c-6 0-11 3.5-11 8v2h22v-2c0-4.5-5-8-11-8z"/></svg>
+            </div>
+            <div class="w-9 h-9 rounded-full bg-[#F59E0B] border-2 border-white flex items-center justify-center text-white font-bold text-xs shadow-xs" title="AI Fellow">
+              <svg viewBox="0 0 36 36" class="w-6 h-6" fill="currentColor"><circle cx="18" cy="12" r="7"/><path d="M18 21c-6 0-11 3.5-11 8v2h22v-2c0-4.5-5-8-11-8z"/></svg>
+            </div>
+            <div class="w-9 h-9 rounded-full bg-[#10B981] border-2 border-white flex items-center justify-center text-white font-bold text-xs shadow-xs" title="Hardware Lead">
+              <svg viewBox="0 0 36 36" class="w-6 h-6" fill="currentColor"><circle cx="18" cy="12" r="7"/><path d="M18 21c-6 0-11 3.5-11 8v2h22v-2c0-4.5-5-8-11-8z"/></svg>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-900">4,800+ Students & Engineers</div>
+            <div class="text-[11px] text-slate-500 font-medium">Tracking verified lab openings weekly</div>
+          </div>
+        </div>
       </div>
-      <div class="pipe-note" id="pipe-note"></div>
+
+      <!-- Right: User-Provided Flat Illustration Image Card -->
+      <div class="shrink-0 z-10 w-full md:w-80 lg:w-92">
+        <div class="relative rounded-2xl overflow-hidden border-2 border-slate-900 shadow-[5px_5px_0px_#0F172A] bg-amber-400">
+          <img 
+            src="{{ url_for('static', filename='hero_team.png') }}" 
+            alt="Flat Illustration Team of Students & Engineers" 
+            class="w-full h-auto object-cover object-center"
+          >
+          <div class="absolute bottom-2.5 left-2.5 right-2.5 p-2 bg-white/95 backdrop-blur-md rounded-lg border border-slate-900/30 flex items-center justify-between text-xs font-bold text-slate-900">
+            <span class="flex items-center gap-1.5"><i class="ph ph-heart-fill text-rose-500"></i> Open Community</span>
+            <span class="text-orange-600 font-extrabold">100% Free</span>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <div class="filters">
-      <div class="wrap">
-        <label class="search">
-          <span class="sr-only">Search</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-          <input type="search" id="search-input" placeholder="Search role, company or skill, e.g. Python, NLP" autocomplete="off">
-        </label>
-        <label><span class="sr-only">Show</span>
-          <select id="mod-filter" class="select">
-            <option value="verified">Passed the check</option>
-            <option value="verified_review">Passed or need a look</option>
-            <option value="review">Need a closer look</option>
-            <option value="blocked">Likely scams</option>
-            <option value="all">Everything collected</option>
-          </select>
-        </label>
-        <label><span class="sr-only">Site</span>
-          <select id="source-filter" class="select"><option value="all">All sites</option></select>
-        </label>
-        <label><span class="sr-only">Where</span>
-          <select id="location-select-filter" class="select">
-            <option value="all">India and remote</option>
-            <option value="India">In India</option>
-            <option value="Remote">Remote</option>
-            <option value="International">Abroad</option>
-          </select>
-        </label>
-        <label><span class="sr-only">Stipend</span>
-          <select id="stipend-select-filter" class="select">
-            <option value="all">Any stipend</option>
-            <option value="paid">Paid</option>
-            <option value="20k">₹20,000+ a month</option>
-            <option value="50k">₹50,000+ a month</option>
-            <option value="100k">₹1,00,000+ a month</option>
-          </select>
-        </label>
-      </div>
-    </div>
-
-    <div class="wrap">
-      <div class="summary" aria-live="polite">
-        <span><strong id="stat-total-jobs">0</strong> internships</span>
-        <span><span id="stat-paid-jobs">0</span> paid</span>
-        <span><span id="stat-new-jobs">0</span> added today</span>
-        <span id="mod-queue" class="queue"></span>
-        <span class="grow"></span>
-        <button id="filter-bookmarks-btn" class="btn" type="button" aria-pressed="false"><span>Saved (<span id="bookmark-count">0</span>)</span></button>
-        <button id="reset-filters-btn" class="btn btn-quiet" type="button">Reset filters</button>
-      </div>
-
-      <div class="list">
-        <div id="listings-container"></div>
-        <div id="empty-state" class="empty hidden">
-          <h3>No internships match these filters</h3>
-          <p>Try another site or stipend, or clear the search.</p>
-          <button id="empty-reset-btn" class="btn" type="button">Reset filters</button>
+    <!-- Visual Feature Highlights: Scalable SVG Illustrations -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      
+      <!-- Feature Card 1: Mentorship, Verification & Interview Prep (SVG) -->
+      <div class="glass-card p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-5 relative overflow-hidden bg-white">
+        <div class="w-full sm:w-44 shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-1">
+          <img 
+            src="{{ url_for('static', filename='illustration_interview.svg') }}" 
+            alt="Flat Illustration of Mentorship and Interview Match" 
+            class="w-full h-auto object-contain"
+          >
+        </div>
+        <div class="flex-1">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200 mb-2">
+            <i class="ph ph-shield-check text-emerald-600"></i> Direct Verification
+          </div>
+          <h3 class="text-base font-bold text-slate-900 leading-snug">Vetted by Engineers & Lab Mentors</h3>
+          <p class="text-xs text-slate-600 mt-1.5 font-medium leading-relaxed">
+            Every posted opportunity is parsed directly from career endpoints and official job boards with exact compensation and deadline dates.
+          </p>
         </div>
       </div>
-    </div>
+
+      <!-- Feature Card 2: Remote & Distributed Research Collaboration (SVG) -->
+      <div class="glass-card p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-5 relative overflow-hidden bg-white">
+        <div class="w-full sm:w-44 shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-1">
+          <img 
+            src="{{ url_for('static', filename='illustration_remote.svg') }}" 
+            alt="Flat Illustration of Remote Robotics Tele-operation & Research" 
+            class="w-full h-auto object-contain"
+          >
+        </div>
+        <div class="flex-1">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200 mb-2">
+            <i class="ph ph-globe text-blue-600"></i> Distributed & Global
+          </div>
+          <h3 class="text-base font-bold text-slate-900 leading-snug">Global & Remote Friendly</h3>
+          <p class="text-xs text-slate-600 mt-1.5 font-medium leading-relaxed">
+            Filter easily for remote research fellowships, high-stipend internships, and international visa sponsorship options.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Translucent Overview Metric Cards -->
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="glass-card p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Positions</span>
+          <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+            <i class="ph ph-database text-lg"></i>
+          </div>
+        </div>
+        <div class="text-3xl font-extrabold text-slate-900 tracking-tight" id="stat-total-jobs">0</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">Active indexed openings</div>
+      </div>
+
+      <div class="glass-card p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">New This Cycle</span>
+          <div class="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center font-bold">
+            <i class="ph ph-sparkle text-lg"></i>
+          </div>
+        </div>
+        <div class="text-3xl font-extrabold text-orange-600 tracking-tight" id="stat-new-jobs">0</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">Fresh telemetry sweeps</div>
+      </div>
+
+      <div class="glass-card p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Funded Roles</span>
+          <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+            <i class="ph ph-currency-circle-dollar text-lg"></i>
+          </div>
+        </div>
+        <div class="text-3xl font-extrabold text-emerald-600 tracking-tight" id="stat-paid-jobs">0</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">Verified competitive stipend</div>
+      </div>
+
+      <div class="glass-card p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tracked Sources</span>
+          <div class="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+            <i class="ph ph-rss text-lg"></i>
+          </div>
+        </div>
+        <div class="text-3xl font-extrabold text-slate-900 tracking-tight">16+</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">Global AI & robotics portals</div>
+      </div>
+    </section>
+
+    <!-- Professional Corporate Filter Bar Directly Above Job Cards -->
+    <section class="glass-panel p-5 flex flex-col gap-4">
+      
+      <!-- Top Row: Search Input + Clean Dropdowns -->
+      <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+        
+        <!-- Search Input -->
+        <div class="relative flex-1">
+          <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base"></i>
+          <input 
+            type="text" 
+            id="search-input" 
+            placeholder="Search by role, company (Anthropic, DeepMind, MPI), or tech stack (PyTorch, ROS, CUDA)..." 
+            class="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-14 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400/20 transition font-medium"
+          >
+          <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded font-semibold hidden sm:inline">⌘K</span>
+        </div>
+
+        <!-- Corporate Filter Dropdowns: Role Type, Location, Min. Stipend, Source -->
+        <div class="flex flex-wrap items-center gap-2">
+          
+          <!-- Dropdown 1: Role Type -->
+          <select id="role-type-filter" class="filter-select">
+            <option value="all">Role: All Types</option>
+            <option value="research">Research</option>
+            <option value="applied">Applied / Eng</option>
+            <option value="fellow">Fellowship</option>
+          </select>
+
+          <!-- Dropdown 2: Location / Remote -->
+          <select id="location-select-filter" class="filter-select">
+            <option value="all">Location: All</option>
+            <option value="India">India</option>
+            <option value="Remote">Remote</option>
+            <option value="International">International</option>
+          </select>
+
+          <!-- Dropdown 3: Min. Stipend -->
+          <select id="stipend-select-filter" class="filter-select">
+            <option value="all">Min. Stipend: Any</option>
+            <option value="paid">Paid Only</option>
+            <option value="20k">&gt; ₹20,000 / mo</option>
+            <option value="50k">&gt; ₹50,000 / mo</option>
+            <option value="100k">&gt; ₹1,00,000 / mo</option>
+          </select>
+
+          <!-- Scam check verdict from the n8n moderation workflow -->
+          <select id="mod-filter" class="filter-select" title="Scam check by the n8n pipeline">
+            <option value="verified">Verified only</option>
+            <option value="verified_review">Verified + needs a look</option>
+            <option value="hide_blocked">All except likely scams</option>
+            <option value="blocked">Only likely scams</option>
+            <option value="all">Everything</option>
+          </select>
+
+          <!-- Dropdown 4: Source Platform -->
+          <select id="source-filter" class="filter-select">
+            <option value="all">Source: All</option>
+          </select>
+
+          <span id="mod-queue" class="text-[11px] font-semibold text-amber-600"></span>
+
+          <!-- Saved Bookmarks Button -->
+          <button id="filter-bookmarks-btn" class="glass-btn px-3 py-2 flex items-center gap-1.5 text-slate-700">
+            <i class="ph ph-bookmark-simple text-base text-rose-500"></i>
+            <span>Saved (<span id="bookmark-count">0</span>)</span>
+          </button>
+
+          <!-- Reset Filter Button -->
+          <button id="reset-filters-btn" class="glass-btn px-3 py-2 flex items-center gap-1 text-slate-600 hover:text-slate-900" title="Reset all filters">
+            <i class="ph ph-arrow-counter-clockwise text-sm"></i>
+            <span>Reset</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Segmented Shortcuts -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
+        <!-- Region Switches -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wide mr-1">Region:</span>
+          <div class="pill-segmented-group" id="location-tabs">
+            <button class="pill-segmented-item active" data-val="all">All (<span id="count-all">0</span>)</button>
+            <button class="pill-segmented-item" data-val="India">India (<span id="count-india">0</span>)</button>
+            <button class="pill-segmented-item" data-val="Remote">Remote (<span id="count-remote">0</span>)</button>
+            <button class="pill-segmented-item" data-val="International">Global (<span id="count-global">0</span>)</button>
+          </div>
+        </div>
+
+        <!-- Stipend Threshold Rockers -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wide mr-1">Stipend:</span>
+          <div class="pill-segmented-group" id="stipend-filters">
+            <button class="pill-segmented-item active" data-val="all">Any</button>
+            <button class="pill-segmented-item" data-val="paid">Paid Only</button>
+            <button class="pill-segmented-item" data-val="20k">&gt; ₹20k</button>
+            <button class="pill-segmented-item" data-val="50k">&gt; ₹50k</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Translucent Card Grid Section -->
+    <section class="w-full">
+      <div id="listings-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <!-- Injected via JavaScript with Real Logos & Corporate Polish -->
+      </div>
+
+      <!-- Empty State with Flat Envelope SVG Illustration -->
+      <div id="empty-state" class="hidden glass-panel p-10 text-center flex-col items-center justify-center">
+        <div class="w-28 h-28 mx-auto mb-3">
+          <img 
+            src="{{ url_for('static', filename='illustration_envelope.svg') }}" 
+            alt="Flat Illustration of Empty Search Mail" 
+            class="w-full h-full object-contain"
+          >
+        </div>
+        <h3 class="text-base font-bold text-slate-900">No Matching Opportunities Found</h3>
+        <p class="text-xs text-slate-500 mt-1 max-w-sm font-medium">Try broadening your search keywords or resetting region and stipend filters.</p>
+        <button id="empty-reset-btn" class="mt-4 glass-btn px-4 py-2 text-xs text-slate-800">Clear All Filters</button>
+      </div>
+    </section>
   </main>
 
-  <footer class="wrap">
-    InReal lists posts from public job sites and links to the original post. A passed check means we found no warning signs, not that the employer is endorsed. Always apply through the official site and never pay to get an internship.
-  </footer>
-
-  <div id="detail-drawer-overlay" class="overlay hidden">
-    <aside id="detail-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-role-title">
-      <div class="d-head">
-        <div>
-          <h2 id="drawer-role-title">Role</h2>
-          <div id="drawer-company-name" class="co">Company</div>
+  <!-- Translucent Slide-Over Detail Drawer -->
+  <div id="detail-drawer-overlay" class="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 hidden transition-opacity duration-200">
+    <div id="detail-drawer" class="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white border-l border-slate-200 p-6 shadow-2xl flex flex-col transform translate-x-full transition-transform duration-200 ease-out overflow-y-auto">
+      
+      <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+        <div class="flex items-center gap-2">
+          <span id="drawer-match-badge" class="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md text-xs font-bold">98% Match</span>
+          <span id="drawer-org-badge" class="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-bold">Company</span>
         </div>
-        <button id="close-drawer-btn" class="btn btn-quiet x" type="button" aria-label="Close">✕</button>
+        <button id="close-drawer-btn" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">
+          <i class="ph ph-x text-base"></i>
+        </button>
       </div>
-      <div class="d-body">
-        <dl class="facts">
-          <div><dt>Stipend</dt><dd id="drawer-stipend">–</dd></div>
-          <div><dt>Duration</dt><dd id="drawer-duration">–</dd></div>
-          <div><dt>Apply by</dt><dd id="drawer-deadline">–</dd></div>
-          <div><dt>Location</dt><dd id="drawer-location">–</dd></div>
-          <div><dt>Site</dt><dd id="drawer-source">–</dd></div>
-          <div><dt>Employer type</dt><dd id="drawer-org-badge">–</dd></div>
-        </dl>
 
-        <section class="d-sec" aria-labelledby="check-h">
-          <h4 id="check-h">Scam check</h4>
-          <div id="drawer-mod-box" class="check wait">
-            <div class="check-top"><b id="drawer-mod-title">Not checked yet</b><span class="risk" id="drawer-mod-risk"></span></div>
-            <div id="drawer-mod-note" class="note hidden"></div>
-            <ul id="drawer-mod-reasons" class="steps"></ul>
+      <div class="py-5 flex-1 flex flex-col gap-5">
+        <div>
+          <h2 id="drawer-role-title" class="text-xl font-bold leading-snug text-slate-900 tracking-tight">Role Title</h2>
+          <div id="drawer-company-name" class="text-sm font-bold text-slate-700 mt-1">Company Name</div>
+          <div class="flex items-center gap-4 text-xs text-slate-500 mt-3 font-medium">
+            <span class="flex items-center gap-1.5"><i class="ph ph-map-pin text-slate-400"></i> <span id="drawer-location">Location</span></span>
+            <span class="flex items-center gap-1.5"><i class="ph ph-clock text-slate-400"></i> <span id="drawer-duration">Duration</span></span>
           </div>
-        </section>
+        </div>
 
-        <section class="d-sec" id="drawer-skills-box">
-          <h4>Skills asked for</h4>
-          <div id="drawer-skills-list" class="skills"></div>
-        </section>
+        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div>
+            <div class="text-[11px] text-slate-500 uppercase font-bold tracking-wide">Compensation</div>
+            <div id="drawer-stipend" class="text-base font-extrabold text-slate-900 mt-0.5">-</div>
+          </div>
+          <div class="text-right">
+            <div class="text-[11px] text-slate-500 uppercase font-bold tracking-wide">Deadline</div>
+            <div id="drawer-deadline" class="text-xs font-bold text-slate-800 mt-0.5">Rolling</div>
+          </div>
+        </div>
 
-        <section id="drawer-desc-box" class="d-sec hidden">
-          <h4>About the internship</h4>
-          <p id="drawer-description" class="desc"></p>
-        </section>
+        <div>
+          <h4 class="text-xs uppercase font-bold text-slate-700 mb-2.5">Skills & Qualifications</h4>
+          <div id="drawer-skills-list" class="flex flex-wrap gap-1.5"></div>
+        </div>
 
-        <div class="d-src">Found on <span id="drawer-date">–</span>.</div>
+        <div id="drawer-mod-box" class="hidden p-3 rounded-lg border text-xs">
+          <div class="font-bold flex items-center gap-1.5 mb-1"><i class="ph ph-robot text-base"></i> <span id="drawer-mod-title">Scam check</span></div>
+          <ul id="drawer-mod-reasons" class="list-disc pl-4 space-y-0.5 text-[11px] leading-relaxed"></ul>
+        </div>
+
+        <div id="drawer-desc-box" class="hidden">
+          <h4 class="text-xs uppercase font-bold text-slate-700 mb-2">About the internship</h4>
+          <p id="drawer-description" class="text-xs text-slate-600 leading-relaxed whitespace-pre-line max-h-64 overflow-y-auto"></p>
+        </div>
+
+        <div id="drawer-trust-box" class="hidden p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+          <div class="font-bold flex items-center gap-1.5 mb-0.5 text-amber-900">
+            <i class="ph ph-shield-warning text-base text-amber-600"></i> Trust & Verification Notice
+          </div>
+          <ul id="drawer-trust-flags" class="list-disc pl-4 font-medium text-[11px] leading-relaxed"></ul>
+        </div>
+
+        <div class="text-xs text-slate-500 border-t border-slate-200 pt-4 space-y-1 font-medium">
+          <div>Source Platform: <span id="drawer-source" class="font-bold text-slate-700">Portal</span></div>
+          <div>Scraped: <span id="drawer-date" class="font-bold text-slate-700">-</span></div>
+        </div>
       </div>
-      <div class="d-foot">
-        <button id="drawer-bookmark-btn" class="btn" type="button" aria-pressed="false">Save</button>
-        <a id="drawer-apply-link" class="btn btn-ink" href="#" target="_blank" rel="noopener noreferrer">Apply on the original site</a>
+
+      <div class="pt-4 border-t border-slate-200 flex items-center gap-3">
+        <button id="drawer-bookmark-btn" class="p-3 glass-btn">
+          <i class="ph ph-bookmark text-base text-rose-500"></i>
+        </button>
+        <a id="drawer-apply-link" href="#" target="_blank" rel="noopener noreferrer" class="flex-1 py-3 glass-btn glass-btn-primary text-center text-xs font-bold flex items-center justify-center gap-1.5">
+          <span>Apply on Official Portal</span>
+          <i class="ph ph-arrow-up-right text-xs"></i>
+        </a>
       </div>
-    </aside>
+    </div>
   </div>
 
-  <div id="scrape-config-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="scrape-h">
-    <form id="scrape-config-form" class="modal-card">
-      <h3 id="scrape-h">Scrape sites</h3>
-      <p>New posts are saved and then checked for scams. They show up in the list once they pass.</p>
-      <fieldset>
-        <legend>Sites</legend>
-        <div class="opts">
-          <label class="opt"><input type="checkbox" name="sources" value="internshala" checked> Internshala</label>
-          <label class="opt"><input type="checkbox" name="sources" value="unstop" checked> Unstop</label>
-          <label class="opt"><input type="checkbox" name="sources" value="naukri" checked> Naukri</label>
-          <label class="opt"><input type="checkbox" name="sources" value="linkedin" checked> LinkedIn</label>
-          <label class="opt"><input type="checkbox" name="sources" value="shine" checked> Shine</label>
-          <label class="opt"><input type="checkbox" name="sources" value="foundit" checked> Foundit</label>
-          <label class="opt"><input type="checkbox" name="sources" value="apna" checked> Apna</label>
-          <label class="opt"><input type="checkbox" name="sources" value="government" checked> AICTE (Govt)</label>
+  <!-- Translucent Scraper Config Modal (Replaced button trigger: Submit an Opportunity) -->
+  <div id="scrape-config-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-panel max-w-md w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+        <div>
+          <h3 class="text-sm font-bold text-slate-900">Submit an Opportunity / Sweep Feeds</h3>
+          <p class="text-[11px] text-slate-500">Configure target platforms and regions for opportunity discovery</p>
         </div>
-        <p class="hint">Naukri and Foundit open a Chrome window. If a check page appears, solve it there and keep the window open.</p>
-      </fieldset>
-      <fieldset>
-        <legend>LinkedIn regions</legend>
-        <div class="opts">
-          <label class="opt"><input type="checkbox" name="regions" value="india" checked> India</label>
-          <label class="opt"><input type="checkbox" name="regions" value="remote" checked> Remote</label>
-          <label class="opt"><input type="checkbox" name="regions" value="usa"> USA</label>
-          <label class="opt"><input type="checkbox" name="regions" value="europe"> Europe</label>
-          <label class="opt"><input type="checkbox" name="regions" value="worldwide"> Worldwide</label>
-        </div>
-      </fieldset>
-      <details style="margin-top:16px">
-        <summary style="cursor:pointer;font-size:14px;color:var(--muted)">Sites still in testing</summary>
-        <div class="opts" style="margin-top:8px">
-          <label class="opt"><input type="checkbox" name="sources" value="cutshort"> Cutshort</label>
-          <label class="opt"><input type="checkbox" name="sources" value="remotive"> Remote job boards</label>
-          <label class="opt"><input type="checkbox" name="sources" value="universities"> University pages</label>
-        </div>
-      </details>
-      <div class="modal-actions">
-        <button id="close-config-btn" class="btn" type="button">Cancel</button>
-        <button class="btn btn-ink" type="submit">Start scraping</button>
+        <button id="close-config-btn" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500">
+          <i class="ph ph-x text-base"></i>
+        </button>
       </div>
-    </form>
+
+      <form id="scrape-config-form" class="mt-4 space-y-4 text-xs font-medium">
+        <div>
+          <label class="font-bold text-slate-700 block mb-2">Target Geographic Regions</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="regions" value="india" checked> India</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="regions" value="usa" checked> USA</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="regions" value="europe" checked> Europe</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="regions" value="remote" checked> Remote</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="regions" value="worldwide" checked> Global</label>
+          </div>
+        </div>
+
+        <div>
+          <label class="font-bold text-slate-700 block mb-2">Upgraded &amp; tested platforms</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="internshala" checked> Internshala</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="unstop" checked> Unstop</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="naukri" checked> Naukri</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="linkedin" checked> LinkedIn</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="shine" checked> Shine</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="foundit" checked> Foundit</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="apna" checked> Apna</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="government" checked> Govt (AICTE)</label>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1.5">Naukri and Foundit open a Chrome window; if a check appears, solve it there.</p>
+        </div>
+
+        <div>
+          <label class="font-bold text-slate-700 block mb-2">Not upgraded yet</label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="cutshort"> Cutshort</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="remotive"> Remote boards</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="universities"> Academic search</label>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full py-2.5 glass-btn glass-btn-primary text-xs font-bold transition mt-2">
+          Launch Opportunity Sweep
+        </button>
+      </form>
+    </div>
   </div>
 
   <script src="{{ url_for('static', filename='app_radar.js') }}"></script>
