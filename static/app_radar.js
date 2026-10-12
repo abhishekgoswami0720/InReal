@@ -765,6 +765,7 @@ function isNewToday(item) {
 // ==========================================
 const MOD_VIEWS = {
   '':        { label: 'Scam check pending', chip: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-400', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-hourglass' },
+  held:      { label: 'Scraped, waiting for Load more', chip: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-300', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-tray' },
   checking:  { label: 'Being checked by n8n', chip: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-400', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-hourglass' },
   approved:  { label: 'Verified by scam check', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', box: 'bg-emerald-50 border-emerald-200 text-emerald-800', icon: 'ph-shield-check' },
   review:    { label: 'Needs a human look', chip: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500', box: 'bg-amber-50 border-amber-200 text-amber-800', icon: 'ph-eye' },
@@ -774,7 +775,7 @@ const MOD_VIEWS = {
 
 function moderationChip(item) {
   const v = MOD_VIEWS[item.moderation_status || ''] || MOD_VIEWS[''];
-  const short = { approved: 'VERIFIED', review: 'CHECK', blocked: 'SCAM?', expired: 'CLOSED', checking: 'CHECKING', '': 'PENDING' }[item.moderation_status || ''] || 'PENDING';
+  const short = { approved: 'VERIFIED', review: 'CHECK', blocked: 'SCAM?', expired: 'CLOSED', checking: 'CHECKING', held: 'QUEUED', '': 'PENDING' }[item.moderation_status || ''] || 'PENDING';
   return `<span class="px-1.5 py-0.2 font-bold border rounded text-[10px] ml-1 flex items-center gap-0.5 ${v.chip}" title="${escapeHtml(v.label)}"><i class="ph ${v.icon}"></i> ${short}</span>`;
 }
 
@@ -790,6 +791,7 @@ async function pollModeration() {
   try {
     const c = await fetch('/api/moderation/status').then(r => r.json());
     lastModCounts = c;
+    updateHeldUI(c);
     const judged = c.approved + c.review + c.blocked + c.expired;
     const waiting = c.pending + c.checking;
     const q = document.getElementById('mod-queue');
@@ -1019,7 +1021,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 // 12. Small batches: first search ~30 new internships, "Search more" for the next batch
 // ==========================================
-const FIRST_BATCH = 30;
+const FIRST_BATCH = 120;   // a search saves up to this many; only 5 at a time go to the scam check
 
 function setSearchMoreBusy(busy) {
   const btn = document.getElementById('search-more-btn');
@@ -1106,9 +1108,12 @@ function renderScanPanel(progress, isRunning) {
   const total = progress.sites.reduce((n, s) => n + (s.added || 0), 0);
   if (progress.sites.length && total && lastModCounts) {
     const left = lastModCounts.pending + lastModCounts.checking;
+    const waiting = lastModCounts.held ? ` ${lastModCounts.held} more saved: use "Load 5 more" under the list.` : '';
     check.innerHTML = left
-      ? `<span class="flex items-center gap-2 text-amber-700"><i class="ph ph-shield-checkered text-base"></i> Scam check: ${left} left. Verified ones appear in the list as they pass.</span>`
-      : `<span class="flex items-center gap-2 text-emerald-700"><i class="ph ph-shield-check text-base"></i> Scam check done. ${total} new internship${total > 1 ? 's' : ''} checked.</span>`;
+      ? `<span class="flex items-start gap-2 text-amber-700"><i class="ph ph-shield-checkered text-base"></i> Scam check: ${left} being checked now.${waiting}</span>`
+      : (lastModCounts.held
+          ? `<span class="flex items-start gap-2 text-slate-700"><i class="ph ph-tray text-base"></i> ${lastModCounts.held} internships scraped and saved. Click "Load 5 more" under the list to scam-check the next 5.</span>`
+          : `<span class="flex items-start gap-2 text-emerald-700"><i class="ph ph-shield-check text-base"></i> All checked.</span>`);
     check.classList.remove('hidden');
   } else if (finished && !total) {
     check.innerHTML = '<span class="text-slate-500">No new internships this time. Try more sites or another field.</span>';
@@ -1141,3 +1146,38 @@ function announceNewlyVerified(rows) {
   }
   verifiedSeen = ids;
 }
+
+
+// ==========================================
+// 15. Load more: release the next 5 scraped internships to the scam check
+// ==========================================
+let loadMoreBusy = false;
+function updateHeldUI(c) {
+  const held = (c && c.held) || 0;
+  const n = document.getElementById('held-count');
+  if (n) n.textContent = held;
+  const btn = document.getElementById('load-more-btn');
+  if (!btn) return;
+  const inFlight = (c.pending || 0) + (c.checking || 0);
+  if (loadMoreBusy && inFlight === 0) loadMoreBusy = false;   // the 5 have been judged
+  const label = btn.querySelector('span');
+  btn.disabled = loadMoreBusy || held === 0;
+  btn.classList.toggle('opacity-60', btn.disabled);
+  label.textContent = loadMoreBusy ? `Checking ${inFlight}…` : (held ? 'Load 5 more' : 'Nothing waiting');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('load-more-btn')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/moderation/load-more', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ count: 5 }) });
+      if (res.status === 403) { showToast('info', 'View-only link', 'Load more works on the host laptop.'); return; }
+      const d = await res.json();
+      if (!d.released) { showToast('info', 'Nothing waiting', 'Use "Search more" to scrape the sites again.'); return; }
+      loadMoreBusy = true;
+      updateHeldUI({ held: d.held_left, pending: d.released, checking: 0 });
+      showToast('info', `${d.released} sent to the scam check`, 'Verified ones appear at the end of the list in about half a minute.');
+    } catch (e) {
+      showToast('error', 'Load more failed', 'The app is not answering. Is python app.py running?');
+    }
+  });
+});

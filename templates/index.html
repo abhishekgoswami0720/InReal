@@ -487,23 +487,20 @@
         <button id="empty-reset-btn" class="mt-4 glass-btn px-4 py-2 text-xs text-slate-800">Clear All Filters</button>
       </div>
     
-      <!-- Search more: each search brings a small batch so the scam check answers fast -->
+      <!-- Load more: scraped internships wait here; each click sends 5 to the scam check -->
       <div id="search-more-bar" class="mt-6 glass-panel p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div class="text-xs text-slate-600 font-medium text-center sm:text-left">
-          <span class="font-bold text-slate-900">Want more internships?</span>
-          We search your sites again and bring the next batch, checked for scams first.
-          <span id="search-more-held" class="text-orange-600 font-semibold"></span>
+          <span class="font-bold text-slate-900"><span id="held-count">0</span> scraped internships waiting.</span>
+          Load more sends the next 5 to the scam check; verified ones join the end of the list.
         </div>
         <div class="flex items-center gap-2">
-          <label for="search-more-count" class="sr-only">How many</label>
-          <select id="search-more-count" class="filter-select">
-            <option value="30">30 more</option>
-            <option value="60">60 more</option>
-            <option value="100">100 more</option>
-          </select>
-          <button id="search-more-btn" type="button" class="glass-btn glass-btn-primary px-4 py-2 flex items-center gap-1.5">
-            <i class="ph ph-magnifying-glass-plus text-base text-orange-400"></i><span>Search more</span>
+          <button id="load-more-btn" type="button" class="glass-btn glass-btn-primary px-4 py-2 flex items-center gap-1.5">
+            <i class="ph ph-arrow-down text-base text-orange-400"></i><span>Load 5 more</span>
           </button>
+          <button id="search-more-btn" type="button" class="glass-btn px-3.5 py-2 flex items-center gap-1.5 text-slate-700" title="Scrape the sites again for new internships">
+            <i class="ph ph-magnifying-glass-plus text-base"></i><span>Search more</span>
+          </button>
+          <select id="search-more-count" class="hidden" aria-hidden="true"><option value="120" selected>120</option></select>
         </div>
       </div>
     </section>
