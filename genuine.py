@@ -43,6 +43,7 @@ TRAINING_RE = (
     r"\bjob placement\b|\bplacement\s+(assistance|support|guarantee|guaranteed)\b|\b100\s*%\s*placement\b"
     r"|\bjob guarantee\b|\bcareer[- ]oriented program(me)?\b|\bcertification program(me)?\b"
     r"|\btraining program(me)?\s+(with|and)\b|\bcourse fee\b"
+    r"|\btraining\s*(&|and|\+|cum|with)\s*internship\b|\binternship\s*(&|and|\+|cum)\s*training\b"
 )
 MANY_TOWNS = 6
 
@@ -71,6 +72,14 @@ def _months(duration: str):
     return {"month": n, "week": n / 4.33, "day": n / 30}[m.group(2)]
 
 
+def _num(v):
+    """Numbers can arrive as '' or '191' when a listing is re-read from CSV."""
+    try:
+        return None if v in (None, "") else int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
 def check_listing(item: dict):
     text = " ".join(str(item.get(k, "")) for k in ("role_title", "description", "stipend"))
 
@@ -80,8 +89,8 @@ def check_listing(item: dict):
     if re.search(TASK_RE, text, re.I):
         return "Task-for-money pattern (like/review tasks)", []
 
-    hired = item.get("employer_hired")
-    posted = item.get("employer_posted")
+    hired = _num(item.get("employer_hired"))
+    posted = _num(item.get("employer_posted"))
     if hired is not None and (
         hired >= MASS_HIRE_TOTAL or (posted and hired / posted >= MASS_HIRE_PER_POST)
     ):

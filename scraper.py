@@ -1,5 +1,6 @@
 import argparse
 import csv
+import re
 from pathlib import Path
 
 from loguru import logger
@@ -45,6 +46,10 @@ ALL_SCRAPERS = {
 logger.add("scraper_errors.log", rotation="1 MB", level="ERROR")
 # Human-readable logs for the UI
 logger.add("scraper_run.log", rotation="5 MB", level="INFO", format="{time:YYYY-MM-DD HH:mm:ss} | {message}")
+
+# Pay hidden by the site but the post itself says it is unpaid (seen on Shine, Oct 2026)
+UNPAID_RE = r"\b(unpaid|non[- ]?paid|without (a )?stipend|no stipend)\b"
+
 
 def _region(location: str) -> str:
     """'Amreli, Gujarat, India' -> 'gujarat'; 'San Francisco, CA' -> 'ca'."""
@@ -94,6 +99,10 @@ def evaluate(source_name: str, raw_listings: list):
         if reason is None:
             is_india = item.get("stipend_currency") == "INR" or item.get("location_type") == "India"
             reason = stipend_rejection_reason(item["stipend"], item["stipend_numeric"], is_india)
+        if reason is None:
+            said = re.search(UNPAID_RE, f"{item.get('role_title', '')} {item.get('description', '')}", re.I)
+            if said and not re.search(r"\bnot\s+(an?\s+)?$", f"{item.get('role_title', '')} {item.get('description', '')}"[:said.start()][-12:], re.I):
+                reason = f"Unpaid (the post says \"{said.group(0)}\")"
         if reason is None:
             reason, flags = check_listing(item)
             item["trust_flags"] = "; ".join(flags)

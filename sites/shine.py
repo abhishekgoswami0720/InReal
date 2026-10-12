@@ -29,7 +29,7 @@ from scraper_utils import get_playwright_stealth_args, human_delay
 BASE = "https://www.shine.com"
 SEARCH = "https://www.shine.com/job-search/ai-machine-learning-internship-jobs"
 PAGES = 5          # 20 cards each; results are sorted by relevance
-MAX_DETAILS = 40
+MAX_DETAILS = 80   # job pages are plain HTML, about 1 s each
 
 SEL = {
     "card": 'article[class*="result-card_card"]',
@@ -53,11 +53,11 @@ def parse_salary(text: str) -> float:
     t = (text or "").lower().replace(",", "")
     if not t or "not disclosed" in t:
         return 0.0
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(lakh|lac|l\b)?", t)
+    m = re.search(r"\d+(?:\.\d+)?", t)
     if not m:
         return 0.0
-    value = float(m.group(1))
-    if m.group(2):                       # lakh per annum
+    value = float(m.group(0))            # lower end of a range
+    if re.search(r"\blakh|\blac\b|\blpa\b", t):   # "1.0 - 2.0 Lakh/Yr" is per year
         return round(value * 100000 / 12)
     return value
 
@@ -94,6 +94,8 @@ def parse_search_page(html: str):
                 "duration": "",
                 "stipend": "" if salary.lower() == "not disclosed" else salary,
                 "stipend_numeric": stipend_numeric,
+                # almost every Shine card says "Not Disclosed"; flagging all of them tells the reader nothing
+                "stipend_hidden_by_site": salary.lower() == "not disclosed",
                 "stipend_currency": "INR",
                 "required_skills": ", ".join(s for s in skills if s),
                 "application_deadline": "",

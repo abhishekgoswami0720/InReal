@@ -18,7 +18,7 @@ python scraper.py --source <name> --dry-run
 | 2 | Unstop | `unstop` | `sites/unstop.py` | Playwright + site's JSON API (HTML fallback) | ✅ |
 | 3 | Naukri | `naukri` | `sites/naukri.py` | Playwright (visible Chrome) + HTML + schema.org JSON on detail pages | ✅ |
 | 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | ✅ |
-| 5 | Shine | `shine` | `sites/shine.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | 🟡 |
+| 5 | Shine | `shine` | `sites/shine.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | ✅ |
 | 6 | Foundit | `foundit` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 7 | Apna | `apna` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 8 | Cutshort | `cutshort` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
@@ -152,7 +152,7 @@ Limits: LinkedIn rate-limits guests. The scraper runs up to 65 searches × 2 pag
 
 **Lesson from this run:** the first version of "Same post repeated in N locations" also hit DoorDash, Amazon, Qualcomm, Crowe and Kinaxis, which normally post one internship in several big cities. It now fires only when all the places are in one state (Sparks To Ideas: Amreli, Porbandar, Gandhinagar, Surendranagar, all Gujarat) or a copy of the post is known to be aggregated or from a staffing firm. On the same 854 cards it now flags only Sparks To Ideas.
 
-## 5. Shine 🟡
+## 5. Shine ✅
 
 URL: `https://www.shine.com/job-search/ai-machine-learning-internship-jobs` (page N: `…-jobs-N`). Checked on the live site: 12 Oct 2026. Code moved to `sites/shine.py`.
 
@@ -172,7 +172,15 @@ Class names are CSS-module hashes (`result-card_role__tUHBe`); the part after `_
 
 What we found: Shine's search is loose (7,132 results) and full of training institutes. Example: Maxgen Technologies' "MACHINE LEARNING AI INTERNSHIP AT AHMEDABAD" says *"machine learning program with job placement … Career oriented Program"*, and its "Generative Ai Internship in Pune" lists 8 towns (Yavatmal, Akola, Pune, Amravati, Nanded, Satara, Jalna, Sangli). New flags, for every portal: **Sounds like a training programme sold as an internship** (placement guarantee / certification programme / course-fee wording) and **One post listed for N towns** (6 or more). No fee was written in the description we read.
 
-Scope: first 5 pages (100 cards, sorted by relevance), at most 40 job pages read. Not tested on the laptop yet.
+Scope: first 5 pages (100 cards, sorted by relevance), at most 80 job pages read.
+
+**Laptop test, 12 Oct 02:28:** 5 pages, 85 cards, 40 job pages read, 60 kept. The kept list showed four problems, fixed the same night:
+1. Two posts said "(Unpaid Internship)" and "(Non Paid)" in the title but were kept, because Shine hides pay ("Not Disclosed"). Posts that say unpaid in the title or description are now dropped on every portal (this also drops one LinkedIn post, "AI engineering unpaid internship").
+2. "1.0 - 2.0 Lakh/Yr" was read as ₹1/month and the post was dropped. Lakh amounts are now converted (≈ ₹8,333/month).
+3. Every card got "Stipend amount not stated" because almost every Shine card says "Not Disclosed". That flag is now skipped on Shine (and LinkedIn), where it carries no information.
+4. "Data Science & Generative AI Training & Internship" was not flagged; "training & internship" wording now counts as a training programme. Job pages read raised from 40 to 80.
+
+Same data with the fixes: **59 kept**, 2 dropped as unpaid; flags: one post listed for 7, 8 and 10 towns (Maxgen ×2, Sparks To Ideas), 1 training programme.
 
 ## 6. Foundit 🔴
 

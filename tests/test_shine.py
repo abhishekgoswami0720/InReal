@@ -47,3 +47,24 @@ def test_training_programme_and_many_towns_are_flagged():
     assert kept and "Sounds like a training programme sold as an internship" in flags
     kept, flags = out["Generative Ai Internship in Pune"]
     assert kept and "One post listed for 8 towns" in flags
+
+
+def test_fixes_from_the_first_laptop_run():
+    # 12 Oct 02:28: "1.0 - 2.0 Lakh/Yr" was read as Rs 1/month and dropped
+    assert parse_salary("1.0 - 2.0 Lakh/Yr") == 8333
+    recs = parse_search_page(load("shine_search.html"))
+    base = recs[0]
+    posts = [
+        {**base, "id": "u1", "role_title": "Audio AI Intern Speech Data Labelling (Unpaid Internship)"},
+        {**base, "id": "u2", "role_title": "AI Intern(Non Paid) (Hyderabad)"},
+        {**base, "id": "t1", "role_title": "Data Science & Generative AI Training & Internship", "location": "Delhi"},
+        {**base, "id": "ok", "role_title": "Machine Learning Intern", "location": "Pune",
+         "description": "This is not an unpaid role: Rs 15,000 a month."},
+    ]
+    out = {i["id"]: (kept, reason, i.get("trust_flags", "")) for i, kept, reason in evaluate("shine", posts)}
+    assert out["u1"][0] is False and out["u1"][1].startswith("Unpaid (the post says")
+    assert out["u2"][0] is False
+    assert out["t1"][0] is True and "training programme" in out["t1"][2]
+    assert out["ok"][0] is True
+    # "Not Disclosed" on Shine is not flagged on every card
+    assert "Stipend amount not stated" not in out["ok"][2]
