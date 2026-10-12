@@ -193,6 +193,24 @@ def round_robin(rows: list, limit: int) -> list:
     return out
 
 
+def hold_unreleased() -> int:
+    """
+    Listings with no status were saved before 'held' existed, or released and never picked up.
+    They go back to 'held' at app start, so only a "Load 5 more" click ever sends listings to n8n
+    (13 Oct 00:04: 30 old ones were checked on their own right after a Load more click).
+    """
+    with _CSV_LOCK:
+        rows = _read_rows()
+        moved = 0
+        for r in rows:
+            if not (r.get("moderation_status") or "").strip():
+                r["moderation_status"] = "held"
+                moved += 1
+        if moved:
+            _write_rows(rows)
+    return moved
+
+
 def release_held(n: int) -> int:
     """'Load more': moves up to n held listings (round-robin across sites) into the scam-check queue."""
     if n <= 0:

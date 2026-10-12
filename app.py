@@ -152,7 +152,7 @@ def moderation_verdict():
         return jsonify({"saved": False, "error": str(e)}), 400
     if not ok:
         return jsonify({"saved": False, "error": "unknown id"}), 404
-    chain_next_batch()
+    # No automatic next batch: only "Load 5 more" sends listings to the scam check (13 Oct 00:06)
     return jsonify({"saved": True, "id": data.get("id"), "status": data.get("status")})
 
 
@@ -280,7 +280,15 @@ def clear_data():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+def _hold_old_listings():
+    from output_handler import hold_unreleased
+    n = hold_unreleased()
+    if n:
+        print(f"{n} unchecked listings moved to 'held': they go to the scam check only via Load 5 more")
+
+
 if __name__ == "__main__":
+    _hold_old_listings()
     port = int(os.environ.get("PORT", 5000))
     if os.environ.get("INREAL_DEBUG") == "1":
         # Flask's debugger can run code on this machine: only for local development, never with a tunnel
