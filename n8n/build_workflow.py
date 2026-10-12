@@ -44,8 +44,8 @@ def code_node(name, pos, *files, all_items=False):
     return node(name, "n8n-nodes-base.code", 2, pos, params)
 
 
-def http(name, pos, url, method="GET", body_expr=None, gemini=False, batch=None, must_work=False, embed_cred=False, judge_cred=False, **extra):
-    params = {"url": url, "options": {"response": {"response": {"neverError": not must_work}}, "timeout": 30000}}
+def http(name, pos, url, method="GET", body_expr=None, gemini=False, batch=None, must_work=False, embed_cred=False, judge_cred=False, timeout=30000, **extra):
+    params = {"url": url, "options": {"response": {"response": {"neverError": not must_work}}, "timeout": timeout}}
     if method != "GET":
         params["method"] = method
     if body_expr:
@@ -96,7 +96,8 @@ def build():
             assignment("judgeProvider", "azure", "string"),
             assignment("azureJudgeUrl", "https://inreal1907.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview", "string"),
             assignment("judgeModel", "gemini-3.5-flash-lite", "string"),
-            assignment("batchLimit", 120, "number"),
+            # 30 per run (was 120): a run finishes in about a minute; the scraper also saves ~30 per search
+            assignment("batchLimit", 30, "number"),
             assignment("blockAt", 0.7, "number"),
             assignment("reviewAt", 0.4, "number"),
             # empty = use the thresholds measured by build_index.py
@@ -115,7 +116,9 @@ def build():
         code_node("Pack embedding mini-batches", [380, 400], "pack_embed.js", all_items=True),
         # URL comes from the pattern index (Azure OpenAI or Gemini, whichever built it); key from the credential
         http("Embed chunks", [600, 400], "={{ $('Fetch pattern bank').first().json.embed_url }}",
-             method="POST", body_expr="={{ JSON.stringify($json.embedRequest) }}", embed_cred=True, batch=(1, 300)),
+             method="POST", body_expr="={{ JSON.stringify($json.embedRequest) }}", embed_cred=True, batch=(1, 300),
+             # was 30 s, and runs hung for 5 min (12 Oct 20:14): give up after 20 s, the LLM judge still runs
+             timeout=20000),
         code_node("Vector search vs scam patterns", [820, 400], "vector_search.js", all_items=True),
         if_node("Stage 1 conclusive?", [1040, 400], "={{ $json.gate.decision }}", ["block"]),
         code_node("Blocked at stage 1", [1280, 220], "_verdict_lib.js", "stage1_verdict.js"),

@@ -86,7 +86,7 @@
             {
               "id": "70866341-7a6a-5d53-a5c8-bafc24b25547",
               "name": "batchLimit",
-              "value": 120,
+              "value": 30,
               "type": "number"
             },
             {
@@ -296,7 +296,7 @@
               "neverError": true
             }
           },
-          "timeout": 30000,
+          "timeout": 20000,
           "batching": {
             "batch": {
               "batchSize": 1,
