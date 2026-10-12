@@ -13,7 +13,8 @@ from sites.internshala import scrape_internshala
 from sites.unstop import scrape_unstop
 from sites.naukri import scrape_naukri
 from sites.government import scrape_government
-from sites.misc_india import scrape_apna, scrape_cutshort
+from sites.misc_india import scrape_cutshort
+from sites.apna import scrape_apna
 from sites.foundit import scrape_foundit
 from sites.shine import scrape_shine
 from sites.international import scrape_international

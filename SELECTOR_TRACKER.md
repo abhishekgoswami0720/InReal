@@ -20,7 +20,7 @@ python scraper.py --source <name> --dry-run
 | 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | ✅ |
 | 5 | Shine | `shine` | `sites/shine.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | ✅ |
 | 6 | Foundit | `foundit` | `sites/foundit.py` | Visible Chrome + Foundit's JSON endpoints | ✅ |
-| 7 | Apna | `apna` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
+| 7 | Apna | `apna` | `sites/apna.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | 🟡 |
 | 8 | Cutshort | `cutshort` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 9 | We Work Remotely (search page) | `international` | `sites/international.py` | Playwright + HTML | 🔴 |
 | 10 | Remotive (RSS) | `remotive` | `sites/rss_feeds.py` | RSS feed, no selectors | 🔴 feed URL check only |
@@ -208,18 +208,25 @@ What we found: Sparks To Ideas again, now as "Free AI/ML Internship", posted by 
 
 **Laptop test, 12 Oct 05:51:** 7 searches, 108 posts, 60 descriptions read, 88 kept. But **about 50 of the 88 were Maxgen Technologies**: the same "DATA SCIENCE INTERNSHIP AT PUNE / AHMEDABAD" posted again and again with different three-town lists, some copies with the company name hidden as "**********". New rule for every portal: when one company posts the same internship (same first two title words) 3 or more times, it is shown once with "(+N more)" places and every warning found on any copy; 6 or more copies also get **Same company posted N copies of this internship**. Hidden names get **Company name hidden**. Same data after the rule: **38 kept**, Maxgen's 39 data-science copies are one card. Different roles from one company (Codeatrix on Internshala) are not merged.
 
-## 7. Apna 🔴
+## 7. Apna 🟡
 
-URL: `https://apna.co/jobs?category=internship&q=ai+ml`
+Checked on the live site: 12 Oct 2026. Code moved to `sites/apna.py`.
+
+**The old URL ignores its filters.** `https://apna.co/jobs?category=internship&q=ai+ml` lists all 81,222 jobs (first result "Assistant General Manager"). The search that works is `/jobs?search=true&text=ai%20ml%20internship` (42 results), page N with `&page=N`. We run 4 AI/ML queries, 2 pages each.
 
 | Field | Old selector | New selector | Status |
 |---|---|---|---|
-| Card | `a` with `/job/` in `href` that contains `[data-testid=job-title]` | | 🔴 |
-| Title | `[data-testid=job-title]` | | 🔴 |
-| Company | `[data-testid=company-title]` | | 🔴 |
-| Location | `[data-testid=job-location]` | | 🔴 |
-| Salary | `[data-testid=job-salary]` | | 🔴 |
-| Link | card `href` (+ `https://apna.co`) | | 🔴 |
+| Card | `a[href*=/job/]` holding `[data-testid=job-title]` | `a[data-testid="job-card"]` | ❌ fixed |
+| Title | `[data-testid=job-title]` | `h2` in the card | ❌ gone, fixed |
+| Company | `[data-testid=company-title]` | `span` right after the `h2` | ❌ gone, fixed |
+| Location | `[data-testid=job-location]` | `span` next to `svg[data-testid="LocationOnIcon"]` | ❌ gone, fixed |
+| Pay | `[data-testid=job-salary]` | `span` next to `svg[data-testid="PaymentsIcon"]` | ❌ gone, fixed |
+| Work type | (not read) | chips: "Work from Office", "Full Time", "Freshers only" | new |
+| Job page | (not read) | `script[type="application/ld+json"]` JobPosting: description, dates, industry | new |
+
+Trap: every card row has an inline `<style>` tag, so reading the whole row gives ".css-q7mezt{user-select:none…}Kochi". We remove `<style>` tags and read only the span.
+
+What we saw: this search returns mostly big-company internships (IQVIA, HPE, Apple, Micron, Sprinklr, LinkedIn), nearly all with pay "Not disclosed". Not tested on the laptop yet.
 
 ## 8. Cutshort 🔴
 
