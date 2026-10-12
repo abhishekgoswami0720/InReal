@@ -133,3 +133,19 @@ LLM quote was discounted, and the webhook trigger from the app worked.
 
 `text-embedding-3-small` deployment limits seen on the portal: 150,000 tokens and 900 requests per minute, so the
 embed node now waits only 0.3 s between calls (one call carries up to 90 sentences).
+
+
+## LLM judge on Azure OpenAI gpt-4o (12 Oct)
+
+- **Config** node: `judgeProvider` = `azure`, `azureJudgeUrl` = the gpt-4o chat-completions URL from the portal.
+  Set `judgeProvider` to `gemini` to go back (then give the judge node the Gemini credential).
+- Both Azure nodes (**Embed chunks**, **LLM judge (8 posts per call)**) use one Header Auth credential
+  `Azure OpenAI key` (Name `api-key`).
+- The judge sends the same rules + one worked example + 8 posts, and asks for a strict JSON schema
+  (`response_format: json_schema, strict: true`). Content-filter blocks and refusals become "LLM judge unavailable".
+- gpt-4o deployment limits: 50,000 tokens and 300 requests per minute; one 8-post call is ~6–7k tokens, so calls
+  are 8 s apart (≈60 posts a minute). Post text sent to the judge is capped at 1,800 characters.
+- If both AI checks fail for a post (APIs down / out of quota) it is **not** approved on rules alone; it goes back
+  to the queue for the next run.
+- Live check of both deployments from the laptop: `python -m moderation.check_azure`.
+- Tested in n8n 2.42.6 with fake Azure servers: 106 listings, 2 runs queued one after another, 31 s.

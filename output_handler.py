@@ -191,8 +191,18 @@ def moderation_counts() -> dict:
 
 def save_verdict(listing_id: str, status: str, scam_risk, reasons) -> bool:
     """Stores the n8n verdict on one listing. Returns False if the id is unknown."""
+    if status == "retry":   # the checks could not run (API down): back to the queue
+        with _CSV_LOCK:
+            rows = _read_rows()
+            row = next((r for r in rows if r.get("id") == listing_id), None)
+            if row is None:
+                return False
+            for k in MODERATION_FIELDS:
+                row[k] = ""
+            _write_rows(rows)
+        return True
     if status not in MODERATION_STATUSES:
-        raise ValueError(f"status must be one of {sorted(MODERATION_STATUSES)}")
+        raise ValueError(f"status must be one of {sorted(MODERATION_STATUSES)} or 'retry'")
     risk = float(scam_risk)
     if not 0.0 <= risk <= 1.0:
         raise ValueError("scam_risk must be between 0 and 1")
