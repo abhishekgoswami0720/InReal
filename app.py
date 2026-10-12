@@ -52,6 +52,7 @@ def guard_writes():
 @app.route("/api/whoami")
 def whoami():
     return jsonify({"can_edit": is_local_request() or has_admin_token()})
+DATA_FILE = Path(__file__).parent / "internships.csv"
 PATTERN_INDEX = Path(__file__).parent / "moderation" / "pattern_index.json"
 
 # Global state for scraping
@@ -63,8 +64,11 @@ def index():
 
 @app.route("/api/internships")
 def get_internships():
+    if not DATA_FILE.exists():
+        return jsonify([])
+        
     try:
-        # Listings live in memory only (output_handler); nothing is read from disk
+        # Read under the writers' lock: on Windows an open reader makes the writer's file replace fail
         from output_handler import read_all_rows
         rows = read_all_rows()
         for r in rows:
@@ -145,22 +149,6 @@ def moderation_verdict():
     return jsonify({"saved": True, "id": data.get("id"), "status": data.get("status")})
 
 
-@app.route("/api/moderation/recheck", methods=["POST"])
-def moderation_recheck():
-    """Puts judged listings back in the n8n queue (python -m moderation.recheck calls this)."""
-    from moderation.recheck import requeue
-    data = request.get_json(silent=True) or {}
-    try:
-        limit = int(data.get("limit") or 0)
-    except (TypeError, ValueError):
-        limit = 0
-    n = requeue(str(data.get("source") or ""), bool(data.get("all")), limit)
-    if n:
-        from moderation.notify import notify_n8n
-        threading.Thread(target=notify_n8n, args=("recheck",), daemon=True).start()
-    return jsonify({"requeued": n})
-
-
 @app.route("/api/scrape/status")
 def scrape_status():
     global scraper_t
@@ -225,9 +213,14 @@ def clear_data():
         return jsonify({"status": "error", "message": "Cannot clear data while scraper is running!"}), 400
         
     try:
-        # Listings, verdicts and seen IDs are in memory: forget them
-        from output_handler import clear_all
-        clear_all()
+        # Delete CSV Database
+        if DATA_FILE.exists():
+            DATA_FILE.unlink()
+            
+        # Delete JSON Logs memory
+        log_file = Path(__file__).parent / "internships_log.json"
+        if log_file.exists():
+            log_file.unlink()
             
         # Delete text log file
         txt_log = Path(__file__).parent / "scraper_run.log"
@@ -244,28 +237,7 @@ def clear_data():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# Files the app used to store data in (before 12 Oct night). Data is in memory now; a leftover
-# copy is removed at start so old listings can never come back.
-OLD_STORE_FILES = ["internships.csv", "internships.csv.tmp", "internships_log.json"]
-
-
-def remove_old_store_files(folder: Path = Path(__file__).parent) -> list:
-    removed = []
-    for name in OLD_STORE_FILES:
-        f = folder / name
-        try:
-            if f.exists():
-                f.unlink()
-                removed.append(name)
-        except OSError as e:
-            print(f"Could not delete old {name}: {e}. Close Excel/editors that have it open, then delete it.")
-    return removed
-
-
 if __name__ == "__main__":
-    gone = remove_old_store_files()
-    if gone:
-        print(f"Deleted old data files: {', '.join(gone)} (listings are kept in memory now)")
     port = int(os.environ.get("PORT", 5000))
     if os.environ.get("INREAL_DEBUG") == "1":
         # Flask's debugger can run code on this machine: only for local development, never with a tunnel

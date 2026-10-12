@@ -5,11 +5,9 @@ Puts already-judged listings back in the n8n queue and starts the workflow.
     python -m moderation.recheck --source unstop --limit 10
     python -m moderation.recheck --all        # every listing (costs Azure calls for all of them)
 
-Use it after fixing keys or switching models. The listings live in memory inside app.py, so this
-asks the running app (POST /api/moderation/recheck on 127.0.0.1) to do it. app.py must be running.
+Use it after fixing keys or switching models. Run it while no scrape is in progress.
 """
 import argparse
-import os
 
 from output_handler import MODERATION_FIELDS, _CSV_LOCK, _read_rows, _write_rows
 
@@ -43,17 +41,13 @@ def main():
     ap.add_argument("--source", default="", help="only this site, e.g. unstop, internshala")
     ap.add_argument("--all", action="store_true", help="every judged listing, not only failed ones")
     ap.add_argument("--limit", type=int, default=0, help="at most this many")
-    ap.add_argument("--app", default=f"http://127.0.0.1:{os.environ.get('PORT', 5000)}", help="where app.py runs")
     a = ap.parse_args()
-    import requests
-    try:
-        r = requests.post(f"{a.app}/api/moderation/recheck", json={"source": a.source, "all": a.all, "limit": a.limit}, timeout=30)
-    except requests.exceptions.RequestException:
-        raise SystemExit(f"app.py is not running at {a.app}. Start it first: the listings only exist inside it.")
-    if r.status_code != 200:
-        raise SystemExit(f"App answered HTTP {r.status_code}: {r.text[:200]}")
-    n = r.json()["requeued"]
-    print(f"{n} listing(s) back in the queue" + (" and n8n notified (check its Executions tab)" if n else ""))
+    n = requeue(a.source, a.all, a.limit)
+    print(f"{n} listing(s) back in the queue")
+    if n:
+        from moderation.notify import notify_n8n
+        notify_n8n("recheck")
+        print("n8n notified (check its Executions tab). If n8n isn't running, click Execute workflow later.")
 
 
 if __name__ == "__main__":
