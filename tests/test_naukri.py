@@ -107,3 +107,13 @@ def test_internship_that_converts_to_full_time_is_kept():
     assert internship_rejection_reason("AI/ML Engineering Intern Internship to Full-Time", [], "shine") is None
     assert internship_rejection_reason("【Class of 2028／Full-Time】Applied Scientists", [], "linkedin") is not None
     assert internship_rejection_reason("Full Time ML Engineer Intern", [], "linkedin") == "Title has 'full time'"
+
+
+def test_general_ai_word_is_not_enough_for_non_ml_work():
+    from filters import internship_rejection_reason as r
+    for t in ["Creative design & AI intern", "Artificial Intelligence Sales Intern",
+              "AI INTERNSHIP FILM & CREATIVE INDUSTRY", "AI Intern Global Communications & Marketing"]:
+        assert r(t, [], "naukri") == "Not an AI/ML role", t
+    for t in ["AI Intern", "AI-Intern", "Data & AI Intern (Brazil)", "Research and AI Intern",
+              "Internship in Agentic AI and human-centered design", "AI Engineer Intern - Marketing Tech"]:
+        assert r(t, [], "naukri") is None, t

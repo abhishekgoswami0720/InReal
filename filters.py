@@ -98,12 +98,29 @@ def internship_rejection_reason(title: str, skills: list, source: str = "", labe
     return "Not an AI/ML role"
 
 
+# Words that only say "AI" in a general way. On their own they are not enough when the
+# title also names non-ML work: "Creative design & AI intern" (Naukri), "AI Internship Film &
+# Creative Industry" (Foundit), "Artificial Intelligence Sales Intern" (Apna), all Oct 2026.
+GENERIC_AI_TERMS = {"artificial intelligence", "generative ai", "gen ai", "genai", "ai intern",
+                    "ai developer", "ai development", "agentic", "ai agent"}
+NON_ML_WORK = [
+    "sales", "marketing", "communications", "creative", "film", "filmmaking",
+    "video", "editor", "editing", "content", "graphic", "brand", "branding", "hr", "recruitment",
+    "business development", "social media", "seo", "trainer", "teacher", "tutor", "writer", "writing",
+    "annotation", "labelling", "labeling", "data entry", "telecaller", "customer support",
+]
+
+
 def is_ai_ml_title(title_lower: str) -> bool:
-    if any(inc in title_lower for inc in INCLUDE_KEYWORDS):
-        return True
     if _has_word(title_lower, "ml"):
         return True
-    return _has_word(title_lower, "ai") and any(_has_word(title_lower, w) for w in AI_TECH_WORDS)
+    if _has_word(title_lower, "ai") and any(_has_word(title_lower, w) for w in AI_TECH_WORDS):
+        return True
+    found = [inc for inc in INCLUDE_KEYWORDS if inc in title_lower]
+    if any(inc not in GENERIC_AI_TERMS for inc in found):
+        return True
+    # only a general "AI" word: fine for "AI Intern", not for "AI Sales Intern"
+    return bool(found) and not any(_has_word(title_lower, w) for w in NON_ML_WORK)
 
 
 def is_valid_internship(title: str, skills: list, source: str = "") -> bool:
