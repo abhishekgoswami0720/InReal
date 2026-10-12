@@ -497,6 +497,26 @@
         <p class="text-xs text-slate-500 mt-1 max-w-sm font-medium">Try broadening your search keywords or resetting region and stipend filters.</p>
         <button id="empty-reset-btn" class="mt-4 glass-btn px-4 py-2 text-xs text-slate-800">Clear All Filters</button>
       </div>
+    
+      <!-- Search more: each search brings a small batch so the scam check answers fast -->
+      <div id="search-more-bar" class="mt-6 glass-panel p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="text-xs text-slate-600 font-medium text-center sm:text-left">
+          <span class="font-bold text-slate-900">Want more internships?</span>
+          We search your sites again and bring the next batch, checked for scams first.
+          <span id="search-more-held" class="text-orange-600 font-semibold"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="search-more-count" class="sr-only">How many</label>
+          <select id="search-more-count" class="filter-select">
+            <option value="30">30 more</option>
+            <option value="60">60 more</option>
+            <option value="100">100 more</option>
+          </select>
+          <button id="search-more-btn" type="button" class="glass-btn glass-btn-primary px-4 py-2 flex items-center gap-1.5">
+            <i class="ph ph-magnifying-glass-plus text-base text-orange-400"></i><span>Search more</span>
+          </button>
+        </div>
+      </div>
     </section>
   </main>
 
