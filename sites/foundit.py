@@ -136,13 +136,33 @@ def scrape_foundit():
                   if internship_rejection_reason(r["role_title"], r["required_skills"].split(", "), "foundit") is None]
         wanted = wanted[:MAX_DETAILS]
         logger.info(f"Foundit: reading {len(wanted)} job descriptions for the genuineness checks")
+        reopened = False
         for rec in wanted:
             try:
                 rec.update(parse_detail_json(page.evaluate(FETCH_JS, DETAIL_API.format(job_id=rec["job_id"]))))
                 rec["detail_checked"] = True
             except Exception as e:
                 logger.warning(f"Foundit detail {rec['job_id']} failed: {e}")
+                if "has been closed" in str(e):
+                    # 12 Oct 19:51: the window closed (closed by hand or crashed) and all 23 remaining
+                    # details failed one by one. Reopen once; if that fails too, keep what we have.
+                    if reopened:
+                        logger.warning("Foundit window closed again: skipping the remaining descriptions")
+                        break
+                    reopened = True
+                    try:
+                        page = context.new_page()
+                        Stealth().apply_stealth_sync(page)
+                        page.goto(BASE + "/", timeout=45000, wait_until="domcontentloaded")
+                        human_delay(2.0, 3.0)
+                        logger.info("Foundit window was closed: reopened it, continuing with the descriptions")
+                    except Exception as e2:
+                        logger.warning(f"Foundit: could not reopen the window ({e2}); skipping the remaining descriptions")
+                        break
             human_delay(0.5, 1.0)
 
-        browser.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
     return all_internships
