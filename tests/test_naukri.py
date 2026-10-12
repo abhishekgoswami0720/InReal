@@ -16,8 +16,10 @@ def load(name):
     return (FIX / name).read_text(encoding="utf-8")
 
 
-def test_one_search_per_paid_range():
-    assert [u.split("qcstipend=")[1] for u in URLS] == ["0To10", "10To20", "20To30", "30To40", "40To50"]
+def test_first_pages_of_narrow_searches_only():
+    assert len(URLS) == 20 and all("qcstipend=" in u for u in URLS)
+    assert URLS[0] == "https://www.naukri.com/ai-ml-internship-jobs-in-india?qcstipend=0To10"
+    assert "https://www.naukri.com/machine-learning-internship-jobs?qcstipend=10To20" in URLS
 
 
 def test_list_selectors():
