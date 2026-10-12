@@ -152,7 +152,28 @@ def moderation_verdict():
         return jsonify({"saved": False, "error": str(e)}), 400
     if not ok:
         return jsonify({"saved": False, "error": "unknown id"}), 404
+    chain_next_batch()
     return jsonify({"saved": True, "id": data.get("id"), "status": data.get("status")})
+
+
+_last_chain = {"t": 0.0}
+_chain_lock = threading.Lock()
+
+
+def chain_next_batch():
+    """
+    When the last verdict of a run is saved and listings are still waiting, wake n8n again
+    right away instead of leaving them for the 30-minute schedule. Debounced: once per 20 s.
+    """
+    counts = moderation_counts()
+    if counts["checking"] or not counts["pending"]:
+        return
+    with _chain_lock:
+        if time.time() - _last_chain["t"] < 20:
+            return
+        _last_chain["t"] = time.time()
+    from moderation.notify import notify_n8n
+    threading.Thread(target=notify_n8n, args=("next batch",), daemon=True).start()
 
 
 @app.route("/api/scrape/status")

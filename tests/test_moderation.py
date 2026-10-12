@@ -354,3 +354,27 @@ def test_both_ai_checks_down_means_retry_not_approved(store):
     oh.pending_moderation(claim=True)
     assert oh.save_verdict("r", "retry", 0, ["x"]) is True
     assert [p["id"] for p in oh.pending_moderation()] == ["r"]
+
+
+def test_round_robin_across_sites():
+    rows = [{"id": i, "source_platform": s} for i, s in
+            [("a1", "Unstop"), ("a2", "Unstop"), ("a3", "Unstop"), ("b1", "Shine"), ("c1", "Apna"), ("c2", "Apna")]]
+    assert [r["id"] for r in oh.round_robin(rows, 10)] == ["a1", "b1", "c1", "a2", "c2", "a3"]
+    assert [r["id"] for r in oh.round_robin(rows, 4)] == ["a1", "b1", "c1", "a2"]
+    assert oh.round_robin([], 5) == []
+
+
+def test_next_batch_is_chained_after_the_last_verdict(store, monkeypatch):
+    import app as app_mod
+    calls = []
+    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": calls.append(source))
+    app_mod._last_chain["t"] = 0
+    oh.sync_listings([_row(f"q{i}", "AI Intern") for i in range(3)], [])
+    claimed = oh.pending_moderation(limit=2, claim=True)
+    c = app_mod.app.test_client()
+    c.post("/api/moderation/verdict", json={"id": claimed[0]["id"], "status": "approved", "scam_risk": 0.1, "reasons": []})
+    import time; time.sleep(0.2)
+    assert calls == []                     # one listing of the run is still being checked
+    c.post("/api/moderation/verdict", json={"id": claimed[1]["id"], "status": "approved", "scam_risk": 0.1, "reasons": []})
+    time.sleep(0.2)
+    assert calls == ["next batch"]         # run done, 1 still waiting: n8n woken again

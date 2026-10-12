@@ -13,6 +13,8 @@ let showBookmarkedOnly = false;
 let bookmarks = JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]');
 let activeDrawerJob = null;
 let canEdit = true;
+const displayOrder = new Map();   // id -> position the card was first shown at
+let verifiedSeen = null;          // ids that had passed the check at the last reload
 
 // Profile from the sign-up form, kept in this browser: field, experience, preferred companies, sites
 const PROFILE_KEY = 'inreal_profile';
@@ -161,6 +163,7 @@ async function loadData() {
     const res = await fetch('/api/internships');
     const data = await res.json();
     allInternships = data || [];
+    announceNewlyVerified(allInternships);
 
     populateSourceFilter(allInternships);
     applyFiltersAndRender();
@@ -283,8 +286,10 @@ function applyFiltersAndRender() {
   // Every number on the page follows the filters (the location tabs count everything else that matches)
   const base = allInternships.filter(item => matches(item, true));
   const filtered = base.filter(item => matches(item, false));
-  // Preferred companies first (stable sort keeps the rest in their order)
-  filtered.sort((a, b) => Number(isPreferred(b)) - Number(isPreferred(a)));
+  // Cards keep their place while verdicts arrive: anything not shown before goes to the end
+  filtered.forEach(item => { if (!displayOrder.has(item.id)) displayOrder.set(item.id, displayOrder.size); });
+  filtered.sort((a, b) => (Number(isPreferred(b)) - Number(isPreferred(a)))
+                          || (displayOrder.get(a.id) - displayOrder.get(b.id)));
   renderOverviewStats(filtered, base);
   updateFilterCount();
   renderListings(filtered);
@@ -1119,3 +1124,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('scan-panel').classList.add('hidden');
   });
 });
+
+
+// ==========================================
+// 14. Newly verified internships join the end of the list, with a short notice
+// ==========================================
+function announceNewlyVerified(rows) {
+  const mine = rows.filter(r => r.moderation_status === 'approved' &&
+    (!profile || String(r.field || 'ai_ml').split(';').includes(profile.field)) &&
+    !(profile && profile.experience !== '0' && isUnpaid(r)));
+  const ids = new Set(mine.map(r => r.id));
+  if (verifiedSeen) {
+    const fresh = [...ids].filter(id => !verifiedSeen.has(id)).length;
+    if (fresh) showToast('success', `${fresh} new verified internship${fresh > 1 ? 's' : ''}`,
+      'Added at the end of the list. The cards above stay where they are.');
+  }
+  verifiedSeen = ids;
+}

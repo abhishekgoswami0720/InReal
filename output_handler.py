@@ -173,16 +173,33 @@ def _is_pending(r: dict, now: datetime) -> bool:
     return False
 
 
+def round_robin(rows: list, limit: int) -> list:
+    """[a1, a2, a3, b1, c1, c2] -> [a1, b1, c1, a2, c2, a3], cut to limit. Keeps each site's own order."""
+    queues = {}
+    for r in rows:
+        queues.setdefault((r.get("source_platform") or "").strip().lower(), []).append(r)
+    out, lists = [], list(queues.values())
+    i = 0
+    while len(out) < limit and any(lists):
+        q = lists[i % len(lists)]
+        if q:
+            out.append(q.pop(0))
+        i += 1
+    return out
+
+
 def pending_moderation(limit: int = 40, claim: bool = False) -> list:
     """
-    Listings the n8n pipeline has not judged yet, newest first.
+    Listings the n8n pipeline has not judged yet, taken ROUND-ROBIN across sites (one from each
+    site in turn, newest first within a site), so a batch never goes to a single site while the
+    others wait (13 Oct: a 400-listing Content & Media run filled every batch from two sites).
     claim=True marks them "checking", so a second n8n run started meanwhile (the scraper calls
     n8n after EACH site, so runs overlap) takes different listings instead of the same ones.
     """
     now = datetime.now()
     with _CSV_LOCK:
         rows = _read_rows()
-        todo = [r for r in rows if _is_pending(r, now)][:max(1, limit)]
+        todo = round_robin([r for r in rows if _is_pending(r, now)], max(1, limit))
         if claim and todo:
             for r in todo:
                 r["moderation_status"] = "checking"
