@@ -16,13 +16,13 @@ No new sites until all 7 upgraded sites pass both checks on the laptop. The filt
 
 | Site | Terminal `--dry-run` | Web dashboard (only this site ticked) |
 |---|---|---|
-| Internshala | ✅ 06:11 — 393 read, 81 kept; 4 posts now flagged "one post listed for 6–11 towns" | ⏳ |
+| Internshala | ✅ 06:11 — 393 read, 81 kept; 4 posts now flagged "one post listed for 6–11 towns" | ✅ 06:27 — 81 saved to `internships.csv` (same as terminal), every card has title, company and link, 29 with warnings (incl. new "100 openings for one internship" ×2) |
 | Unstop | ⏳ | ⏳ |
 | Naukri | ⏳ | ⏳ |
 | LinkedIn | ⏳ | ⏳ |
 | Shine | ⏳ | ⏳ |
 | Foundit | ⏳ | ⏳ |
-| Govt portal (AICTE) | ⏳ | ⏳ |
+| Govt portal (AICTE) | ❌ 06:21 — every call failed "Expecting value": the portal answered in Brotli, which Python could not unpack; fixed in 357697f, re-test | ⏳ |
 | Apna | ✅ 06:07 — 49 read, 12 kept (IQVIA, Apple, Micron, Novartis, Sprinklr…), no flags; one sales role ("Artificial Intelligence Sales Intern", ByteDance) passes the AI/ML rule on its title | ⏳ |
 
 Dashboard settings now have one checkbox per site; the not-upgraded ones are listed separately and unticked.
