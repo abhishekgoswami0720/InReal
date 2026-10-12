@@ -222,30 +222,20 @@
         </div>
       </div>
 
-      <!-- Header Action Buttons (Browse Openings & Submit an Opportunity) -->
+      <!-- Header: one main action and the profile avatar -->
       <div class="flex items-center gap-3">
-        <!-- Live System Status Dot -->
-        <div id="status-indicator-pill" class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600">
-          <span id="ping-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span id="scraper-status-text" class="text-[11px]">System Ready</span>
-        </div>
-
-        <!-- Profile (field, experience, preferred companies) -->
-        <button id="edit-profile-btn" type="button" class="glass-btn px-4 py-2 flex items-center gap-1.5 text-slate-700 hover:text-slate-900">
-          <i class="ph ph-user-circle text-base"></i>
-          <span id="profile-btn-label">Set up profile</span>
+        <button id="trigger-scrape-btn" class="glass-btn glass-btn-primary px-4 py-2.5 flex items-center gap-2 whitespace-nowrap">
+          <i class="ph ph-magnifying-glass text-base text-orange-400"></i>
+          <span>Search Internships</span>
         </button>
 
-        <!-- Secondary Outlined Button -->
-        <a href="#listings-container" class="glass-btn px-4 py-2 flex items-center gap-1.5 text-slate-700 hover:text-slate-900">
-          <i class="ph ph-list-magnifying-glass text-base"></i>
-          <span>Browse Openings</span>
-        </a>
-
-        <!-- Primary Accent Action Button -->
-        <button id="trigger-scrape-btn" class="glass-btn glass-btn-primary px-4 py-2 flex items-center gap-1.5">
-          <i class="ph ph-paper-plane-tilt text-base text-orange-400"></i>
-          <span>Submit an Opportunity</span>
+        <!-- Profile avatar: initials of the name, opens the profile -->
+        <button id="edit-profile-btn" type="button" title="Set up profile" aria-label="Set up profile"
+          class="relative w-11 h-11 rounded-full p-[3px] bg-slate-100 border border-slate-200 hover:border-slate-400 transition shrink-0">
+          <span id="profile-avatar" class="w-full h-full rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-white font-extrabold text-sm flex items-center justify-center select-none">
+            <i class="ph ph-user text-lg"></i>
+          </span>
+          <span id="profile-btn-label" class="sr-only">Set up profile</span>
         </button>
       </div>
     </div>
@@ -475,6 +465,17 @@
           <span>Saved (<span id="bookmark-count">0</span>)</span>
         </button>
         <span id="mod-queue" class="text-[11px] font-semibold text-amber-600"></span>
+
+        <div class="flex items-center gap-2.5 ml-auto">
+          <div id="status-indicator-pill" class="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 whitespace-nowrap">
+            <span id="ping-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span id="scraper-status-text" class="text-[11px]">System Ready</span>
+          </div>
+          <a href="#listings-container" class="glass-btn px-3.5 py-2.5 flex items-center gap-1.5 text-slate-700 hover:text-slate-900 whitespace-nowrap">
+            <i class="ph ph-list-magnifying-glass text-base"></i>
+            <span>Browse Openings</span>
+          </a>
+        </div>
       </div>
     </section>
 
@@ -595,13 +596,13 @@
     </div>
   </div>
 
-  <!-- Translucent Scraper Config Modal (Replaced button trigger: Submit an Opportunity) -->
+  <!-- Search Internships dialog: field, sites and regions for one search -->
   <div id="scrape-config-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
     <div class="glass-panel max-w-md w-full p-6 shadow-2xl">
       <div class="flex items-center justify-between pb-3 border-b border-slate-200">
         <div>
-          <h3 class="text-sm font-bold text-slate-900">Submit an Opportunity / Sweep Feeds</h3>
-          <p class="text-[11px] text-slate-500">Configure target platforms and regions for opportunity discovery</p>
+          <h3 class="text-sm font-bold text-slate-900">Search Internships</h3>
+          <p class="text-[11px] text-slate-500">Pick the field, sites and regions to search. New internships are checked for scams before they show up.</p>
         </div>
         <button id="close-config-btn" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500">
           <i class="ph ph-x text-base"></i>
@@ -655,7 +656,7 @@
         </div>
 
         <button type="submit" class="w-full py-2.5 glass-btn glass-btn-primary text-xs font-bold transition mt-2">
-          Launch Opportunity Sweep
+          Search Internships
         </button>
       </form>
     </div>

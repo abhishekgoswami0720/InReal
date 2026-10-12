@@ -300,7 +300,7 @@ function renderListings(items) {
     const h = document.querySelector('#empty-state h3'), t = document.querySelector('#empty-state p');
     const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').includes(profile.field));
     if (h) h.textContent = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'No Matching Opportunities Found';
-    if (t) t.textContent = fieldEmpty ? 'Search the sites for your field with "Submit an Opportunity". New ones appear as each site finishes.'
+    if (t) t.textContent = fieldEmpty ? 'Search the sites for your field with "Search Internships". New ones appear as each site finishes.'
                                       : 'Try broadening your search keywords or resetting region and stipend filters.';
     if (emptyState) {
       emptyState.classList.remove('hidden');
@@ -669,7 +669,7 @@ function bindEventHandlers() {
     if (activeDrawerJob) toggleBookmark(activeDrawerJob.id);
   });
 
-  // Opportunity Modal (Triggered by "Submit an Opportunity")
+  // Opportunity Modal (Triggered by "Search Internships")
   const modal = document.getElementById('scrape-config-modal');
   document.getElementById('trigger-scrape-btn')?.addEventListener('click', () => {
     if (profile) {
@@ -948,7 +948,7 @@ async function saveProfileFromForm(e) {
       body: JSON.stringify({ field: next.field, sources: next.sources, regions: next.regions, limit: FIRST_BATCH })
     });
     const data = await res.json().catch(() => ({}));
-    if (data.status === 'running') showToast('info', 'Profile saved', 'A search is already running. Start yours with "Submit an Opportunity" when it ends.');
+    if (data.status === 'running') showToast('info', 'Profile saved', 'A search is already running. Start yours with "Search Internships" when it ends.');
     else showToast('success', 'Profile saved, searching now', `Searching ${next.sources.length} site(s) for ${fieldLabels[next.field] || next.field} internships. They appear as each site finishes and passes the scam check.`);
   } catch (err) {
     showToast('error', 'Profile saved, search did not start', 'The app is not answering. Is python app.py running?');
@@ -965,6 +965,15 @@ function updateProfileUI() {
   }
   const field = fieldLabels[profile.field] || profile.field;
   if (label) label.textContent = profile.name ? `${profile.name} · ${field}` : field;
+  const avatar = document.getElementById('profile-avatar');
+  const btn = document.getElementById('edit-profile-btn');
+  const initials = (profile.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+  if (avatar) avatar.innerHTML = initials ? escapeHtml(initials) : '<i class="ph ph-user text-lg"></i>';
+  if (btn) {
+    const tip = `${profile.name ? profile.name + ' · ' : ''}${field} · Edit profile`;
+    btn.title = tip;
+    btn.setAttribute('aria-label', tip);
+  }
   if (box) {
     const exp = { '0': '0 years experience (unpaid shown)', '1-2': '1–2 years experience (paid only)', '3+': '3+ years experience (paid only)' }[profile.experience] || '';
     const picks = (profile.companies || []).length ? ` · Preferred: ${profile.companies.map(escapeHtml).join(', ')}` : '';
