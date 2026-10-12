@@ -19,7 +19,7 @@ python scraper.py --source <name> --dry-run
 | 3 | Naukri | `naukri` | `sites/naukri.py` | Playwright (visible Chrome) + HTML + schema.org JSON on detail pages | ✅ |
 | 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | ✅ |
 | 5 | Shine | `shine` | `sites/shine.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | ✅ |
-| 6 | Foundit | `foundit` | `sites/foundit.py` | Visible Chrome + Foundit's JSON endpoints | 🟡 |
+| 6 | Foundit | `foundit` | `sites/foundit.py` | Visible Chrome + Foundit's JSON endpoints | ✅ |
 | 7 | Apna | `apna` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 8 | Cutshort | `cutshort` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 9 | We Work Remotely (search page) | `international` | `sites/international.py` | Playwright + HTML | 🔴 |
@@ -182,7 +182,7 @@ Scope: first 5 pages (100 cards, sorted by relevance), at most 80 job pages read
 
 Same data with the fixes: **59 kept**, 2 dropped as unpaid; flags: one post listed for 7, 8 and 10 towns (Maxgen ×2, Sparks To Ideas), 1 training programme.
 
-## 6. Foundit 🟡
+## 6. Foundit ✅
 
 Checked on the live site: 12 Oct 2026. Code moved to `sites/foundit.py`.
 
@@ -204,7 +204,9 @@ Checked on the live site: 12 Oct 2026. Code moved to `sites/foundit.py`.
 
 The endpoint also returns the recruiter's name and phone number; we never store them.
 
-What we found: Sparks To Ideas again, now as "Free AI/ML Internship", posted by a *Consultant*, ₹4,167–8,333/month (dropped: under ₹5,000) and in 4 more copies under "machine learning internship". Maxgen lists "DATA SCIENCE INTERNSHIP" at ₹2.5–5 lakh a year. New flag: **Posted by a recruiter or consultant, not the company itself**. Not tested on the laptop yet.
+What we found: Sparks To Ideas again, now as "Free AI/ML Internship", posted by a *Consultant*, ₹4,167–8,333/month (dropped: under ₹5,000) and in 4 more copies under "machine learning internship". Maxgen lists "DATA SCIENCE INTERNSHIP" at ₹2.5–5 lakh a year. New flag: **Posted by a recruiter or consultant, not the company itself**.
+
+**Laptop test, 12 Oct 05:51:** 7 searches, 108 posts, 60 descriptions read, 88 kept. But **about 50 of the 88 were Maxgen Technologies**: the same "DATA SCIENCE INTERNSHIP AT PUNE / AHMEDABAD" posted again and again with different three-town lists, some copies with the company name hidden as "**********". New rule for every portal: when one company posts the same internship (same first two title words) 3 or more times, it is shown once with "(+N more)" places and every warning found on any copy; 6 or more copies also get **Same company posted N copies of this internship**. Hidden names get **Company name hidden**. Same data after the rule: **38 kept**, Maxgen's 39 data-science copies are one card. Different roles from one company (Codeatrix on Internshala) are not merged.
 
 ## 7. Apna 🔴
 

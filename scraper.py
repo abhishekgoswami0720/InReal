@@ -106,8 +106,60 @@ def evaluate(source_name: str, raw_listings: list):
                 reason = f"Unpaid (the post says \"{said.group(0)}\")"
         if reason is None:
             reason, flags = check_listing(item)
+            if HIDDEN_COMPANY_RE.match(str(item.get("company_name", "")).strip()):
+                flags.append("Company name hidden")
             item["trust_flags"] = "; ".join(flags)
         results.append((item, reason is None, reason or ""))
+    return collapse_copies(results)
+
+
+# Company names portals print when the employer hides it ("**********", "Confidential")
+HIDDEN_COMPANY_RE = re.compile(r"^(\*+|confidential|hidden|undisclosed|not disclosed)$", re.I)
+COPY_LIMIT = 3      # 3+ copies are shown once
+COPY_WARNING = 6    # 6+ copies also get a warning
+_TITLE_NOISE = {"internship", "internships", "intern", "interns", "at", "an", "in", "the", "for", "and", "of", "with"}
+
+
+def _company_key(name: str) -> str:
+    n = re.sub(r"[^a-z0-9 ]", " ", str(name).lower())
+    n = re.sub(r"\b(private|pvt|limited|ltd|llp|inc|technologies|technology|solutions)\b", " ", n)
+    return " ".join(n.split())
+
+
+def _title_key(title: str) -> str:
+    """First two meaningful words: 'DATA SCIENCE -ML INTERNSHIP AT PUNE' -> 'data science'."""
+    words = [w for w in re.findall(r"[a-z]+", str(title).lower()) if w not in _TITLE_NOISE]
+    return " ".join(words[:2])
+
+
+def collapse_copies(results):
+    """
+    One company posting the same internship many times (Foundit, 12 Oct 2026: Maxgen
+    posted "DATA SCIENCE INTERNSHIP AT PUNE/AHMEDABAD" about 40 times with different
+    town lists) floods the list. Keep the first copy, drop the rest, and give the kept
+    one every warning found on any copy plus a count.
+    """
+    groups = {}
+    for idx, (item, kept, _) in enumerate(results):
+        if kept:
+            key = (_company_key(item.get("company_name", "")), _title_key(item.get("role_title", "")))
+            groups.setdefault(key, []).append(idx)
+    for idxs in groups.values():
+        if len(idxs) < COPY_LIMIT:
+            continue
+        first = results[idxs[0]][0]
+        flags = []
+        for i in idxs:
+            for f in str(results[i][0].get("trust_flags", "")).split(";"):
+                if f.strip() and f.strip() not in flags:
+                    flags.append(f.strip())
+        if len(idxs) >= COPY_WARNING:   # big firms post one role in a few cities; dozens is a flood
+            flags.append(f"Same company posted {len(idxs)} copies of this internship")
+        first["trust_flags"] = "; ".join(flags)
+        first["location"] = f"{first.get('location', '')} (+{len(idxs) - 1} more)"
+        for i in idxs[1:]:
+            item = results[i][0]
+            results[i] = (item, False, f"Copy of another post by the same company ({len(idxs)} copies)")
     return results
 
 

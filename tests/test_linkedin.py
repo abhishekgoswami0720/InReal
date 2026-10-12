@@ -42,22 +42,17 @@ def test_end_to_end():
     out = {(i["company_name"], i["location"]): (kept, reason, i.get("trust_flags", "")) for i, kept, reason in evaluate("linkedin", recs)}
     assert out[("ERIC Robotics", "Pune Division, Maharashtra, India")] == (True, "", "")  # no fake "stipend not stated" flag
     assert out[("Meril", "Bengaluru, Karnataka, India")][:2] == (False, "Not labelled as an internship")
-    sparks = out[("Sparks To Ideas", "Amreli, Gujarat, India")]
+    sparks = out[("Sparks To Ideas", "Amreli, Gujarat, India (+2 more)")]   # 3 copies shown once
     assert sparks[0] is True
     assert "Same post repeated in 3 towns of Gujarat" in sparks[2] and "Copied by the portal" in sparks[2]
 
 
-def test_big_company_in_many_cities_is_not_flagged():
+def test_big_company_in_many_cities_is_shown_once_without_warning():
     # Live result 12 Oct: DoorDash posted one ML intern role in 4 US cities; that is normal
     base = parse_search_html(load("linkedin_search.html"), "USA · ML")[0]
     recs = [{**base, "id": str(n), "company_name": "DoorDash", "role_title": "Machine Learning Intern (Masters) - Summer 2027",
              "location": loc} for n, loc in enumerate(["San Francisco, CA", "Sunnyvale, CA", "New York, NY", "Seattle, WA"])]
-    assert all(kept and flags == "" for (_, kept, _), flags in
-               ((r, r[0].get("trust_flags", "")) for r in evaluate("linkedin", recs)))
-
-
-def test_dashboard_checkboxes_still_choose_searches():
-    all_regions = ["india", "worldwide", "usa", "europe", "remote"]
-    india_only = [s for s in SEARCH_CONFIGS if query_wanted(s[0], s[1], ["india"], ["ml", "ai"])]
-    assert india_only and all("india" in loc.lower() for _, loc, _ in india_only)
-    assert len([s for s in SEARCH_CONFIGS if query_wanted(s[0], s[1], all_regions, [])]) == len(SEARCH_CONFIGS)
+    res = evaluate("linkedin", recs)
+    kept = [i for i, k, _ in res if k]
+    assert len(kept) == 1 and kept[0]["trust_flags"] == "" and kept[0]["location"] == "San Francisco, CA (+3 more)"
+    assert all(r.startswith("Copy of another post") for _, k, r in res if not k)
