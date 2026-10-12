@@ -90,9 +90,12 @@ def parse_list_page(html: str):
             role_title = _text(title_el)
             if not role_title:
                 continue
-            min_exp = re.match(r"\s*(\d+)", _text(card.select_one(SEL["experience"])))
-            if min_exp and int(min_exp.group(1)) >= 3:
-                continue  # job card that needs 3+ years
+            link = title_el.get("href", "") if title_el else ""
+            # Experience: job cards print it; internship cards only have it in the link
+            # (".../job-listings-ai-intern-acme-pune-0-to-1-years-091026035225")
+            min_exp = (re.match(r"\s*(\d+)", _text(card.select_one(SEL["experience"])))
+                       or re.search(r"-(\d+)-to-\d+-years?-\d+$", link))
+            duration = _text(card.select_one(SEL["duration"]))
             location = _text(card.select_one(SEL["location"])) or "India"
             stipend = _text(card.select_one(SEL["stipend"]))
             stipend_numeric = parse_stipend(stipend)
@@ -104,13 +107,17 @@ def parse_list_page(html: str):
                 "role_title": role_title,
                 "location": location,
                 "location_type": "Remote" if re.search(r"remote|work from home|wfh", location, re.I) else "India",
-                "duration": _text(card.select_one(SEL["duration"])),
+                "duration": duration,
                 "stipend": stipend,
                 "stipend_numeric": stipend_numeric,
                 "stipend_currency": "INR",
                 "required_skills": ", ".join(skills),
                 "application_deadline": "",
-                "apply_link": title_el.get("href", "") if title_el else "",
+                "apply_link": link,
+                # Naukri prints "3 months duration" only on posts it files as internships.
+                # "No fixed duration" is not enough: jobs like "Placement Coordinator, 1-3 years" carry it.
+                "labelled_internship": bool(re.search(r"\d+\s*months?\s+duration", duration, re.I)),
+                "min_experience": int(min_exp.group(1)) if min_exp else None,
                 "source_platform": "Naukri",
                 "date_scraped": datetime.now().strftime("%Y-%m-%d"),
                 "org_type": "Company",
@@ -160,7 +167,8 @@ def parse_detail_page(html: str) -> dict:
 
 def _wanted(rec: dict) -> bool:
     skills = [s.strip() for s in rec["required_skills"].split(",") if s.strip()]
-    return (internship_rejection_reason(rec["role_title"], skills, "naukri") is None
+    return (internship_rejection_reason(rec["role_title"], skills, "naukri", rec["labelled_internship"]) is None
+            and (rec["min_experience"] or 0) < 3
             and stipend_rejection_reason(rec["stipend"], rec["stipend_numeric"], True) is None)
 
 

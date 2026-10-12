@@ -32,6 +32,9 @@ def test_list_selectors():
     assert varroc["posted"] == "Starts within 1 month" and varroc["company_rating"] == "3.7"
     assert arcitech["apply_link"].endswith("-290926502549")
     assert tower["stipend"] == "Unpaid" and tower["stipend_numeric"] == 0
+    # experience comes from the link on internship cards; only a fixed duration counts as Naukri's internship label
+    assert [r["min_experience"] for r in records] == [0, 0, 0]
+    assert [r["labelled_internship"] for r in records] == [False, True, False]
 
 
 def test_detail_jsonld():
@@ -56,3 +59,51 @@ def test_aggregated_is_only_a_flag():
     reason, flags = check_listing({"role_title": "AI Intern", "stipend": "15,000/month",
                                    "stipend_numeric": 15000, "aggregated": True})
     assert reason is None and any("Copied by the portal" in f for f in flags)
+
+
+def _card(title, duration="3 months duration", exp=0):
+    return {"role_title": title, "company_name": "Acme", "stipend": "15,000/month", "stipend_numeric": 15000,
+            "stipend_currency": "INR", "duration": duration, "required_skills": "", "location": "Pune",
+            "labelled_internship": duration[0].isdigit(), "min_experience": exp}
+
+
+def test_titles_missed_on_12_oct_laptop_run():
+    """Real Naukri posts the old rules dropped (laptop run, 12 Oct 07:04)."""
+    out = {i["role_title"]: (kept, reason) for i, kept, reason in evaluate("naukri", [
+        _card("AIML Intern"), _card("AI-Intern"),
+        _card("AI / Generative AI Engineer", "6 months duration"),   # Naukri files it as an internship
+        _card("Web Developer Fresher", "No fixed duration", 5),
+        _card("Data Annotation Engineer", "6 months duration"),
+        _card("AI Filmmaking Trainee", "6 months duration"),
+        _card("Placement Coordinator", "No fixed duration", 1),
+    ])}
+    assert out["AIML Intern"] == (True, "") and out["AI-Intern"] == (True, "")
+    assert out["AI / Generative AI Engineer"] == (True, "")
+    assert out["Web Developer Fresher"] == (False, "Not labelled as an internship")
+    assert out["Data Annotation Engineer"] == (False, "Not an AI/ML role")
+    assert out["AI Filmmaking Trainee"] == (False, "Not an AI/ML role")
+    assert out["Placement Coordinator"] == (False, "Not labelled as an internship")
+
+
+def test_experience_rules():
+    res = {i["min_experience"]: (kept, reason, i.get("trust_flags", "")) for i, kept, reason in evaluate("naukri", [
+        _card("AI Intern", exp=0), _card("ML Intern", exp=2), _card("AI Engineer Intern", exp=4)])}
+    assert res[0] == (True, "", "")
+    assert res[2][0] is True and "Asks for 2+ years of experience" in res[2][2]
+    assert res[4] == (False, "Asks for 4+ years of experience", "")
+
+
+def test_training_institute_name_is_a_flag():
+    reason, flags = check_listing({"role_title": "AI Intern", "company_name": "Fireblaze Ai School",
+                                   "stipend": "5,000/month", "stipend_numeric": 5000})
+    assert reason is None and any("training institute" in f for f in flags)
+    _, gov = check_listing({"role_title": "AI Intern", "company_name": "School of Planning", "org_type": "Government",
+                            "stipend": "5,000/month", "stipend_numeric": 5000})
+    assert not any("training institute" in f for f in gov)
+
+
+def test_internship_that_converts_to_full_time_is_kept():
+    from filters import internship_rejection_reason
+    assert internship_rejection_reason("AI/ML Engineering Intern Internship to Full-Time", [], "shine") is None
+    assert internship_rejection_reason("【Class of 2028／Full-Time】Applied Scientists", [], "linkedin") is not None
+    assert internship_rejection_reason("Full Time ML Engineer Intern", [], "linkedin") == "Title has 'full time'"

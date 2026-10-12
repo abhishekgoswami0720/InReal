@@ -18,7 +18,7 @@ No new sites until all 7 upgraded sites pass both checks on the laptop. The filt
 |---|---|---|
 | Internshala | ✅ 06:11 — 393 read, 81 kept; 4 posts now flagged "one post listed for 6–11 towns" | ✅ 06:27 — 81 saved to `internships.csv` (same as terminal), every card has title, company and link, 29 with warnings (incl. new "100 openings for one internship" ×2) |
 | Unstop | ✅ 06:37 — 589 read, 15 kept (one fewer than round 1: a post that says unpaid) | ✅ 06:37 — 15 saved, same as terminal; 3 flagged "stipend not stated", 1 commission pay, 1 training wording |
-| Naukri | ⚠️ 06:49 — 40 read, 13 kept, "page 3 did not load". 06:57 (one search per pay range) — "page 2 did not load". Cause: Naukri fetches every page after the first through its job API, which now wants a reCAPTCHA token; in the browser neither "Next" nor "2" changed the list, and a direct "-2?…" URL bounces to page 1. Fixed: read only first pages, of 20 narrower searches (4 keywords × 5 pay ranges). Re-test | ✅ 06:52 — 13 saved, same as terminal; 4 flagged as copied from another site |
+| Naukri | ⚠️ 06:49 — 40 read, 13 kept, "page 3 did not load"; 06:57 — "page 2 did not load" (later pages need a reCAPTCHA token). Fixed: first pages of 20 narrower searches (4 keywords × 5 pay ranges). ✅ 07:04 — all 20 searches loaded, no "did not load", **108 read, 16 kept**, 16 detail pages read, 4 flagged as copied. Then fixed 4 real AI internships the rules dropped: "AIML Intern", "AI-Intern" (hyphen), and two posts without "intern" in the title that Naukri files as internships ("AI / Generative AI Engineer", 6 months, ₹18,000). Replaying the 07:04 data with the new rules: **20 kept**; "Fireblaze AI School" now flagged as a possible training institute, one post flagged for asking 2+ years. Re-test for the new rules | ⏳ last web run (06:52) used the old paging code — re-test |
 | LinkedIn | ⏳ | ⏳ |
 | Shine | ⏳ | ⏳ |
 | Foundit | ⏳ | ⏳ |
@@ -135,6 +135,9 @@ What we found:
 - Naukri's own job API answers `recaptcha required`, so we don't use it.
 - **Laptop test 1 (01:17): blocked.** Headless Chromium got no job cards in 20 s. Naukri now runs in a visible window of the installed Google Chrome (falls back to Playwright's Chromium), without a fake user agent. If a check appears, the scraper waits 60 s for you to solve it, and saves `test_output/naukri_blocked.png` + `.html` so we can see what Naukri showed.
 - **Laptop test 2 (01:50, visible Chrome): passed.** 3 pages, 58 paid listings, **15 kept**, 15 detail pages read; 4 kept posts are flagged as copied from another site. One earlier web run stopped after page 2 ("page 3 did not load"), so the Next-page step can be flaky.
+- **Round 2 (12 Oct 07:04):** paging no longer works (see the table at the top), so we read the first page of 20 narrower searches. The searches overlap heavily: the last 5 ("artificial-intelligence-…") added only 6 new posts, so we are close to all paid AI/ML internships Naukri has. 6 searches were full (20 cards), so a few posts on their page 2 are still missed.
+- Every card from the paid-internship search shows a duration. "3 months duration" means Naukri files the post as an internship, so the title need not say "intern". "No fixed duration" is not trusted: real jobs carry it too ("Placement Coordinator, 1–3 years", "Web Developer Fresher, 5–6 years").
+- Internship cards do not print experience; it is only in the link (`…-pune-0-to-1-years-220926015668`). 3+ years minimum is dropped, 1–2 years is a warning.
 - CSS classes on the detail page are hashed (`styles_jhc__stat__PgY67`) and change on every Naukri release, so we read the schema.org JSON block instead, plus partial class matches.
 
 ## 4. LinkedIn (guest search) ✅

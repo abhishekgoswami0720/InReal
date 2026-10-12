@@ -88,6 +88,10 @@ def mark_repeated_posts(raw_listings: list):
                 i["repeat_note"] = f"Same post repeated in {len(places)} {where}"
 
 
+# An "internship" that needs this many years of experience is a job (Naukri, Oct 2026: "4-to-9 years")
+MAX_MIN_EXPERIENCE = 3
+
+
 def evaluate(source_name: str, raw_listings: list):
     """
     Runs every filter on every listing.
@@ -100,7 +104,11 @@ def evaluate(source_name: str, raw_listings: list):
         skills = item.get("required_skills", "")
         skill_list = [s.strip() for s in skills.split(",") if s.strip()]
 
-        reason = internship_rejection_reason(item["role_title"], skill_list, source_name)
+        reason = internship_rejection_reason(item["role_title"], skill_list, source_name,
+                                             bool(item.get("labelled_internship")))
+        min_exp = item.get("min_experience")
+        if reason is None and isinstance(min_exp, (int, float)) and min_exp >= MAX_MIN_EXPERIENCE:
+            reason = f"Asks for {int(min_exp)}+ years of experience"
         if reason is None:
             is_india = item.get("stipend_currency") == "INR" or item.get("location_type") == "India"
             reason = stipend_rejection_reason(item["stipend"], item["stipend_numeric"], is_india)

@@ -10,7 +10,7 @@ INCLUDE_KEYWORDS = [
     "mlops", "ai research", "ai engineer", "ml engineer", "ai/ml", "ai ml",
     "ai agent", "agentic", "ai developer", "ai development",
     "transformer", "diffusion model", "multimodal", "robotics ai",
-    "speech recognition", "recommendation system", "ai intern",
+    "speech recognition", "recommendation system", "ai intern", "aiml",
     # Skill tags that only show up on real ML work
     "pytorch", "tensorflow", "keras", "scikit-learn", "opencv",
     "hugging face", "langchain",
@@ -48,22 +48,33 @@ def _has_word(text: str, word: str) -> bool:
     return re.search(r"(?<![a-z])" + re.escape(word) + r"(?![a-z])", text) is not None
 
 
-def internship_rejection_reason(title: str, skills: list, source: str = ""):
+def _clean_title(title: str) -> str:
+    """'AI-Intern', 'Intern - AI/ML', 'Principal_AI' -> plain words, so 'AI-Intern' reads like 'AI Intern'."""
+    return " ".join(re.sub(r"[-_/,|]+", " ", title.lower()).split())
+
+
+def internship_rejection_reason(title: str, skills: list, source: str = "", labelled_internship: bool = False):
     """
     Returns None if the listing is an AI/ML internship we want,
     otherwise a short reason it was rejected.
+    labelled_internship: the portal itself marks this post as an internship
+    (e.g. a Naukri card with a fixed "3 months duration"), so the title needn't say "intern".
     """
-    title_lower = title.lower()
+    title_lower = _clean_title(title)
     skills_lower = [s.lower() for s in skills]
     text_to_check = title_lower + " " + " ".join(skills_lower)
 
     # Must contain 'intern' unless the platform only lists internships
     # Portals that only list internships (the AICTE government portal too), so titles needn't say "intern"
     is_internship_platform = source in ["internshala", "unstop", "government"]
-    if "intern" not in title_lower and not is_internship_platform:
+    if "intern" not in title_lower and not is_internship_platform and not labelled_internship:
         return "Not labelled as an internship"
 
+    # "AI/ML Engineering Intern Internship to Full-Time" (Shine, Oct 2026) is an internship with a job offer at the end
+    converts = re.search(r"\b(to|into|then|leading to)\s+full time\b", title_lower)
     for exc in TITLE_EXCLUDE:
+        if converts and exc in ("full time", "full-time"):
+            continue
         if _has_word(title_lower, exc):
             return f"Title has '{exc}'"
     for lang in LANGUAGE_EXCLUDE:

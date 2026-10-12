@@ -49,6 +49,8 @@ TRAINING_RE = (
 # Titles that read like a course, not a job (AICTE portal, Oct 2026: "Machine Learning with Python",
 # "Master Artificial Intelligence", "Data Science with Python Including Ai")
 TRAINING_TITLE_RE = r"^\s*(master|learn|become)\b|\bwith python\b|\bcourse\b|\bbootcamp\b|\bcertification\b"
+# Employers whose name says they sell courses (Naukri, Oct 2026: "Fireblaze AI School" posting an "AI Intern")
+TRAINING_COMPANY_RE = r"\b(school|academy|coaching|classes|bootcamp|edu\s?tech|skill development|training)\b"
 MANY_TOWNS = 6
 MASS_OPENINGS = 50   # e.g. "Fullstack Developer Training and Internship", 70 openings (AICTE, Oct 2026)
 
@@ -130,6 +132,13 @@ def check_listing(item: dict):
 
     if re.search(TRAINING_RE, text, re.I) or re.search(TRAINING_TITLE_RE, str(item.get("role_title", "")), re.I):
         flags.append("Sounds like a training programme sold as an internship")
+    elif (item.get("org_type") not in ("Government", "Institution")
+          and re.search(TRAINING_COMPANY_RE, str(item.get("company_name", "")), re.I)):
+        flags.append("Employer's name sounds like a training institute; make sure it isn't selling a course")
+
+    min_exp = _num(item.get("min_experience"))
+    if min_exp:
+        flags.append(f"Asks for {min_exp}+ year{'s' if min_exp > 1 else ''} of experience, unusual for an internship")
 
     if item.get("portal_verified") is False:
         flags.append("Employer not verified by the portal")
