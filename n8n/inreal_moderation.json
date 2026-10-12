@@ -447,7 +447,7 @@
         "options": {
           "response": {
             "response": {
-              "neverError": true
+              "neverError": false
             }
           },
           "timeout": 30000,
@@ -471,7 +471,9 @@
         1960,
         300
       ],
-      "onError": "continueRegularOutput"
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {

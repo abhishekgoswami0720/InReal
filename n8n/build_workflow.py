@@ -117,7 +117,8 @@ def build():
              method="POST", body_expr="={{ JSON.stringify($json.judgeRequest) }}", gemini=True, batch=(1, 4000)),
         code_node("Verify evidence + fuse scores", [1720, 520], "_verdict_lib.js", "fuse.js", all_items=True),
         http("Save verdict", [1960, 300], f"={{{{ {CFG}.flaskBase }}}}/api/moderation/verdict",
-             method="POST", body_expr="={{ JSON.stringify($json.verdict) }}", batch=(10, 0)),
+             method="POST", body_expr="={{ JSON.stringify($json.verdict) }}", batch=(10, 0),
+             must_work=True, retryOnFail=True, maxTries=3, waitBetweenTries=1000),
         sticky("About", [-1260, -220], (
             "## InReal scam moderation\n"
             "Runs after EACH site is scraped (claims its own listings, so runs overlap safely). New listings go through 3 stages in mini-batches:\n"

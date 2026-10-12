@@ -33,10 +33,18 @@ def get_internships():
         return jsonify([])
         
     try:
-        df = pd.read_csv(DATA_FILE)
-        # Safely convert NaN to empty strings for JSON serialization
-        df = df.fillna("")
-        return jsonify(df.to_dict(orient="records"))
+        # Read under the writers' lock: on Windows an open reader makes the writer's file replace fail
+        from output_handler import read_all_rows
+        rows = read_all_rows()
+        for r in rows:
+            for k in ("match_score", "stipend_numeric"):
+                try:
+                    if r.get(k) not in (None, ""):
+                        v = float(r[k])
+                        r[k] = int(v) if v.is_integer() else v
+                except ValueError:
+                    pass
+        return jsonify(rows)
     except Exception as e:
         print(f"Error reading CSV: {e}")
         return jsonify([])

@@ -1,6 +1,7 @@
 import json
 import csv
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -63,7 +64,16 @@ def _write_rows(rows: list):
         writer.writeheader()
         for r in rows:
             writer.writerow({k: r.get(k, "") for k in CSV_HEADERS})
-    tmp.replace(CSV_FILE)   # the dashboard never reads a half-written file
+    # Windows refuses to replace a file another reader has open ("WinError 5 Access is denied",
+    # laptop 12 Oct 10:46: one n8n verdict was lost and stayed "checking"). Retry briefly.
+    for attempt in range(20):
+        try:
+            tmp.replace(CSV_FILE)   # the dashboard never reads a half-written file
+            return
+        except PermissionError:
+            if attempt == 19:
+                raise
+            time.sleep(0.1 * (attempt + 1))
 
 
 def _record(item: dict) -> dict:
@@ -222,3 +232,9 @@ def update_run_history(new_listings_count: int, sources_failed: list):
     log_data["run_history"] = history
     log_data["last_run"] = today_str
     save_log(log_data)
+
+
+def read_all_rows() -> list:
+    """For the dashboard: read under the same lock the writers use, so a read never blocks a write."""
+    with _CSV_LOCK:
+        return _read_rows()
