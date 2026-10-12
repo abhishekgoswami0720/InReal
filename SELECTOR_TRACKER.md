@@ -18,7 +18,7 @@ No new sites until all 7 upgraded sites pass both checks on the laptop. The filt
 |---|---|---|
 | Internshala | ✅ 06:11 — 393 read, 81 kept; 4 posts now flagged "one post listed for 6–11 towns" | ✅ 06:27 — 81 saved to `internships.csv` (same as terminal), every card has title, company and link, 29 with warnings (incl. new "100 openings for one internship" ×2) |
 | Unstop | ✅ 06:37 — 589 read, 15 kept (one fewer than round 1: a post that says unpaid) | ✅ 06:37 — 15 saved, same as terminal; 3 flagged "stipend not stated", 1 commission pay, 1 training wording |
-| Naukri | ⏳ | ⏳ |
+| Naukri | ⚠️ 06:49 — 40 read, 13 kept, but "page 3 did not load" again, so ~18 of 59 were missed. Fixed: one search per pay range (each has at most 2 pages; page 1→2 always worked). Re-test | ✅ 06:52 — 13 saved, same as terminal; 4 flagged as copied from another site |
 | LinkedIn | ⏳ | ⏳ |
 | Shine | ⏳ | ⏳ |
 | Foundit | ⏳ | ⏳ |

@@ -7,7 +7,7 @@ sys.path.insert(0, str(ROOT))
 
 from genuine import check_listing  # noqa: E402
 from scraper import evaluate  # noqa: E402
-from sites.naukri import URL, parse_detail_page, parse_list_page  # noqa: E402
+from sites.naukri import URLS, parse_detail_page, parse_list_page  # noqa: E402
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -16,8 +16,8 @@ def load(name):
     return (FIX / name).read_text(encoding="utf-8")
 
 
-def test_url_asks_for_paid_internships_only():
-    assert "qcstipend=0To10" in URL and "qcstipend=40To50" in URL
+def test_one_search_per_paid_range():
+    assert [u.split("qcstipend=")[1] for u in URLS] == ["0To10", "10To20", "20To30", "30To40", "40To50"]
 
 
 def test_list_selectors():

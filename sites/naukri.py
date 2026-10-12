@@ -32,8 +32,13 @@ from filters import calculate_match_score, internship_rejection_reason, stipend_
 from scraper_utils import action_required, action_resolved, human_delay, launch_browser, save_debug
 
 PAID_RANGES = ["0To10", "10To20", "20To30", "30To40", "40To50"]
-URL = "https://www.naukri.com/ai-ml-internship-jobs-in-india?" + "&".join(f"qcstipend={r}" for r in PAID_RANGES)
-MAX_PAGES = 10
+SEARCH = "https://www.naukri.com/ai-ml-internship-jobs-in-india"
+# One search per pay range. With all ranges in one search (59 results, 3 pages) the
+# "Next" click from page 2 to 3 failed on both laptop runs on 12 Oct (06:49, 06:51),
+# losing ~18 listings; page 1 -> 2 always worked. Each range has at most 2 pages.
+URLS = [f"{SEARCH}?qcstipend={r}" for r in PAID_RANGES]
+URL = URLS[0]
+MAX_PAGES = 5   # per pay range
 # Naukri blocks headless browsers (tested 12 Oct 2026: no cards within 20 s).
 # A visible Chrome window passes; if a check still appears, solve it in the window.
 HEADLESS = False
@@ -163,47 +168,58 @@ def scrape_naukri():
         page = context.new_page()
         Stealth().apply_stealth_sync(page)
 
-        logger.info(f"Scraping Naukri (paid internships only): {URL}")
-        page.goto(URL, timeout=45000, wait_until="domcontentloaded")
-        try:
-            page.wait_for_selector(SEL["card"], timeout=20000)
-        except Exception:
-            save_debug(page, "naukri_blocked")
-            if HEADLESS:
-                browser.close()
-                raise RuntimeError("Naukri: no job cards (blocked). Set HEADLESS = False in sites/naukri.py")
-            action_required("Naukri", f"No job cards yet. If the Chrome window shows a check, "
-                                      f"solve it there within {WAIT_FOR_HUMAN_S} seconds.", "captcha")
+        for idx, url in enumerate(URLS):
+            logger.info(f"Scraping Naukri (paid internships, range {PAID_RANGES[idx]}k): {url}")
+            page.goto(url, timeout=45000, wait_until="domcontentloaded")
             try:
-                page.wait_for_selector(SEL["card"], timeout=WAIT_FOR_HUMAN_S * 1000)
-                action_resolved("Naukri")
-            except Exception as e:
-                save_debug(page, "naukri_blocked")
-                browser.close()
-                raise RuntimeError(f"Naukri: still no job cards after {WAIT_FOR_HUMAN_S} s "
-                                   f"(see test_output/naukri_blocked.png): {e}")
-
-        for page_num in range(1, MAX_PAGES + 1):
-            human_delay(1.5, 2.5)
-            records = parse_list_page(page.content())
-            new = [r for r in records if r["id"] not in seen]
-            seen.update(r["id"] for r in new)
-            all_internships.extend(new)
-            logger.info(f"Naukri page {page_num}: {len(records)} cards, {len(new)} new")
-
-            nxt = page.locator(SEL["next"])
-            if nxt.count() == 0 or nxt.first.get_attribute("disabled") is not None or not new:
-                break
-            first_id = page.locator(SEL["card"]).first.get_attribute("data-job-id")
-            nxt.first.click()
-            try:  # wait until the list really changed
-                page.wait_for_function(
-                    "id => { const c = document.querySelector('.srp-jobtuple-wrapper');"
-                    " return c && c.getAttribute('data-job-id') !== id; }",
-                    arg=first_id, timeout=20000)
+                page.wait_for_selector(SEL["card"], timeout=20000)
             except Exception:
-                logger.warning(f"Naukri: page {page_num + 1} did not load, stopping")
-                break
+                if all_internships:   # we got in before, so this pay range is just empty
+                    logger.info(f"Naukri: no cards in range {PAID_RANGES[idx]}k, moving on")
+                    continue
+                save_debug(page, "naukri_blocked")
+                if HEADLESS:
+                    browser.close()
+                    raise RuntimeError("Naukri: no job cards (blocked). Set HEADLESS = False in sites/naukri.py")
+                action_required("Naukri", f"No job cards yet. If the Chrome window shows a check, "
+                                          f"solve it there within {WAIT_FOR_HUMAN_S} seconds.", "captcha")
+                try:
+                    page.wait_for_selector(SEL["card"], timeout=WAIT_FOR_HUMAN_S * 1000)
+                    action_resolved("Naukri")
+                except Exception as e:
+                    if idx < len(URLS) - 1:
+                        logger.warning(f"Naukri: nothing in range {PAID_RANGES[idx]}k after waiting, trying the next range")
+                        continue
+                    save_debug(page, "naukri_blocked")
+                    browser.close()
+                    raise RuntimeError(f"Naukri: still no job cards after {WAIT_FOR_HUMAN_S} s "
+                                       f"(see test_output/naukri_blocked.png): {e}")
+
+            for page_num in range(1, MAX_PAGES + 1):
+                human_delay(1.5, 2.5)
+                records = parse_list_page(page.content())
+                new = [r for r in records if r["id"] not in seen]
+                seen.update(r["id"] for r in new)
+                all_internships.extend(new)
+                logger.info(f"Naukri {PAID_RANGES[idx]}k page {page_num}: {len(records)} cards, {len(new)} new")
+
+                nxt = page.locator(SEL["next"])
+                if nxt.count() == 0 or nxt.first.get_attribute("disabled") is not None or not new:
+                    break
+                first_id = page.locator(SEL["card"]).first.get_attribute("data-job-id")
+                nxt.first.click()
+                try:  # wait until the list really changed
+                    page.wait_for_function(
+                        "id => { const c = document.querySelector('.srp-jobtuple-wrapper');"
+                        " return c && c.getAttribute('data-job-id') !== id; }",
+                        arg=first_id, timeout=20000)
+                except Exception:
+                    logger.warning(f"Naukri {PAID_RANGES[idx]}k: page {page_num + 1} did not load, next range")
+                    break
+
+        if not all_internships:
+            browser.close()
+            raise RuntimeError("Naukri: no job cards in any pay range")
 
         wanted = [r for r in all_internships if _wanted(r)]
         logger.info(f"Naukri: opening {len(wanted)} detail pages for the genuineness checks")
