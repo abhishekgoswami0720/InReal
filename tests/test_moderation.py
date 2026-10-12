@@ -364,21 +364,24 @@ def test_round_robin_across_sites():
     assert oh.round_robin([], 5) == []
 
 
-def test_next_batch_is_chained_after_the_last_verdict(store, monkeypatch):
+def test_no_automatic_next_batch(store, monkeypatch):
+    """Only Load more sends listings: a finished run must not wake n8n for the rest."""
     import app as app_mod
     calls = []
     monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": calls.append(source))
-    app_mod._last_chain["t"] = 0
     oh.sync_listings([_row(f"q{i}", "AI Intern") for i in range(3)], [])
     claimed = oh.pending_moderation(limit=2, claim=True)
     c = app_mod.app.test_client()
-    c.post("/api/moderation/verdict", json={"id": claimed[0]["id"], "status": "approved", "scam_risk": 0.1, "reasons": []})
+    for p_ in claimed:
+        c.post("/api/moderation/verdict", json={"id": p_["id"], "status": "approved", "scam_risk": 0.1, "reasons": []})
     import time; time.sleep(0.2)
-    assert calls == []                     # one listing of the run is still being checked
-    c.post("/api/moderation/verdict", json={"id": claimed[1]["id"], "status": "approved", "scam_risk": 0.1, "reasons": []})
-    time.sleep(0.2)
-    assert calls == ["next batch"]         # run done, 1 still waiting: n8n woken again
+    assert calls == []
 
+
+def test_unreleased_rows_are_held_at_start(store):
+    oh.sync_listings([_row(f"u{i}", "AI Intern") for i in range(3)], [])   # old-style: no status
+    assert oh.hold_unreleased() == 3
+    assert oh.moderation_counts()["held"] == 3 and oh.pending_moderation(limit=10) == []
 
 def test_new_listings_are_held_and_released_five_at_a_time(store, monkeypatch):
     import app as app_mod
