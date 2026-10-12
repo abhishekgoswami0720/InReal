@@ -286,6 +286,7 @@ function applyFiltersAndRender() {
   // Preferred companies first (stable sort keeps the rest in their order)
   filtered.sort((a, b) => Number(isPreferred(b)) - Number(isPreferred(a)));
   renderOverviewStats(filtered, base);
+  updateFilterCount();
   renderListings(filtered);
 }
 
@@ -967,3 +968,38 @@ function updateProfileUI() {
     box.classList.remove('hidden');
   }
 }
+
+
+// ==========================================
+// 11. One "Filters" dropdown holding every filter
+// ==========================================
+function updateFilterCount() {
+  const n = [activeRoleType !== 'all', activeLocation !== 'all', activeStipend !== 'all',
+             activeSource !== 'all', activeModeration !== 'verified'].filter(Boolean).length;
+  const badge = document.getElementById('filter-count');
+  if (!badge) return;
+  badge.textContent = n;
+  badge.classList.toggle('hidden', n === 0);
+}
+
+function setFilterMenu(open) {
+  const menu = document.getElementById('filter-menu');
+  const btn = document.getElementById('filter-menu-btn');
+  if (!menu || !btn) return;
+  menu.classList.toggle('hidden', !open);
+  btn.setAttribute('aria-expanded', String(open));
+  if (open) menu.querySelector('select')?.focus();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const wrap = document.getElementById('filter-menu-wrap');
+  document.getElementById('filter-menu-btn')?.addEventListener('click', () =>
+    setFilterMenu(document.getElementById('filter-menu').classList.contains('hidden')));
+  document.getElementById('filter-done-btn')?.addEventListener('click', () => {
+    setFilterMenu(false);
+    document.getElementById('filter-menu-btn')?.focus();
+  });
+  document.addEventListener('click', (e) => { if (wrap && !wrap.contains(e.target)) setFilterMenu(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setFilterMenu(false); });
+  updateFilterCount();
+});
