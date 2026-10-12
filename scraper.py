@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 from loguru import logger
-from output_handler import append_to_csv, update_run_history
+from output_handler import sync_listings, update_run_history
 from filters import internship_rejection_reason, stipend_rejection_reason
 from genuine import check_listing
 
@@ -178,14 +178,19 @@ def collapse_copies(results):
 def process_and_save(source_name: str, raw_listings: list):
     results = evaluate(source_name, raw_listings)
     valid_listings = [item for item, kept, _ in results if kept]
+    dropped_ids = [item["id"] for item, kept, _ in results if not kept and item.get("id")]
 
+    res = sync_listings(valid_listings, dropped_ids)
     if not valid_listings:
         logger.info(f"[{source_name}] Searched through {len(raw_listings)} listings, but none matched our criteria.")
-        return 0
-
-    added = append_to_csv(valid_listings)
-    logger.info(f"[{source_name}] Analyzed {len(raw_listings)} listings, found {len(valid_listings)} matches, and saved {added} brand new ones!")
-    return added
+    extra = []
+    if res["updated"]:
+        extra.append(f"refreshed {res['updated']} already saved")
+    if res["removed"]:
+        extra.append(f"removed {res['removed']} that no longer pass the checks")
+    logger.info(f"[{source_name}] Analyzed {len(raw_listings)} listings, found {len(valid_listings)} matches, "
+                f"and saved {res['added']} brand new ones!" + (f" ({', '.join(extra)})" if extra else ""))
+    return res["added"]
 
 
 TEST_COLUMNS = ["status", "reason", "trust_flags", "role_title", "company_name", "stipend",

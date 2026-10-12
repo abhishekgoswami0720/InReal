@@ -277,8 +277,12 @@ function renderListings() {
         return true;
     });
 
-    // Sort by Match Score Descending, then Date
+    // Listings with no warnings first, then fewer warnings, then Match Score, then Date.
+    // (12 Oct: a "Guaranteed Certification" post with two warnings sat in the top row at 70%.)
+    const warnCount = i => String(i.trust_flags || "").split(";").filter(f => f.trim()).length;
     filtered.sort((a, b) => {
+        const warnDiff = warnCount(a) - warnCount(b);
+        if (warnDiff !== 0) return warnDiff;
         const scoreA = a.match_score || 0;
         const scoreB = b.match_score || 0;
         if (scoreB !== scoreA) {

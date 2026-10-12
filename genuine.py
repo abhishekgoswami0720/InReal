@@ -45,12 +45,14 @@ TRAINING_RE = (
     r"|\btraining program(me)?\s+(with|and)\b|\bcourse fee\b"
     r"|\btraining\s*(&|and|\+|cum|with)\s*internship\b|\binternship\s*(&|and|\+|cum)\s*training\b"
     r"|\bguaranteed\s+certificat\w*"
+    # "1 Year Fully Online Remote Internship with Employment Opportunity (Based on Successful Completion)" (AICTE, Oct 2026)
+    r"|\b(job|employment|placement)\s+opportunit\w*\s*\(?\s*(based\s+on|after|on|upon)\s+(the\s+)?(successful\s+)?completion"
 )
 # Titles that read like a course, not a job (AICTE portal, Oct 2026: "Machine Learning with Python",
 # "Master Artificial Intelligence", "Data Science with Python Including Ai")
 TRAINING_TITLE_RE = r"^\s*(master|learn|become)\b|\bwith python\b|\bcourse\b|\bbootcamp\b|\bcertification\b"
 # Employers whose name says they sell courses (Naukri, Oct 2026: "Fireblaze AI School" posting an "AI Intern")
-TRAINING_COMPANY_RE = r"\b(school|academy|coaching|classes|bootcamp|edu\s?tech|skill development|training)\b"
+TRAINING_COMPANY_RE = r"\b(school|academy|coaching|classes|bootcamp|edu?\s?tech|skill development|training)\b"
 MANY_TOWNS = 6
 MASS_OPENINGS = 50   # e.g. "Fullstack Developer Training and Internship", 70 openings (AICTE, Oct 2026)
 

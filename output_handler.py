@@ -97,6 +97,70 @@ def append_to_csv(internships: list) -> int:
     save_log(log_data)
     return len(new_records)
     
+def _read_rows() -> list:
+    if not CSV_FILE.exists():
+        return []
+    with open(CSV_FILE, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def sync_listings(kept: list, dropped_ids: list) -> dict:
+    """
+    Saves one scraper run and keeps earlier rows up to date.
+
+    The old append-only save never touched a row again, so a listing saved before a
+    rule changed kept its old warnings forever (12 Oct 2026: "AI Intern" at Fireblaze
+    AI School, saved at 06:52, never got the training-institute warning added at 07:15).
+      - kept listing already saved   -> its fields are refreshed (trust_flags, stipend, ...)
+      - kept listing not seen before -> added and marked new
+      - listing this run re-checked and dropped -> removed from the dashboard
+    Listings that simply did not appear in this run are left alone.
+    """
+    log_data = load_log()
+    seen_ids = set(log_data.setdefault("seen_ids", []))
+    rows = _read_rows()
+    by_id = {r.get("id"): r for r in rows}
+    keep_as_is = {"id", "date_scraped", "is_new"}
+    added = updated = 0
+
+    for item in kept:
+        rec = {k: item.get(k, "") for k in CSV_HEADERS}
+        old = by_id.get(item["id"])
+        if old is not None:
+            changed = False
+            for k in CSV_HEADERS:
+                if k in keep_as_is:
+                    continue
+                if str(old.get(k, "") or "") != str(rec[k] if rec[k] is not None else ""):
+                    old[k] = rec[k]
+                    changed = True
+            updated += changed
+        elif item["id"] not in seen_ids:
+            rec["is_new"] = True
+            rows.append(rec)
+            by_id[item["id"]] = rec
+            seen_ids.add(item["id"])
+            added += 1
+
+    gone = set(dropped_ids) & set(by_id)
+    if gone:
+        rows = [r for r in rows if r.get("id") not in gone]
+        seen_ids -= gone   # so it can come back if the post changes or the rules relax
+
+    rows.sort(key=lambda r: str(r.get("date_scraped", "")), reverse=True)
+    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_HEADERS, extrasaction="ignore")
+        writer.writeheader()
+        for r in rows:
+            writer.writerow({k: r.get(k, "") for k in CSV_HEADERS})
+
+    log_data["seen_ids"] = sorted(seen_ids)
+    log_data["total_scraped"] = len(seen_ids)
+    log_data["last_run"] = datetime.now().strftime("%Y-%m-%d")
+    save_log(log_data)
+    return {"added": added, "updated": updated, "removed": len(gone)}
+
+
 def update_run_history(new_listings_count: int, sources_failed: list):
     log_data = load_log()
     today_str = datetime.now().strftime("%Y-%m-%d")
