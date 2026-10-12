@@ -72,30 +72,7 @@ def parse_job_card(html, selectors, source_name, url_base=""):
 
 # scrape_shine moved to sites/shine.py (Shine changed its page structure, Oct 2026)
 
-@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
-def scrape_foundit():
-    results = []
-    with sync_playwright() as p:
-        try:
-            browser = p.chromium.launch(headless=True, args=get_playwright_stealth_args())
-            page = browser.new_page()
-            Stealth().apply_stealth_sync(page)
-            url = "https://www.foundit.in/srp/results?query=ai+ml+internship"
-            page.goto(url, timeout=30000)
-            human_delay(3.0, 6.0)
-            
-            selectors = {
-                "card_tag": "div", "card_class": "job-tuple",
-                "title_tag": "h3", "title_class": "",
-                "comp_tag": "span", "comp_class": "company-name",
-                "loc_tag": "div", "loc_class": "details"
-            }
-            results = parse_job_card(page.content(), selectors, "Foundit", "https://www.foundit.in")
-            browser.close()
-        except Exception as e:
-            logger.error(f"Foundit error: {e}")
-            raise e
-    return results
+# scrape_foundit moved to sites/foundit.py (Foundit now loads results from a JSON endpoint, Oct 2026)
 
 @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
 def scrape_apna():

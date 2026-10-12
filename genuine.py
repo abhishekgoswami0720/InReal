@@ -126,6 +126,9 @@ def check_listing(item: dict):
     if re.search(TRAINING_RE, text, re.I):
         flags.append("Sounds like a training programme sold as an internship")
 
+    if item.get("third_party"):
+        flags.append("Posted by a recruiter or consultant, not the company itself")
+
     if item.get("repeat_note"):  # set by scraper.mark_repeated_posts
         flags.append(item["repeat_note"])
 

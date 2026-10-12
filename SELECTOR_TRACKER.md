@@ -19,7 +19,7 @@ python scraper.py --source <name> --dry-run
 | 3 | Naukri | `naukri` | `sites/naukri.py` | Playwright (visible Chrome) + HTML + schema.org JSON on detail pages | ✅ |
 | 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | ✅ |
 | 5 | Shine | `shine` | `sites/shine.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | ✅ |
-| 6 | Foundit | `foundit` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
+| 6 | Foundit | `foundit` | `sites/foundit.py` | Visible Chrome + Foundit's JSON endpoints | 🟡 |
 | 7 | Apna | `apna` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 8 | Cutshort | `cutshort` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 9 | We Work Remotely (search page) | `international` | `sites/international.py` | Playwright + HTML | 🔴 |
@@ -182,18 +182,29 @@ Scope: first 5 pages (100 cards, sorted by relevance), at most 80 job pages read
 
 Same data with the fixes: **59 kept**, 2 dropped as unpaid; flags: one post listed for 7, 8 and 10 towns (Maxgen ×2, Sparks To Ideas), 1 training programme.
 
-## 6. Foundit 🔴
+## 6. Foundit 🟡
 
-URL: `https://www.foundit.in/srp/results?query=ai+ml+internship`
+Checked on the live site: 12 Oct 2026. Code moved to `sites/foundit.py`.
 
-| Field | Old selector | New selector | Status |
+**The old URL was broken by Foundit itself.** `https://www.foundit.in/srp/results?query=ai+ml+internship` shows "1 result", because the page passes the `+` signs literally to its own search ("ai+ml+internship"). The old selectors (`job-tuple`, `company-name`, `details`) match nothing.
+
+**New approach:** the page loads results from `/middleware/jobsearch?sort=1&limit=60&query=<words>` and descriptions from `/middleware/jobdetail/<id>`. We call both from inside a real Chrome window (Foundit uses Akamai bot checks, like Naukri), for 7 AI/ML queries. Results per query on 12 Oct: 1–47.
+
+| Field | Old selector | New source (JSON field) | Status |
 |---|---|---|---|
-| Card | `div` class matching `job-tuple` | | 🔴 |
-| Title | `h3` | | 🔴 |
-| Company | `span` class matching `company-name` | | 🔴 |
-| Location | `div` class matching `details` | | 🔴 |
-| Link | first `a` in the card | | 🔴 |
-| Stipend | not read | | 🔴 |
+| Card | `div` matching `job-tuple` | `jobSearchResponse.data[]` | ❌ fixed |
+| Title | `h3` | `title` | ❌ fixed |
+| Company | `span` matching `company-name` | `companyName` | ❌ fixed |
+| Location | `div` matching `details` | `locations` | ❌ fixed |
+| Link | first `a` | `seoJdUrl` | ❌ fixed |
+| Stipend | (not read) | `minimumSalary/maximumSalary.absoluteMonthlyValue` ("0-0" = hidden) | new |
+| Skills, experience, posted, deadline, applicants | (not read) | `skills`, `exp`, `postedBy`, `closedAt`, `totalApplicants` | new |
+| Posted by | (not read) | `employerTypes` ("Consultant" = recruiter) | new |
+| Description | (not read) | `/middleware/jobdetail/<id>` → `jobDetailResponse.description` | new |
+
+The endpoint also returns the recruiter's name and phone number; we never store them.
+
+What we found: Sparks To Ideas again, now as "Free AI/ML Internship", posted by a *Consultant*, ₹4,167–8,333/month (dropped: under ₹5,000) and in 4 more copies under "machine learning internship". Maxgen lists "DATA SCIENCE INTERNSHIP" at ₹2.5–5 lakh a year. New flag: **Posted by a recruiter or consultant, not the company itself**. Not tested on the laptop yet.
 
 ## 7. Apna 🔴
 
