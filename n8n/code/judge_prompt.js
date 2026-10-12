@@ -3,7 +3,7 @@
 // up to BATCH posts with their stage-0/1 findings as leads to verify. The answer is a fixed
 // JSON schema with one result per post id, and every quote must be copied word for word,
 // because the next node throws away any quote it can't find in THAT post.
-// 300 posts = ~38 calls instead of 300.
+// 300 posts = ~38 calls instead of 300. Works with Azure OpenAI (gpt-4o) or Gemini (Config: judgeProvider).
 
 const BATCH = 8;
 
@@ -82,31 +82,57 @@ function postBlock(item) {
     `Company: ${listing.company_name}`,
     `Stipend: ${listing.stipend || "not stated"}`,
     `Source: ${listing.source_platform}`,
-    `Text: ${String(listing.description || "(no description was available)").slice(0, 2500)}`,
+    `Text: ${String(listing.description || "(no description was available)").slice(0, 1800)}`,
     `Automated findings: ${findingsLine(item)}`,
   ].join("\n");
 }
 
-function buildRequest(items) {
+// Same rules, example and schema for both providers; only the envelope differs.
+function jsonSchema(t) {        // Gemini's OpenAPI-style schema -> strict JSON Schema for Azure OpenAI
+  if (t.type === "OBJECT") {
+    const props = Object.fromEntries(Object.entries(t.properties).map(([k, v]) => [k, jsonSchema(v)]));
+    return { type: "object", properties: props, required: Object.keys(props), additionalProperties: false };
+  }
+  if (t.type === "ARRAY") return { type: "array", items: jsonSchema(t.items) };
+  const out = { type: t.type.toLowerCase() };
+  if (t.enum) out.enum = t.enum;
+  return out;
+}
+
+function buildRequest(items, provider) {
+  const posts = items.map(postBlock).join("\n\n---\n\n");
+  if (provider === "azure") {
+    return {
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: EXAMPLE_POST },
+        { role: "assistant", content: JSON.stringify(EXAMPLE_ANSWER) },
+        { role: "user", content: posts },
+      ],
+      temperature: 0,
+      max_tokens: 4000,
+      response_format: { type: "json_schema", json_schema: { name: "scam_verdicts", strict: true, schema: jsonSchema(SCHEMA) } },
+    };
+  }
   return {
     systemInstruction: { parts: [{ text: SYSTEM }] },
     contents: [
       { role: "user", parts: [{ text: EXAMPLE_POST }] },
       { role: "model", parts: [{ text: JSON.stringify(EXAMPLE_ANSWER) }] },
-      { role: "user", parts: [{ text: items.map(postBlock).join("\n\n---\n\n") }] },
+      { role: "user", parts: [{ text: posts }] },
     ],
     generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: SCHEMA },
   };
 }
 
-function packJudge(items) {
+function packJudge(items, provider) {
   const out = [];
   for (let i = 0; i < items.length; i += BATCH) {
     const group = items.slice(i, i + BATCH);
-    out.push({ posts: group, judgeRequest: buildRequest(group) });
+    out.push({ posts: group, judgeRequest: buildRequest(group, provider) });
   }
   return out;
 }
 
 // ==== n8n glue (below this line runs only inside n8n) ====
-return packJudge($input.all().map(i => i.json)).map(json => ({ json }));
+return packJudge($input.all().map(i => i.json), $('Config').first().json.judgeProvider).map(json => ({ json }));

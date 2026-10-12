@@ -117,3 +117,53 @@ LLM quote was discounted, and the webhook trigger from the app worked.
   being checked or waiting.
 - Measured with a fake Gemini: 106 listings, two overlapping runs, all judged in 25 s. With the real free tier
   the waits between calls (2 s embed, 4 s judge) dominate: about 1.5 minutes per 100 listings (was ~9).
+
+
+## Embeddings on Azure OpenAI (12 Oct, Gemini free tier kept returning 429)
+
+1. In `.env`: `EMBED_PROVIDER=azure`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_EMBED_DEPLOYMENT`, `AZURE_OPENAI_KEY`
+   (see `.env.example`). The endpoint can be the bare resource URL or the full URL the portal shows.
+2. `python -m moderation.build_index` — rebuilds the phrase vectors with Azure (vectors from two different models
+   can't be compared, so this is required after switching). The index stores the Azure URL, never the key.
+3. In n8n, node **Embed chunks** → credential **Header Auth** named `Embedding API key`: Name `api-key`, Value = the Azure key.
+   The LLM judge keeps its own `Gemini API key` credential.
+4. Start n8n with `N8N_CONCURRENCY_PRODUCTION_LIMIT=1` so webhook runs queue one after another instead of
+   hitting the APIs together (PowerShell: `$env:N8N_CONCURRENCY_PRODUCTION_LIMIT="1"; npx n8n`).
+   Nothing is lost: listings a run didn't claim are taken by the next one.
+
+`text-embedding-3-small` deployment limits seen on the portal: 150,000 tokens and 900 requests per minute, so the
+embed node now waits only 0.3 s between calls (one call carries up to 90 sentences).
+
+
+## LLM judge on Azure OpenAI gpt-4o (12 Oct)
+
+- **Config** node: `judgeProvider` = `azure`, `azureJudgeUrl` = the gpt-4o chat-completions URL from the portal.
+  Set `judgeProvider` to `gemini` to go back (then give the judge node the Gemini credential).
+- Both Azure nodes (**Embed chunks**, **LLM judge (8 posts per call)**) use one Header Auth credential
+  `Azure OpenAI key` (Name `api-key`).
+- The judge sends the same rules + one worked example + 8 posts, and asks for a strict JSON schema
+  (`response_format: json_schema, strict: true`). Content-filter blocks and refusals become "LLM judge unavailable".
+- gpt-4o deployment limits: 50,000 tokens and 300 requests per minute; one 8-post call is ~6–7k tokens, so calls
+  are 8 s apart (≈60 posts a minute). Post text sent to the judge is capped at 1,800 characters.
+- If both AI checks fail for a post (APIs down / out of quota) it is **not** approved on rules alone; it goes back
+  to the queue for the next run.
+- Live check of both deployments from the laptop: `python -m moderation.check_azure`.
+- Tested in n8n 2.42.6 with fake Azure servers: 106 listings, 2 runs queued one after another, 31 s.
+
+
+## Current setup (12 Oct night): everything on Azure
+
+| Stage | Azure resource | Deployment | `.env` names | n8n credential (Header Auth, Name `api-key`) |
+|---|---|---|---|---|
+| Embeddings | `inreal2` | `text-embedding-3-small` | `AZURE_OPENAI_EMBEDDING_ENDPOINT`, `AZURE_OPENAI_EMBEDDING_KEY` | `Embedding API key` on **Embed chunks** |
+| LLM judge | `inreal1907` | `gpt-4o` | `AZURE_OPENAI_GPT4O_ENDPOINT`, `AZURE_OPENAI_GPT4O_KEY` | `Judge API key` on **LLM judge (8 posts per call)** |
+
+The `.env` names are the same as in the Azure quickstart `test.py`; `moderation/env.py` maps them to the
+names used inside the project. Gemini is no longer needed.
+
+Switching steps on the laptop:
+1. `git pull`, paste the four lines above into `.env`
+2. `python -m moderation.check_azure` → both ✅
+3. `python -m moderation.build_index` → must print `azure model text-embedding-3-small`
+4. In n8n: import `n8n/inreal_moderation.json` again, set the two credentials, **Publish**
+5. Restart `python app.py`

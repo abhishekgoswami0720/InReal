@@ -60,6 +60,29 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         REQUESTS.append({"path": self.path, "body": data})
+        if "/chat/completions" in self.path:             # Azure OpenAI gpt-4o judge
+            if self.headers.get("api-key") != KEY:
+                return self._send(401, {"error": {"code": "401", "message": "Access denied due to invalid subscription key"}})
+            fmt = data.get("response_format", {})
+            schema = fmt.get("json_schema", {}).get("schema", {})
+            item = schema.get("properties", {}).get("results", {}).get("items", {})
+            if not (fmt.get("type") == "json_schema" and fmt["json_schema"].get("strict")
+                    and item.get("additionalProperties") is False and set(item.get("required", [])) == set(item.get("properties", {}))):
+                return self._send(400, {"error": {"code": "BadRequest", "message": "invalid strict json_schema"}})
+            text = data["messages"][-1]["content"]
+            results = []
+            for block in re.split(r"\n\n---\n\n", text):
+                m = re.match(r"POST (\S+)", block)
+                if m:
+                    results.append({"id": m.group(1), "genuine_signs": [], **judge(block)})
+            return self._send(200, {"choices": [{"index": 0, "finish_reason": "stop",
+                                                 "message": {"role": "assistant", "content": json.dumps({"results": results})}}]})
+        if "/openai/deployments/" in self.path:          # Azure OpenAI embeddings
+            if self.headers.get("api-key") != KEY:
+                return self._send(401, {"error": {"code": "401", "message": "Access denied due to invalid subscription key"}})
+            dims = data.get("dimensions", 1536)
+            return self._send(200, {"data": [{"object": "embedding", "index": i, "embedding": embed(t, dims)}
+                                             for i, t in enumerate(data["input"])][::-1]})   # out of order on purpose
         if self.headers.get("x-goog-api-key") != KEY:
             return self._send(403, {"error": {"code": 403, "message": "API key not valid"}})
         if self.path.endswith(":batchEmbedContents"):
