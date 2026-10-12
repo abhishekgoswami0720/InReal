@@ -230,6 +230,12 @@
           <span id="scraper-status-text" class="text-[11px]">System Ready</span>
         </div>
 
+        <!-- Profile (field, experience, preferred companies) -->
+        <button id="edit-profile-btn" type="button" class="glass-btn px-4 py-2 flex items-center gap-1.5 text-slate-700 hover:text-slate-900">
+          <i class="ph ph-user-circle text-base"></i>
+          <span id="profile-btn-label">Set up profile</span>
+        </button>
+
         <!-- Secondary Outlined Button -->
         <a href="#listings-container" class="glass-btn px-4 py-2 flex items-center gap-1.5 text-slate-700 hover:text-slate-900">
           <i class="ph ph-list-magnifying-glass text-base"></i>
@@ -396,6 +402,7 @@
 
     <!-- Professional Corporate Filter Bar Directly Above Job Cards -->
     <section class="glass-panel p-5 flex flex-col gap-4">
+      <div id="profile-summary" class="hidden flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600 pb-3 border-b border-slate-200"></div>
       
       <!-- Top Row: Search Input + Clean Dropdowns -->
       <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
@@ -608,7 +615,14 @@
 
       <form id="scrape-config-form" class="mt-4 space-y-4 text-xs font-medium">
         <div>
-          <label class="font-bold text-slate-700 block mb-2">Target Geographic Regions</label>
+          <label for="scrape-field" class="font-bold text-slate-700 block mb-2">Field to search for</label>
+          <select id="scrape-field" class="filter-select w-full"></select>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="font-bold text-slate-700">Target Geographic Regions</label>
+            <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="regions" checked> Select all</label>
+          </div>
           <div class="grid grid-cols-3 gap-2">
             <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="regions" value="india" checked> India</label>
             <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="regions" value="usa" checked> USA</label>
@@ -619,7 +633,10 @@
         </div>
 
         <div>
-          <label class="font-bold text-slate-700 block mb-2">Upgraded &amp; tested platforms</label>
+          <div class="flex items-center justify-between mb-2">
+            <label class="font-bold text-slate-700">Upgraded &amp; tested platforms</label>
+            <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="sources" checked> Select all</label>
+          </div>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="internshala" checked> Internshala</label>
             <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="unstop" checked> Unstop</label>
@@ -644,6 +661,88 @@
 
         <button type="submit" class="w-full py-2.5 glass-btn glass-btn-primary text-xs font-bold transition mt-2">
           Launch Opportunity Sweep
+        </button>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- Sign-up / profile: asked before the first visit, editable from the header -->
+  <div id="profile-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[55] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+    <div class="glass-panel max-w-lg w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div class="flex items-start justify-between pb-3 border-b border-slate-200">
+        <div>
+          <h3 id="profile-title" class="text-base font-bold text-slate-900">Set up your profile</h3>
+          <p class="text-[11px] text-slate-500 mt-0.5">We search the sites you pick for your field, and only show internships that fit you. Saved in this browser.</p>
+        </div>
+        <button id="close-profile-btn" type="button" class="hidden w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500" aria-label="Close">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <form id="profile-form" class="mt-4 space-y-4 text-xs font-medium">
+        <div>
+          <label for="profile-name" class="font-bold text-slate-700 block mb-1.5">Your name <span class="font-medium text-slate-400">(optional)</span></label>
+          <input id="profile-name" type="text" autocomplete="name" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400/30">
+        </div>
+
+        <div>
+          <label for="profile-field" class="font-bold text-slate-700 block mb-1.5">Field you want an internship in</label>
+          <select id="profile-field" required class="filter-select w-full"></select>
+        </div>
+
+        <fieldset>
+          <legend class="font-bold text-slate-700 mb-1.5">Work experience</legend>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="radio" name="experience" value="0" checked> 0 years</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="radio" name="experience" value="1-2"> 1–2 years</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="radio" name="experience" value="3+"> 3+ years</label>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1.5">Unpaid internships are shown only to students with 0 years of experience.</p>
+        </fieldset>
+
+        <div>
+          <label for="profile-companies" class="font-bold text-slate-700 block mb-1.5">Preferred companies <span class="font-medium text-slate-400">(optional)</span></label>
+          <input id="profile-companies" type="text" placeholder="e.g. Google, Apollo Hospitals, Zomato" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400/30">
+          <p class="text-[10px] text-slate-500 mt-1">Separate with commas. Their internships are shown first.</p>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="font-bold text-slate-700">Sites to search</span>
+            <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="p_sources" checked> Select all</label>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="internshala" checked> Internshala</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="unstop" checked> Unstop</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="naukri" checked> Naukri</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="linkedin" checked> LinkedIn</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="shine" checked> Shine</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="foundit" checked> Foundit</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="apna" checked> Apna</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="government" checked> Govt (AICTE)</label>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1.5">Naukri and Foundit open a Chrome window; if a check appears, solve it there.</p>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="font-bold text-slate-700">Regions</span>
+            <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="p_regions" checked> Select all</label>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="india" checked> India</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="usa" checked> USA</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="europe" checked> Europe</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="remote" checked> Remote</label>
+            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="worldwide" checked> Global</label>
+          </div>
+        </div>
+
+        <label id="profile-scrape-row" class="flex items-center gap-2 text-slate-700 cursor-pointer"><input id="profile-scrape-now" type="checkbox" checked> Search these sites for my field now</label>
+
+        <button type="submit" class="w-full py-2.5 glass-btn glass-btn-primary text-xs font-bold transition">
+          Save and find internships
         </button>
       </form>
     </div>

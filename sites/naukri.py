@@ -46,6 +46,14 @@ SLUGS = [
 # several narrower searches: 4 keywords × 5 pay ranges, 20 cards each.
 URLS = [f"https://www.naukri.com/{slug}?qcstipend={r}" for slug in SLUGS for r in PAID_RANGES]
 URL = URLS[0]
+
+
+def urls_for_field():
+    import fields
+    if fields.current() == fields.DEFAULT:
+        return URLS
+    return [f"https://www.naukri.com/{fields.slug(t)}-internship-jobs?qcstipend={r}"
+            for t in fields.search_terms()[:3] for r in PAID_RANGES[:3]]
 # Naukri blocks headless browsers (tested 12 Oct 2026: no cards within 20 s).
 # A visible Chrome window passes; if a check still appears, solve it in the window.
 HEADLESS = False
@@ -183,7 +191,8 @@ def scrape_naukri():
         page = context.new_page()
         Stealth().apply_stealth_sync(page)
 
-        for idx, url in enumerate(URLS):
+        urls = urls_for_field()
+        for idx, url in enumerate(urls):
             logger.info(f"Scraping Naukri: {url}")
             page.goto(url, timeout=45000, wait_until="domcontentloaded")
             try:
@@ -202,7 +211,7 @@ def scrape_naukri():
                     page.wait_for_selector(SEL["card"], timeout=WAIT_FOR_HUMAN_S * 1000)
                     action_resolved("Naukri")
                 except Exception as e:
-                    if idx < len(URLS) - 1:
+                    if idx < len(urls) - 1:
                         logger.warning(f"Naukri: nothing for {url.split('/')[-1]} after waiting, trying the next search")
                         continue
                     save_debug(page, "naukri_blocked")

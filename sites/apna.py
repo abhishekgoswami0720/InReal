@@ -138,7 +138,9 @@ def scrape_apna():
         page = context.new_page()
         Stealth().apply_stealth_sync(page)
 
-        for q in QUERIES:
+        import fields
+        queries = QUERIES if fields.current() == fields.DEFAULT else [f"{t} internship" for t in fields.search_terms()]
+        for q in queries:
             for n in range(1, PAGES_PER_QUERY + 1):
                 url = SEARCH.format(q=urllib.parse.quote(q), page=n)
                 try:

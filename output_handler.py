@@ -19,6 +19,7 @@ CSV_HEADERS = [
     "posted", "trust_flags",
     # text the n8n moderation pipeline reads, and what it decided
     "description", "moderation_status", "scam_risk", "moderation_reasons", "moderated_at",
+    "field",   # which field of study the run searched for (fields.py); empty on old rows = ai_ml
 ]
 MODERATION_FIELDS = ["moderation_status", "scam_risk", "moderation_reasons", "moderated_at"]
 # If any of these change, the listing is a different post and must be moderated again
@@ -112,6 +113,13 @@ def sync_listings(kept: list, dropped_ids: list) -> dict:
                 content_changed = any(str(old.get(k, "") or "") != str(rec.get(k, "") or "") for k in CONTENT_FIELDS)
                 for k, v in rec.items():
                     if k in keep_as_is:
+                        continue
+                    if k == "field":
+                        # a post can match two fields (e.g. AI/ML and Data Analytics): keep both
+                        have = [f for f in str(old.get("field") or "").split(";") if f]
+                        if v and v not in have:
+                            old["field"] = ";".join(have + [v])
+                            changed = True
                         continue
                     if str(old.get(k, "") or "") != str(v if v is not None else ""):
                         old[k] = v

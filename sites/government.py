@@ -114,7 +114,10 @@ def parse_items(payload: dict):
 def scrape_government():
     all_internships = []
     seen = set()
-    for query in SEARCHES:
+    import fields
+    searches = SEARCHES if fields.current() == fields.DEFAULT else (
+        [f"q={urllib.parse.quote(t)}" for t in fields.search_terms()] + [s for s in SEARCHES if s.startswith("category=")])
+    for query in searches:
         for page in range(1, MAX_PAGES + 1):
             url = API.format(query=query, page=page)
             try:

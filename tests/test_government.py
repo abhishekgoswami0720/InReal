@@ -31,7 +31,7 @@ def test_genuine_checks_on_portal_listings():
     kept, _, flags = out["Web Neural Infotech"]
     assert kept and "Advertises another website in the title" in flags
     assert "Sounds like a training programme sold as an internship" in flags   # "Guaranteed Certification"
-    assert out["EduRankAI"][1] == "Unpaid"
+    assert out["EduRankAI"][0] is True   # unpaid is kept since 13 Oct (shown to 0-experience students)
     assert out["State Mission Management Unit, AMRUT Kerala"][1] == "Not an AI/ML role"
 
 

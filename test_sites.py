@@ -4,6 +4,7 @@ Tests every site once, one after another, WITHOUT saving anything to internships
     python test_sites.py                      # the 8 dashboard sites
     python test_sites.py naukri foundit       # only these
     python test_sites.py --all                # every scraper in scraper.py
+    python test_sites.py --field medical      # search for another field (see fields.py)
 
 Each site runs as its own `python scraper.py --dry-run --source <site>`, so one crash can't stop the
 rest. Results:
@@ -30,11 +31,14 @@ def sites_to_test(argv):
     from scraper import ALL_SCRAPERS, UPGRADED_SOURCES
     if "--all" in argv:
         return list(ALL_SCRAPERS)
-    picked = [a.lower() for a in argv if not a.startswith("-")]
+    picked = [a.lower() for i, a in enumerate(argv) if not a.startswith("-") and (i == 0 or argv[i - 1] != "--field")]
     unknown = [s for s in picked if s not in ALL_SCRAPERS]
     if unknown:
         sys.exit(f"Unknown site(s): {unknown}. Choose from: {', '.join(ALL_SCRAPERS)}")
     return picked or list(UPGRADED_SOURCES)
+
+
+FIELD = sys.argv[sys.argv.index("--field") + 1] if "--field" in sys.argv[:-1] else "ai_ml"
 
 
 def run_site(site):
@@ -42,7 +46,7 @@ def run_site(site):
     log = LOGS / f"{site}.log"
     t = time.time()
     try:
-        proc = subprocess.run([sys.executable, "scraper.py", "--dry-run", "--source", site], cwd=ROOT,
+        proc = subprocess.run([sys.executable, "scraper.py", "--dry-run", "--source", site, "--field", FIELD], cwd=ROOT,
                               capture_output=True, text=True, env={**os.environ, "PYTHONIOENCODING": "utf-8"}, encoding="utf-8", errors="replace", timeout=TIMEOUT_S)
         text, code = proc.stdout + proc.stderr, proc.returncode
     except subprocess.TimeoutExpired as e:
@@ -70,7 +74,7 @@ def run_site(site):
 def main():
     sites = sites_to_test(sys.argv[1:])
     OUT.mkdir(exist_ok=True)
-    lines = [f"Site test {datetime.now():%Y-%m-%d %H:%M}  (dry run, nothing saved)"]
+    lines = [f"Site test {datetime.now():%Y-%m-%d %H:%M}  field={FIELD}  (dry run, nothing saved)"]
     print(lines[0])
     for i, site in enumerate(sites, 1):
         print(f"[{i}/{len(sites)}] {site} ...", flush=True)
