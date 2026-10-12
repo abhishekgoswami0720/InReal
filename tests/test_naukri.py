@@ -132,3 +132,12 @@ def test_training_seller_flag_spreads_to_its_other_posts():
     ])}
     assert out["Ai & Machine Learning Engineer Intern"] == "Another post by this employer sounds like a training programme"
     assert out["Machine Learning Intern"] == ""
+
+
+def test_coop_counts_and_french_german_posts_say_why():
+    from filters import internship_rejection_reason as r
+    assert r("Machine Learning Applied Scientist (Co-op)", [], "linkedin") is None
+    assert r("2027 Spring Co-op Machine Learning AI, Cambridge", [], "linkedin") is None
+    assert r("Stage - Applied Research in GenAI / NLP F/M", [], "linkedin") == "Posted in French/German ('stage')"
+    assert r("Praktikum als Applied AI Engineer (m/w/d)", [], "linkedin").startswith("Posted in French/German")
+    assert r("Backstage AI Engineer Intern", [], "linkedin") is None

@@ -67,7 +67,14 @@ def internship_rejection_reason(title: str, skills: list, source: str = "", labe
     # Must contain 'intern' unless the platform only lists internships
     # Portals that only list internships (the AICTE government portal too), so titles needn't say "intern"
     is_internship_platform = source in ["internshala", "unstop", "government"]
-    if "intern" not in title_lower and not is_internship_platform and not labelled_internship:
+    # French/German internship words (LinkedIn Europe, Oct 2026): these posts are written for
+    # French/German speakers, so say why they're dropped instead of "not an internship"
+    foreign = re.search(r"\b(stage|stagiaire|praktikum|praktikant\w*|werkstudent\w*|abschlussarbeit|alternance)\b", title_lower)
+    if foreign:
+        return f"Posted in French/German ('{foreign.group(1)}')"
+    # "Co-op" is the North American word for a paid internship
+    is_coop = re.search(r"\bco ?op\b", title_lower) is not None
+    if "intern" not in title_lower and not is_coop and not is_internship_platform and not labelled_internship:
         return "Not labelled as an internship"
 
     # "AI/ML Engineering Intern Internship to Full-Time" (Shine, Oct 2026) is an internship with a job offer at the end
