@@ -22,7 +22,7 @@ No new sites until all 7 upgraded sites pass both checks on the laptop. The filt
 | LinkedIn | ⏳ | ⏳ |
 | Shine | ⏳ | ⏳ |
 | Foundit | ⏳ | ⏳ |
-| Govt portal (AICTE) | ✅ 06:44 (after the fix) — 165 read, **17 kept**, incl. **5 Indian Army internships** (HQ Southern Command ×3, Central Command, Western Command, ₹30,000–75,000); 90 unpaid dropped; training sellers flagged ("Master Artificial Intelligence", "Machine Learning with Python", 100–200 openings) | ✅ 06:42 — 9 saved, matching the terminal result of the code before the fix; the web path is the same code, so the fixed version gives 17 there too |
+| Govt portal (AICTE) | ✅ 06:44 (after the fix) — 165 read, **17 kept**, incl. **5 Indian Army internships** (HQ Southern Command ×3, Central Command, Western Command, ₹30,000–75,000); 90 unpaid dropped; training sellers flagged ("Master Artificial Intelligence", "Machine Learning with Python", 100–200 openings) | ✅ 06:48 — re-run after the fix saved 8 more: **17** on the dashboard, same as terminal; 5 of them have org type Government (the Army posts), so the dashboard's "Government" filter shows them |
 | Apna | ✅ 06:07 — 49 read, 12 kept (IQVIA, Apple, Micron, Novartis, Sprinklr…), no flags; one sales role ("Artificial Intelligence Sales Intern", ByteDance) passes the AI/ML rule on its title | ⏳ |
 
 Dashboard settings now have one checkbox per site; the not-upgraded ones are listed separately and unticked.
