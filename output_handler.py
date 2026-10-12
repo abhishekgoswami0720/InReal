@@ -1,14 +1,14 @@
-import json
-import csv
+import copy
 import threading
-import time
 from datetime import datetime
-from pathlib import Path
 
-# Paths relative to this file
-DATA_DIR = Path(__file__).parent
-LOG_FILE = DATA_DIR / "internships_log.json"
-CSV_FILE = DATA_DIR / "internships.csv"
+# ── Storage: IN MEMORY ONLY (12 Oct, Abhishek's call) ─────────────────────────────
+# Nothing is written to disk: no internships.csv, no internships_log.json. The listings, the
+# seen-ID memory and the n8n verdicts live inside the running app.py process.
+#   + every app start is a clean slate; nothing hidden survives between test runs
+#   - restarting app.py loses everything, and listings must be scraped and judged again (Azure cost)
+#   - only scrapes started from the dashboard (same process) are visible; `python scraper.py` or
+#     scheduler.py in their own terminal keep their data to themselves and it vanishes when they exit
 
 CSV_HEADERS = [
     "id", "company_name", "role_title", "location", "location_type",
@@ -26,23 +26,35 @@ CONTENT_FIELDS = ["company_name", "role_title", "stipend", "apply_link", "descri
 MODERATION_STATUSES = {"approved", "review", "blocked", "expired"}   # "checking" is set only by a claim
 DESCRIPTION_LIMIT = 3000
 
-# The scraper thread and the n8n verdict calls both write internships.csv
+# The scraper thread and the n8n verdict calls (Flask threads) share the store
 _CSV_LOCK = threading.RLock()
 
+
+def _empty_log() -> dict:
+    return {"last_run": None, "total_scraped": 0, "seen_ids": [], "run_history": []}
+
+
+_ROWS: list = []          # the listings (same fields as the old CSV columns)
+_LOG: dict = _empty_log() # seen IDs + run history (was internships_log.json)
+
+
+def clear_all():
+    """Forget every listing, verdict and seen ID ('Clear data' on the dashboard)."""
+    global _ROWS, _LOG
+    with _CSV_LOCK:
+        _ROWS = []
+        _LOG = _empty_log()
+
+
 def load_log():
-    if LOG_FILE.exists():
-        with open(LOG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {
-        "last_run": None,
-        "total_scraped": 0,
-        "seen_ids": [],
-        "run_history": []
-    }
+    with _CSV_LOCK:
+        return copy.deepcopy(_LOG)
+
 
 def save_log(log_data):
-    with open(LOG_FILE, "w", encoding="utf-8") as f:
-        json.dump(log_data, f, indent=2)
+    global _LOG
+    with _CSV_LOCK:
+        _LOG = copy.deepcopy(log_data)
 
 def is_duplicate(internship_id: str, log_data: dict = None) -> bool:
     if log_data is None:
@@ -50,30 +62,16 @@ def is_duplicate(internship_id: str, log_data: dict = None) -> bool:
     return internship_id in log_data.get("seen_ids", [])
 
 def _read_rows() -> list:
-    if not CSV_FILE.exists():
-        return []
-    with open(CSV_FILE, newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+    """Copies, so a caller can edit them and decide whether to save (same contract as the old CSV read)."""
+    with _CSV_LOCK:
+        return [{k: ("" if v is None else str(v)) for k, v in r.items()} for r in _ROWS]
 
 
 def _write_rows(rows: list):
-    rows.sort(key=lambda r: str(r.get("date_scraped", "")), reverse=True)
-    tmp = CSV_FILE.with_suffix(".csv.tmp")
-    with open(tmp, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_HEADERS, extrasaction="ignore")
-        writer.writeheader()
-        for r in rows:
-            writer.writerow({k: r.get(k, "") for k in CSV_HEADERS})
-    # Windows refuses to replace a file another reader has open ("WinError 5 Access is denied",
-    # laptop 12 Oct 10:46: one n8n verdict was lost and stayed "checking"). Retry briefly.
-    for attempt in range(20):
-        try:
-            tmp.replace(CSV_FILE)   # the dashboard never reads a half-written file
-            return
-        except PermissionError:
-            if attempt == 19:
-                raise
-            time.sleep(0.1 * (attempt + 1))
+    global _ROWS
+    rows = sorted(rows, key=lambda r: str(r.get("date_scraped", "")), reverse=True)
+    with _CSV_LOCK:
+        _ROWS = [{k: ("" if r.get(k) is None else str(r.get(k))) for k in CSV_HEADERS} for r in rows]
 
 
 def _record(item: dict) -> dict:

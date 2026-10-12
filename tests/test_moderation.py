@@ -68,8 +68,6 @@ def _row(id_, title, desc="Build ML models with our team.", **kw):
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
-    monkeypatch.setattr(oh, "CSV_FILE", tmp_path / "internships.csv")
-    monkeypatch.setattr(oh, "LOG_FILE", tmp_path / "internships_log.json")
     return tmp_path
 
 
