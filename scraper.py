@@ -26,7 +26,7 @@ from sites.universities import scrape_universities
 from sites.search_engine import scrape_search_engine
 
 # Sites whose scrapers were rebuilt and checked against the live site (see SELECTOR_TRACKER.md)
-UPGRADED_SOURCES = ["internshala", "unstop", "naukri", "linkedin", "shine", "foundit", "apna"]
+UPGRADED_SOURCES = ["internshala", "unstop", "naukri", "linkedin", "shine", "foundit", "apna", "government"]
 
 ALL_SCRAPERS = {
     "internshala": scrape_internshala,

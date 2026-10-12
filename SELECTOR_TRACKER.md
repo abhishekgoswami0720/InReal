@@ -22,6 +22,7 @@ No new sites until all 7 upgraded sites pass both checks on the laptop. The filt
 | LinkedIn | ⏳ | ⏳ |
 | Shine | ⏳ | ⏳ |
 | Foundit | ⏳ | ⏳ |
+| Govt portal (AICTE) | ⏳ | ⏳ |
 | Apna | ✅ 06:07 — 49 read, 12 kept (IQVIA, Apple, Micron, Novartis, Sprinklr…), no flags; one sales role ("Artificial Intelligence Sales Intern", ByteDance) passes the AI/ML rule on its title | ⏳ |
 
 Dashboard settings now have one checkbox per site; the not-upgraded ones are listed separately and unticked.
@@ -44,7 +45,7 @@ Dashboard settings now have one checkbox per site; the not-upgraded ones are lis
 | 12 | DuckDuckGo search | `search` | `sites/search_engine.py` | `ddgs` package, no selectors | 🔴 package check only |
 | 13 | Universities (DuckDuckGo) | `universities` | `sites/universities.py` | `ddgs` package, no selectors | 🔴 package check only |
 | 14 | Big tech career pages | `bigtech` | `sites/bigtech.py` | Adds a "go check this page" link | ⚪ |
-| 15 | Government portals | `government` | `sites/government.py` | Keyword check on the page, adds a link | ⚪ |
+| 15 | Government portal (AICTE National Internship Portal) | `government` | `sites/government.py` | Portal's public JSON endpoint | 🟡 |
 | 16 | Niche boards / aggregators | `niche`, `aggregators` | `sites/niche.py` | Adds a "go check this page" link | ⚪ |
 
 ---
@@ -284,9 +285,21 @@ Uses the `ddgs` package (falls back to `duckduckgo_search`). Check: the package 
 
 **Web run on the laptop, 12 Oct 01:52 (not asked for yet, but it ran):** `universities` saved 52 "matches" to `internships.csv`. Most are **not internship posts**: blog lists ("15 AI and Machine Learning Internship Programs"), guides ("Google DeepMind AI Research Internship 2026: Complete Guide"), a GitHub list, a 2025 PDF, an Internshala category page, a Foundit career-advice article. Only a handful are direct job posts (NVIDIA, SmartRecruiters, Wellfound, ByteDance, iCIMS). These must not appear in a "genuine internships" list until there is a "direct job post only" rule. `government` saved 1 placeholder ("AI/ML Internship Opportunities (AICTE Internship Portal)").
 
-## 14–16. Link-only sources ⚪
+## 15. Government portal: AICTE National Internship Portal 🟡
 
-`bigtech.py` (Microsoft, Google, Meta, Apple, NVIDIA), `government.py` (AICTE, CDAC, DRDO), `niche.py` (AIJobs.net, MLOps Community, DeepLearning.AI, KDnuggets, SimplyHired, CareerJet, Talent.com) do not read any listing. They add one placeholder record per site saying "go check this page". These are not internships, so they should either be removed from the genuine list or turned into real scrapers.
+Checked on the live site: 12 Oct 2026. `https://internship.aicte-india.org` (Government of India, Ministry of Education).
+
+**The old code never scraped a government internship.** For AICTE, C-DAC and DRDO it checked whether the page contained a word like "machine learning" and wrote one made-up card per portal ("AI/ML Internship Opportunities (AICTE)", stipend "Govt Norms" = ₹5,000).
+
+**New approach:** the portal loads its listings from `/api/v1/catalogue/internships?q=<words>&page=N&pageSize=60`. We run 7 AI/ML searches plus every listing from the Government, Army and TULIP categories. Each item says who posted it (`category`), whether the portal verified the employer, stipend, deadline, openings and description.
+
+What is on the portal (12 Oct): 1,236 live internships: 785 MSME, 390 Corporate, 34 Army, 18 NGO, 6 TULIP (urban missions), 3 "Government". The AI/ML listings are mostly small firms, many selling training: "Artificial Intelligence Internship with Guaranteed Certification - Www.applymyinternship.com", "Python - Ai - Ml - Data Science - Genai - Web Development Internship" (unpaid), "Fullstack Developer Training and Internship" with 70 openings. New flags: **Employer not verified by the portal**, **N openings for one internship** (50+), **Advertises another website in the title**, and "guaranteed certification" now counts as a training programme. Cards from Government/Army/TULIP posters get `org_type = Government`.
+
+Not possible to scrape: C-DAC's dashboard on the portal shows only statistics (1,812 posted, no listings), and DRDO's internship scheme is run lab by lab with no list. Not tested on the laptop yet.
+
+## 14, 16. Link-only sources ⚪
+
+`bigtech.py` (Microsoft, Google, Meta, Apple, NVIDIA) and `niche.py` (AIJobs.net, MLOps Community, DeepLearning.AI, KDnuggets, SimplyHired, CareerJet, Talent.com) do not read any listing. They add one placeholder record per site saying "go check this page". These are not internships, so they stay unticked on the dashboard until rebuilt.
 
 ---
 

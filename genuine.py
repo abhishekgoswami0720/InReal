@@ -44,8 +44,10 @@ TRAINING_RE = (
     r"|\bjob guarantee\b|\bcareer[- ]oriented program(me)?\b|\bcertification program(me)?\b"
     r"|\btraining program(me)?\s+(with|and)\b|\bcourse fee\b"
     r"|\btraining\s*(&|and|\+|cum|with)\s*internship\b|\binternship\s*(&|and|\+|cum)\s*training\b"
+    r"|\bguaranteed\s+certificat\w*"
 )
 MANY_TOWNS = 6
+MASS_OPENINGS = 50   # e.g. "Fullstack Developer Training and Internship", 70 openings (AICTE, Oct 2026)
 
 # A selective internship does not "hire" this many people.
 MASS_HIRE_TOTAL = 10_000
@@ -125,6 +127,16 @@ def check_listing(item: dict):
 
     if re.search(TRAINING_RE, text, re.I):
         flags.append("Sounds like a training programme sold as an internship")
+
+    if item.get("portal_verified") is False:
+        flags.append("Employer not verified by the portal")
+
+    openings = _num(item.get("openings"))
+    if openings and openings >= MASS_OPENINGS:
+        flags.append(f"{openings} openings for one internship")
+
+    if re.search(r"\bwww\.|https?://|\b(?!asp\b|vb\b)[a-z0-9-]{3,}\.(com|in|org|co|io)\b", str(item.get("role_title", "")), re.I):
+        flags.append("Advertises another website in the title")
 
     if item.get("third_party"):
         flags.append("Posted by a recruiter or consultant, not the company itself")
