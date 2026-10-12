@@ -83,7 +83,7 @@ def _record(item: dict) -> dict:
     return rec
 
 
-def sync_listings(kept: list, dropped_ids: list, max_new: int = None) -> dict:
+def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool = False) -> dict:
     """
     Saves one scraper run and keeps earlier rows up to date.
 
@@ -124,15 +124,20 @@ def sync_listings(kept: list, dropped_ids: list, max_new: int = None) -> dict:
                     if str(old.get(k, "") or "") != str(v if v is not None else ""):
                         old[k] = v
                         changed = True
-                if content_changed and old.get("moderation_status"):
+                if content_changed and old.get("moderation_status") and old.get("moderation_status") != "held":
                     for k in MODERATION_FIELDS:
                         old[k] = ""
+                    if hold:   # a changed post waits for "Load more" too, it doesn't jump into the pipeline
+                        old["moderation_status"] = "held"
                 updated += changed
             elif item["id"] not in seen_ids and max_new is not None and added >= max_new:
                 # over this run's limit: not saved and not marked seen, so "Search more" finds it next time
                 held += 1
             elif item["id"] not in seen_ids:
                 rec["is_new"] = True
+                if hold:
+                    # saved, but NOT sent to the scam check until "Load more" releases it (13 Oct night)
+                    rec["moderation_status"] = "held"
                 rows.append(rec)
                 by_id[item["id"]] = rec
                 seen_ids.add(item["id"])
@@ -188,6 +193,21 @@ def round_robin(rows: list, limit: int) -> list:
     return out
 
 
+def release_held(n: int) -> int:
+    """'Load more': moves up to n held listings (round-robin across sites) into the scam-check queue."""
+    if n <= 0:
+        return 0
+    with _CSV_LOCK:
+        rows = _read_rows()
+        held = [r for r in rows if (r.get("moderation_status") or "").strip() == "held"]
+        picked = round_robin(held, n)
+        for r in picked:
+            r["moderation_status"] = ""
+        if picked:
+            _write_rows(rows)
+    return len(picked)
+
+
 def pending_moderation(limit: int = 40, claim: bool = False) -> list:
     """
     Listings the n8n pipeline has not judged yet, taken ROUND-ROBIN across sites (one from each
@@ -212,7 +232,7 @@ def moderation_counts() -> dict:
     now = datetime.now()
     with _CSV_LOCK:
         rows = _read_rows()
-    out = {"pending": 0, "checking": 0, "approved": 0, "review": 0, "blocked": 0, "expired": 0}
+    out = {"pending": 0, "checking": 0, "approved": 0, "review": 0, "blocked": 0, "expired": 0, "held": 0}
     for r in rows:
         st = (r.get("moderation_status") or "").strip()
         key = "pending" if _is_pending(r, now) else st

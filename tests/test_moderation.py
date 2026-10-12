@@ -378,3 +378,43 @@ def test_next_batch_is_chained_after_the_last_verdict(store, monkeypatch):
     c.post("/api/moderation/verdict", json={"id": claimed[1]["id"], "status": "approved", "scam_risk": 0.1, "reasons": []})
     time.sleep(0.2)
     assert calls == ["next batch"]         # run done, 1 still waiting: n8n woken again
+
+
+def test_new_listings_are_held_and_released_five_at_a_time(store, monkeypatch):
+    import app as app_mod
+    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    rows = [_row(f"h{i}", "AI Intern", source_platform=("Unstop" if i % 2 else "Shine")) for i in range(12)]
+    oh.sync_listings(rows, [], hold=True)
+    c = oh.moderation_counts()
+    assert c["held"] == 12 and c["pending"] == 0          # saved, but not in the pipeline
+    assert oh.pending_moderation(limit=50) == []
+    r = app_mod.app.test_client().post("/api/moderation/load-more", json={"count": 5}).get_json()
+    assert r == {"released": 5, "held_left": 7}
+    sent = oh.pending_moderation(limit=50)
+    assert len(sent) == 5 and {p["source_platform"] for p in sent} == {"Unstop", "Shine"}   # round-robin
+    # a refresh of a held post doesn't push it into the pipeline
+    oh.sync_listings([_row("h0", "AI Intern", desc="Changed text", source_platform="Shine")], [], hold=True)
+    assert oh.moderation_counts()["held"] == 7
+
+
+def test_a_scrape_sends_nothing_until_load_more(store, monkeypatch):
+    import scraper
+    calls = []
+    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": calls.append(source))
+    monkeypatch.setattr(scraper, "evaluate", lambda src, raw: [(dict(r), True, "") for r in raw])
+    scraper._release["left"] = scraper.INITIAL_RELEASE
+    scraper.process_and_save("unstop", [_row(f"s{i}", "AI Intern", source_platform="Unstop") for i in range(8)])
+    scraper.process_and_save("shine", [_row(f"t{i}", "AI Intern", source_platform="Shine") for i in range(8)])
+    c = oh.moderation_counts()
+    assert c["pending"] == 0 and c["held"] == 16 and calls == []
+
+
+def test_initial_release_when_switched_on(store, monkeypatch):
+    import scraper
+    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    monkeypatch.setattr(scraper, "evaluate", lambda src, raw: [(dict(r), True, "") for r in raw])
+    scraper._release["left"] = 5
+    scraper.process_and_save("unstop", [_row(f"s{i}", "AI Intern", source_platform="Unstop") for i in range(8)])
+    scraper.process_and_save("shine", [_row(f"t{i}", "AI Intern", source_platform="Shine") for i in range(8)])
+    c = oh.moderation_counts()
+    assert c["pending"] == 5 and c["held"] == 11

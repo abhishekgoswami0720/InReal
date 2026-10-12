@@ -200,6 +200,12 @@ def collapse_copies(results):
 
 
 HELD = {}   # source -> new listings left for "Search more" in the current run
+# New listings are saved as "held" (not sent to the scam check). Nothing goes to n8n until the
+# student clicks "Load more" (5 at a time). INITIAL_RELEASE > 0 would send that many straight away.
+INITIAL_RELEASE = 0
+_release = {"left": INITIAL_RELEASE}
+import threading as _threading
+_release_lock = _threading.Lock()
 
 
 def process_and_save(source_name: str, raw_listings: list, max_new: int = None):
@@ -212,7 +218,13 @@ def process_and_save(source_name: str, raw_listings: list, max_new: int = None):
 
     # Best matches first, so a capped run keeps the most relevant new ones
     valid_listings.sort(key=lambda i: -float(i.get("match_score") or 0))
-    res = sync_listings(valid_listings, dropped_ids, max_new)
+    res = sync_listings(valid_listings, dropped_ids, max_new, hold=True)
+    released = 0
+    with _release_lock:
+        if _release["left"] > 0 and res["added"]:
+            from output_handler import release_held
+            released = release_held(_release["left"])
+            _release["left"] -= released
     HELD[source_name] = res.get("held", 0)
     if not valid_listings:
         logger.info(f"[{source_name}] Searched through {len(raw_listings)} listings, but none matched our criteria.")
@@ -221,7 +233,7 @@ def process_and_save(source_name: str, raw_listings: list, max_new: int = None):
         extra.append(f"refreshed {res['updated']} already saved")
     if res["removed"]:
         extra.append(f"removed {res['removed']} that no longer pass the checks")
-    if res["added"] or res["updated"]:
+    if released or res["updated"]:
         from moderation.notify import notify_n8n
         notify_n8n(source_name)   # n8n checks this site while the next one is being scraped
     logger.info(f"[{source_name}] Analyzed {len(raw_listings)} listings, found {len(valid_listings)} matches, "
@@ -383,6 +395,7 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
         limit = 0
     per_site = max(3, math.ceil(limit / len(scrapers_to_run))) if limit > 0 else None
     HELD.clear()
+    _release["left"] = INITIAL_RELEASE
 
     workers = 1 if len(scrapers_to_run) == 1 else min(3, len(scrapers_to_run))
     if workers > 1:

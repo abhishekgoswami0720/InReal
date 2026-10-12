@@ -176,6 +176,22 @@ def chain_next_batch():
     threading.Thread(target=notify_n8n, args=("next batch",), daemon=True).start()
 
 
+@app.route("/api/moderation/load-more", methods=["POST"])
+def moderation_load_more():
+    """'Load more' on the dashboard: send the next few scraped listings (round-robin) to the scam check."""
+    from output_handler import release_held
+    data = request.get_json(silent=True) or {}
+    try:
+        n = max(1, min(20, int(data.get("count") or 5)))
+    except (TypeError, ValueError):
+        n = 5
+    released = release_held(n)
+    if released:
+        from moderation.notify import notify_n8n
+        threading.Thread(target=notify_n8n, args=("load more",), daemon=True).start()
+    return jsonify({"released": released, "held_left": moderation_counts()["held"]})
+
+
 @app.route("/api/scrape/status")
 def scrape_status():
     global scraper_t
