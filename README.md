@@ -310,3 +310,15 @@ MIT — do whatever you want with it.
 ## ⚠️ Disclaimer
 
 This was built for personal use to find internships. Please don't hammer servers at high frequency or use this commercially. The rate limiting is there for a reason — be a decent human to the websites you're scraping.
+
+## Share a public link (demo)
+
+On the laptop, double-click **`run_public.bat`** (needs `winget install --id Cloudflare.cloudflared` once).
+It starts the app with the `waitress` server (debug off) and prints a `https://….trycloudflare.com` link.
+
+- Anyone with the link sees the dashboard **read-only**: no scrape button, and every write endpoint
+  (`/api/scrape`, `/api/clear`, `/api/moderation/*`) returns 403 for them.
+- Scraping and n8n still work from the laptop itself (`http://127.0.0.1:5000`), unchanged.
+- The link changes every time the tunnel restarts, and stops when the laptop sleeps.
+- Optional: set `INREAL_ADMIN_TOKEN` in `.env` to allow writes from elsewhere with the `X-InReal-Token` header.
+- `set INREAL_DEBUG=1` brings back Flask's debug server, for local development only, never with a tunnel.

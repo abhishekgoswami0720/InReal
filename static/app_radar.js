@@ -652,15 +652,21 @@ function bindEventHandlers() {
     };
 
     try {
-      await fetch('/api/scrape', {
+      const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
       });
+      if (res.status === 403) showToast('info', 'View-only link', 'Scraping can only be started on the host laptop.');
     } catch (err) {
       console.error(err);
     }
   });
+
+  // Public (tunnel) visitors get a read-only dashboard: hide the scrape button for them
+  fetch('/api/whoami').then(r => r.json()).then(w => {
+    if (!w.can_edit) document.getElementById('trigger-scrape-btn')?.classList.add('hidden');
+  }).catch(() => {});
 
   document.getElementById('action-dismiss-btn')?.addEventListener('click', async () => {
     document.getElementById('action-banner').classList.add('hidden');

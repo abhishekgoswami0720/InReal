@@ -17,6 +17,41 @@ from moderation.link_check import resolve as resolve_link
 
 load_env()
 app = Flask(__name__)
+
+# ---- Who may change data ----
+# Visitors coming through a public tunnel (Cloudflare) or a host like Render can only READ.
+# Writes (scrape, clear, n8n moderation calls) are allowed from this laptop itself, or with the
+# secret INREAL_ADMIN_TOKEN in the X-InReal-Token header.
+# cloudflared connects from 127.0.0.1 too, but it always adds these headers, so a tunnelled
+# request is never mistaken for a local one.
+PROXY_HEADERS = ("Cf-Connecting-Ip", "Cf-Ray", "X-Forwarded-For", "X-Forwarded-Host", "Forwarded", "X-Real-Ip")
+LOOPBACK = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
+PROTECTED = {"/api/scrape", "/api/clear", "/api/alerts/dismiss"}
+
+
+def is_local_request() -> bool:
+    return request.remote_addr in LOOPBACK and not any(request.headers.get(h) for h in PROXY_HEADERS)
+
+
+def has_admin_token() -> bool:
+    import hmac
+    token = os.environ.get("INREAL_ADMIN_TOKEN", "")
+    sent = request.headers.get("X-InReal-Token", "")
+    return bool(token) and hmac.compare_digest(sent, token)
+
+
+@app.before_request
+def guard_writes():
+    path = request.path.rstrip("/")
+    needs_admin = path.startswith("/api/moderation/") and path != "/api/moderation/status"
+    needs_admin |= path in PROTECTED and request.method == "POST"
+    if needs_admin and not (is_local_request() or has_admin_token()):
+        return jsonify({"status": "error", "message": "This is a read-only public view. Run scrapes from the laptop."}), 403
+
+
+@app.route("/api/whoami")
+def whoami():
+    return jsonify({"can_edit": is_local_request() or has_admin_token()})
 DATA_FILE = Path(__file__).parent / "internships.csv"
 PATTERN_INDEX = Path(__file__).parent / "moderation" / "pattern_index.json"
 
@@ -203,4 +238,16 @@ def clear_data():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    if os.environ.get("INREAL_DEBUG") == "1":
+        # Flask's debugger can run code on this machine: only for local development, never with a tunnel
+        app.run(debug=True, host="127.0.0.1", port=port)
+    else:
+        try:
+            from waitress import serve
+        except ImportError:
+            sys.exit("Install the production server first:  pip install waitress")
+        # 127.0.0.1 only: the tunnel connects locally, the Wi-Fi network can't reach the app directly
+        host = os.environ.get("HOST", "127.0.0.1")
+        print(f"InReal running on http://{host}:{port}  (waitress, debug off)")
+        serve(app, host=host, port=port, threads=8)
