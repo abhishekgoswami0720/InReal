@@ -54,6 +54,11 @@ def preflight():
             problems.append(f"{k} is empty")
         elif "YOUR-RESOURCE" in v.upper() or v.startswith("<"):
             problems.append(f"{k} still has the placeholder from .env.example: {v[:60]}")
+    from moderation.env import ENV_FILE, LOADED_FROM_FILE
+    print(f".env file: {ENV_FILE} ({'found' if ENV_FILE.exists() else 'NOT FOUND'})")
+    for k in ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_EMBED_DEPLOYMENT", "AZURE_OPENAI_JUDGE_URL"]:
+        v = os.environ.get(k, "")
+        print(f"  {k} = {v[:110]}  [{'from .env' if k in LOADED_FROM_FILE else 'from Windows/terminal'}]")
     key = os.environ.get("AZURE_OPENAI_KEY", "").strip()
     if key:
         print(f"Key in .env: {len(key)} characters, starts '{key[:4]}', ends '{key[-4:]}'")
