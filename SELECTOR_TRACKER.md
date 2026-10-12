@@ -17,12 +17,12 @@ No new sites until all 7 upgraded sites pass both checks on the laptop. The filt
 | Site | Terminal `--dry-run` | Web dashboard (only this site ticked) |
 |---|---|---|
 | Internshala | ✅ 06:11 — 393 read, 81 kept; 4 posts now flagged "one post listed for 6–11 towns" | ✅ 06:27 — 81 saved to `internships.csv` (same as terminal), every card has title, company and link, 29 with warnings (incl. new "100 openings for one internship" ×2) |
-| Unstop | ⏳ | ⏳ |
+| Unstop | ✅ 06:37 — 589 read, 15 kept (one fewer than round 1: a post that says unpaid) | ✅ 06:37 — 15 saved, same as terminal; 3 flagged "stipend not stated", 1 commission pay, 1 training wording |
 | Naukri | ⏳ | ⏳ |
 | LinkedIn | ⏳ | ⏳ |
 | Shine | ⏳ | ⏳ |
 | Foundit | ⏳ | ⏳ |
-| Govt portal (AICTE) | ❌ 06:21 — every call failed "Expecting value": the portal answered in Brotli, which Python could not unpack; fixed in 357697f, re-test | ⏳ |
+| Govt portal (AICTE) | ✅ 06:38 — 165 read, 9 kept, incl. 2 Indian Army (HQ Southern Command) AI/ML internships at up to ₹30,000 and ₹75,000. Fix after this run: the portal only lists internships, so titles no longer need the word "intern" (66 were dropped for that; about 6 more paid ones now pass, incl. 3 more Army posts), and course-style titles ("Machine Learning with Python", "Master Artificial Intelligence") count as training. Re-run to confirm | ⏳ |
 | Apna | ✅ 06:07 — 49 read, 12 kept (IQVIA, Apple, Micron, Novartis, Sprinklr…), no flags; one sales role ("Artificial Intelligence Sales Intern", ByteDance) passes the AI/ML rule on its title | ⏳ |
 
 Dashboard settings now have one checkbox per site; the not-upgraded ones are listed separately and unticked.
@@ -295,7 +295,9 @@ Checked on the live site: 12 Oct 2026. `https://internship.aicte-india.org` (Gov
 
 What is on the portal (12 Oct): 1,236 live internships: 785 MSME, 390 Corporate, 34 Army, 18 NGO, 6 TULIP (urban missions), 3 "Government". The AI/ML listings are mostly small firms, many selling training: "Artificial Intelligence Internship with Guaranteed Certification - Www.applymyinternship.com", "Python - Ai - Ml - Data Science - Genai - Web Development Internship" (unpaid), "Fullstack Developer Training and Internship" with 70 openings. New flags: **Employer not verified by the portal**, **N openings for one internship** (50+), **Advertises another website in the title**, and "guaranteed certification" now counts as a training programme. Cards from Government/Army/TULIP posters get `org_type = Government`.
 
-Not possible to scrape: C-DAC's dashboard on the portal shows only statistics (1,812 posted, no listings), and DRDO's internship scheme is run lab by lab with no list. Not tested on the laptop yet.
+Not possible to scrape: C-DAC's dashboard on the portal shows only statistics (1,812 posted, no listings), and DRDO's internship scheme is run lab by lab with no list.
+
+**Laptop test, 12 Oct:** first run (06:21) failed on every call because the portal answers in Brotli when it is offered and Python had no Brotli decoder; fixed by sending gzip/deflate only. Second run (06:38): 165 listings, 9 kept, including two Indian Army (HQ Southern Command) internships: "Artificial Intelligence and Machine Learning Intern" (up to ₹30,000) and "AI Enabled Geospatial Terrain Analysis Intern" (up to ₹75,000). 78 were unpaid.
 
 ## 14, 16. Link-only sources ⚪
 

@@ -58,7 +58,8 @@ def internship_rejection_reason(title: str, skills: list, source: str = ""):
     text_to_check = title_lower + " " + " ".join(skills_lower)
 
     # Must contain 'intern' unless the platform only lists internships
-    is_internship_platform = source in ["internshala", "unstop"]
+    # Portals that only list internships (the AICTE government portal too), so titles needn't say "intern"
+    is_internship_platform = source in ["internshala", "unstop", "government"]
     if "intern" not in title_lower and not is_internship_platform:
         return "Not labelled as an internship"
 

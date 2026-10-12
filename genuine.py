@@ -46,6 +46,9 @@ TRAINING_RE = (
     r"|\btraining\s*(&|and|\+|cum|with)\s*internship\b|\binternship\s*(&|and|\+|cum)\s*training\b"
     r"|\bguaranteed\s+certificat\w*"
 )
+# Titles that read like a course, not a job (AICTE portal, Oct 2026: "Machine Learning with Python",
+# "Master Artificial Intelligence", "Data Science with Python Including Ai")
+TRAINING_TITLE_RE = r"^\s*(master|learn|become)\b|\bwith python\b|\bcourse\b|\bbootcamp\b|\bcertification\b"
 MANY_TOWNS = 6
 MASS_OPENINGS = 50   # e.g. "Fullstack Developer Training and Internship", 70 openings (AICTE, Oct 2026)
 
@@ -125,7 +128,7 @@ def check_listing(item: dict):
     if len(towns) >= MANY_TOWNS:
         flags.append(f"One post listed for {len(towns)} towns")
 
-    if re.search(TRAINING_RE, text, re.I):
+    if re.search(TRAINING_RE, text, re.I) or re.search(TRAINING_TITLE_RE, str(item.get("role_title", "")), re.I):
         flags.append("Sounds like a training programme sold as an internship")
 
     if item.get("portal_verified") is False:
