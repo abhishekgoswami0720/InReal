@@ -113,7 +113,9 @@ def scrape_foundit():
         page.goto(BASE + "/", timeout=45000, wait_until="domcontentloaded")
         human_delay(3.0, 5.0)  # let the site's own bot check finish
 
-        for q in QUERIES:
+        import fields
+        queries = QUERIES if fields.current() == fields.DEFAULT else [f"{t} internship" for t in fields.search_terms()]
+        for q in queries:
             try:
                 payload = page.evaluate(FETCH_JS, SEARCH_API.format(q=urllib.parse.quote(q)))
             except Exception as e:

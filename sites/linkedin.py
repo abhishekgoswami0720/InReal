@@ -261,7 +261,13 @@ def scrape_linkedin(config=None):
     config = config or {}
     req_regions = [r.lower() for r in (config.get("regions") or ["india", "worldwide", "usa", "europe", "remote"])]
     req_topics = [t.lower() for t in (config.get("topics") or [])]
-    searches = [(kw, loc, label) for kw, loc, label in SEARCH_CONFIGS if query_wanted(kw, loc, req_regions, req_topics)]
+    import fields
+    configs = SEARCH_CONFIGS
+    if fields.current() != fields.DEFAULT:
+        req_topics = []   # the topic boxes are AI/ML words
+        configs = [(f"{t} internship", loc, f"{loc} · {t}") for t in fields.search_terms()[:2]
+                   for loc in ["India", "Remote", "Worldwide", "United States", "Europe"]]
+    searches = [(kw, loc, label) for kw, loc, label in configs if query_wanted(kw, loc, req_regions, req_topics)]
     logger.info(f"LinkedIn: {len(searches)} searches selected by the dashboard settings")
 
     all_internships = []

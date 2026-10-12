@@ -62,8 +62,11 @@ def test_fixes_from_the_first_laptop_run():
          "description": "This is not an unpaid role: Rs 15,000 a month."},
     ]
     out = {i["id"]: (kept, reason, i.get("trust_flags", "")) for i, kept, reason in evaluate("shine", posts)}
-    assert out["u1"][0] is False and out["u1"][1].startswith("Unpaid (the post says")
-    assert out["u2"][0] is False
+    # unpaid is kept since 13 Oct, with the stipend marked so the dashboard can hide it from experienced users
+    u = {i["id"]: i for i, _, _ in evaluate("shine", [dict(p) for p in posts])}
+    assert out["u1"][0] is True and u["u1"]["stipend"] == "Unpaid" and u["u1"]["stipend_numeric"] == 0
+    assert out["u2"][0] is True and u["u2"]["stipend"] == "Unpaid"
+    assert u["ok"]["stipend"] != "Unpaid"
     assert out["t1"][0] is True and "training programme" in out["t1"][2]
     assert out["ok"][0] is True
     # "Not Disclosed" on Shine is not flagged on every card

@@ -322,3 +322,14 @@ It starts the app with the `waitress` server (debug off) and prints a `https://â
 - The link changes every time the tunnel restarts, and stops when the laptop sleeps.
 - Optional: set `INREAL_ADMIN_TOKEN` in `.env` to allow writes from elsewhere with the `X-InReal-Token` header.
 - `set INREAL_DEBUG=1` brings back Flask's debug server, for local development only, never with a tunnel.
+
+## Fields, experience and the sign-up profile (13 Oct)
+
+- First visit asks for a profile (saved in the browser, no password): field, work experience (0 / 1â€“2 / 3+ years),
+  preferred companies, and which sites and regions to search, each group with a "Select all" box.
+- A scrape run is for one field (`fields.py`: AI/ML, Software, Data Analytics, Medicine & Healthcare, Pharma & Biotech,
+  Mechanical/Electrical/Civil, Finance, Marketing, Design, Content, HR & Operations, Law). Every site searches that
+  field's words, and the title check accepts that field. AI/ML keeps its original rules.
+- Each saved row records its field; the dashboard shows a student only their field.
+- Unpaid internships are now saved (stipend "Unpaid") and shown only to students with 0 years of experience.
+- Test another field without saving: `python test_sites.py --field medical`

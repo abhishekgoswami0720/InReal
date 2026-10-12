@@ -29,6 +29,13 @@ from scraper_utils import get_playwright_stealth_args, human_delay
 BASE = "https://www.shine.com"
 SEARCH = "https://www.shine.com/job-search/ai-machine-learning-internship-jobs"
 PAGES = 5          # 20 cards each; results are sorted by relevance
+
+
+def search_for_field():
+    import fields
+    if fields.current() == fields.DEFAULT:
+        return SEARCH
+    return f"{BASE}/job-search/{fields.slug(fields.search_terms()[0])}-internship-jobs"
 MAX_DETAILS = 80   # job pages are plain HTML, about 1 s each
 
 SEL = {
@@ -144,8 +151,9 @@ def scrape_shine():
         page = context.new_page()
         Stealth().apply_stealth_sync(page)
 
+        search = search_for_field()
         for n in range(1, PAGES + 1):
-            url = SEARCH if n == 1 else f"{SEARCH}-{n}"
+            url = search if n == 1 else f"{search}-{n}"
             logger.info(f"Scraping Shine: {url}")
             try:
                 page.goto(url, timeout=45000, wait_until="domcontentloaded")

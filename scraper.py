@@ -115,7 +115,11 @@ def evaluate(source_name: str, raw_listings: list):
         if reason is None:
             said = re.search(UNPAID_RE, f"{item.get('role_title', '')} {item.get('description', '')}", re.I)
             if said and not re.search(r"\bnot\s+(an?\s+)?$", f"{item.get('role_title', '')} {item.get('description', '')}"[:said.start()][-12:], re.I):
-                reason = f"Unpaid (the post says \"{said.group(0)}\")"
+                # Kept (13 Oct): unpaid posts are shown to students with no experience only,
+                # so the stipend must say "Unpaid" for the dashboard to know
+                if "unpaid" not in str(item.get("stipend", "")).lower():
+                    item["stipend"] = "Unpaid"
+                    item["stipend_numeric"] = 0
         if reason is None:
             reason, flags = check_listing(item)
             if HIDDEN_COMPANY_RE.match(str(item.get("company_name", "")).strip()):
@@ -198,6 +202,9 @@ def collapse_copies(results):
 def process_and_save(source_name: str, raw_listings: list):
     results = evaluate(source_name, raw_listings)
     valid_listings = [item for item, kept, _ in results if kept]
+    import fields
+    for item in valid_listings:
+        item["field"] = fields.current()   # the dashboard shows each student their own field
     dropped_ids = [item["id"] for item, kept, _ in results if not kept and item.get("id")]
 
     res = sync_listings(valid_listings, dropped_ids)
@@ -281,7 +288,9 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
             "sources": UPGRADED_SOURCES
         }
     
-    logger.info(f"🚀 Starting selective scraper with config: {config}")
+    import fields
+    fields.set_current(config.get("field"))   # every site searches for this field in this run
+    logger.info(f"🚀 Starting selective scraper with config: {config} (field: {fields.label()})")
     
     # Clear old popup alerts from a previous run
     from pathlib import Path
@@ -378,8 +387,13 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Automated AI/ML Internship Scraper")
     parser.add_argument("--dry-run", action="store_true", help="Run scrapers without saving to CSV")
+    parser.add_argument("--field", type=str, default="ai_ml",
+                        help="Field to search for, e.g. medical, finance, software (see fields.py)")
     parser.add_argument("--source", type=str,
                         help="Run only these sources, comma separated, e.g. internshala or internshala,unstop")
     args = parser.parse_args()
     
-    run_scrapers(dry_run=args.dry_run, specific_source=args.source)
+    cfg = None
+    if args.field and args.field != "ai_ml":
+        cfg = {"regions": ["india", "worldwide", "usa", "europe", "remote"], "sources": UPGRADED_SOURCES, "field": args.field}
+    run_scrapers(dry_run=args.dry_run, config=cfg, specific_source=args.source)

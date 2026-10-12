@@ -29,6 +29,15 @@ URLS = [
     "https://internshala.com/internships/artificial-intelligence-ai,data-science,deep-learning,machine-learning,natural-language-processing-nlp-internship/"
 ]
 MAX_PAGES = 30  # safety stop
+MAX_PAGES_OTHER_FIELDS = 5   # keyword searches for other fields: first pages are the relevant ones
+
+
+def urls_for_field():
+    """AI/ML: the category page above. Other fields: Internshala's keyword search, one per search word."""
+    import fields
+    if fields.current() == fields.DEFAULT:
+        return URLS, MAX_PAGES
+    return [f"{BASE}/internships/keywords-{fields.slug(t)}/" for t in fields.search_terms()], MAX_PAGES_OTHER_FIELDS
 
 SEL = {
     "card": "div.individual_internship[internshipid]",
@@ -194,8 +203,9 @@ def scrape_internshala():
         page = context.new_page()
         Stealth().apply_stealth_sync(page)
 
-        for base_url in URLS:
-            for page_num in range(1, MAX_PAGES + 1):
+        base_urls, max_pages = urls_for_field()
+        for base_url in base_urls:
+            for page_num in range(1, max_pages + 1):
                 url = f"{base_url}page-{page_num}/" if page_num > 1 else base_url
                 logger.info(f"Scraping Internshala: {url}")
                 try:

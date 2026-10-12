@@ -52,7 +52,7 @@ def test_end_to_end_with_aggregated_flag():
     out = {(i["company_name"]): (kept, reason, i.get("trust_flags", "")) for i, kept, reason in evaluate("naukri", records)}
     assert out["Varroc"][:2] == (True, "")
     assert out["Arcitech"][0] is True and "Copied by the portal" in out["Arcitech"][2]
-    assert out["Tower Research Capital"][:2] == (False, "Unpaid")
+    assert out["Tower Research Capital"][0] is True   # unpaid kept since 13 Oct
 
 
 def test_aggregated_is_only_a_flag():

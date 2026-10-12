@@ -96,6 +96,11 @@ def internship_rejection_reason(title: str, skills: list, source: str = "", labe
         if past_year in title_lower and past_year != str(now.year):
             return f"Mentions old year {past_year}"
 
+    # Other fields (medical, finance, ...): the title or skills must name the field
+    import fields
+    if fields.current() != fields.DEFAULT:
+        return None if fields.matches(text_to_check) else f"Not a {fields.label()} role"
+
     if is_ai_ml_title(title_lower):
         return None
     # No AI/ML in the title: the skills must show at least two real ML skills
@@ -137,7 +142,7 @@ def is_valid_internship(title: str, skills: list, source: str = "") -> bool:
 def stipend_rejection_reason(stipend_str: str, numeric_val: float, is_india: bool):
     """
     Returns None if the stipend is acceptable, otherwise a reason.
-    - Unpaid is rejected.
+    - Unpaid is KEPT (13 Oct): the dashboard shows it to students with no experience only.
     - Indian internships need at least 5000 INR/month.
     - "Not mentioned" / "Competitive stipend" is kept (amount unknown).
     """
@@ -145,7 +150,7 @@ def stipend_rejection_reason(stipend_str: str, numeric_val: float, is_india: boo
         return None
     stipend_lower = stipend_str.lower()
     if "unpaid" in stipend_lower:
-        return "Unpaid"
+        return None
     if numeric_val is None or numeric_val == 0:
         return None  # amount not stated; don't drop a real listing for that
     if is_india and numeric_val < 5000:

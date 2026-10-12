@@ -49,6 +49,12 @@ def guard_writes():
         return jsonify({"status": "error", "message": "This is a read-only public view. Run scrapes from the laptop."}), 403
 
 
+@app.route("/api/fields")
+def list_fields():
+    import fields
+    return jsonify(fields.public_list())
+
+
 @app.route("/api/whoami")
 def whoami():
     return jsonify({"can_edit": is_local_request() or has_admin_token()})

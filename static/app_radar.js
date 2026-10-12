@@ -12,6 +12,25 @@ let activeModeration = 'verified';   // n8n scam check: show only listings it pa
 let showBookmarkedOnly = false;
 let bookmarks = JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]');
 let activeDrawerJob = null;
+let canEdit = true;
+
+// Profile from the sign-up form, kept in this browser: field, experience, preferred companies, sites
+const PROFILE_KEY = 'inreal_profile';
+let profile = readProfile();
+let fieldLabels = { ai_ml: 'AI / Machine Learning' };
+function readProfile() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { return null; }
+}
+function writeProfile(p) {
+  profile = p;
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch (e) { /* private window: kept for this visit */ }
+}
+const isUnpaid = (item) => /unpaid/i.test(String(item.stipend || ''));
+function isPreferred(item) {
+  if (!profile || !profile.companies || !profile.companies.length) return false;
+  const name = String(item.company_name || '').toLowerCase();
+  return profile.companies.some(c => c.length >= 2 && name.includes(c.toLowerCase()));
+}
 
 // Genuine SVGs for company/organization logos
 const companyLogos = {
@@ -38,6 +57,7 @@ function getCompanyLogoSvg(companyName) {
 document.addEventListener('DOMContentLoaded', () => {
   initGlassTranslucentBackground();
   bindEventHandlers();
+  initProfile();
   loadData();
   pollScraperStatus();
   pollAlerts();
@@ -205,6 +225,13 @@ function applyFiltersAndRender() {
   const matches = (item, ignoreLocation) => {
     if (showBookmarkedOnly && !bookmarks.includes(item.id)) return false;
 
+    // The student's profile: only their field, and unpaid posts only for 0 years of experience
+    if (profile) {
+      const rowFields = String(item.field || 'ai_ml').split(';').filter(Boolean);
+      if (!rowFields.includes(profile.field)) return false;
+      if (profile.experience !== '0' && isUnpaid(item)) return false;
+    }
+
     // Scam check verdict (n8n). Default: only what n8n checked and passed.
     const mod = item.moderation_status || '';
     if (activeModeration === 'verified' && mod !== 'approved') return false;
@@ -256,6 +283,8 @@ function applyFiltersAndRender() {
   // Every number on the page follows the filters (the location tabs count everything else that matches)
   const base = allInternships.filter(item => matches(item, true));
   const filtered = base.filter(item => matches(item, false));
+  // Preferred companies first (stable sort keeps the rest in their order)
+  filtered.sort((a, b) => Number(isPreferred(b)) - Number(isPreferred(a)));
   renderOverviewStats(filtered, base);
   renderListings(filtered);
 }
@@ -267,6 +296,11 @@ function renderListings(items) {
 
   if (items.length === 0) {
     container.innerHTML = '';
+    const h = document.querySelector('#empty-state h3'), t = document.querySelector('#empty-state p');
+    const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').includes(profile.field));
+    if (h) h.textContent = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'No Matching Opportunities Found';
+    if (t) t.textContent = fieldEmpty ? 'Search the sites for your field with "Submit an Opportunity". New ones appear as each site finishes.'
+                                      : 'Try broadening your search keywords or resetting region and stipend filters.';
     if (emptyState) {
       emptyState.classList.remove('hidden');
       emptyState.classList.add('flex');
@@ -305,6 +339,7 @@ function renderListings(items) {
                   <span>${escapeHtml(item.source_platform || 'Direct Portal')}</span>
                   ${isNewToday(item) ? '<span class="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 rounded text-[10px] ml-1">NEW</span>' : ''}
                   ${moderationChip(item)}
+                  ${isPreferred(item) ? '<span class="px-1.5 py-0.2 bg-violet-50 text-violet-700 font-bold border border-violet-200 rounded text-[10px] ml-1 flex items-center gap-0.5"><i class="ph ph-star"></i> YOUR PICK</span>' : ''}
                   ${item.trust_flags ? `<span class="px-1.5 py-0.2 bg-amber-50 text-amber-700 font-bold border border-amber-200 rounded text-[10px] ml-1 flex items-center gap-0.5" title="${escapeHtml(item.trust_flags)}"><i class="ph ph-warning"></i> NOTE</span>` : ''}
                 </div>
                 <div class="text-xs font-bold text-slate-800 mt-0.5">${escapeHtml(item.company_name || 'Company')}</div>
@@ -635,6 +670,13 @@ function bindEventHandlers() {
   // Opportunity Modal (Triggered by "Submit an Opportunity")
   const modal = document.getElementById('scrape-config-modal');
   document.getElementById('trigger-scrape-btn')?.addEventListener('click', () => {
+    if (profile) {
+      const f = document.getElementById('scrape-field');
+      if (f) f.value = profile.field;
+      setChecked('sources', profile.sources);
+      setChecked('regions', profile.regions);
+    }
+    syncSelectAll(modal);
     modal.classList.remove('hidden');
   });
   document.getElementById('close-config-btn')?.addEventListener('click', () => {
@@ -648,8 +690,10 @@ function bindEventHandlers() {
     const checkedValues = (name) => Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(cb => cb.value);
     const config = {
       regions: checkedValues('regions'),
-      sources: checkedValues('sources')
+      sources: checkedValues('sources'),
+      field: document.getElementById('scrape-field')?.value || (profile && profile.field) || 'ai_ml'
     };
+    if (!config.sources.length) { showToast('error', 'Pick at least one site', 'Choose the sites to search, then start again.'); modal.classList.remove('hidden'); return; }
 
     try {
       const res = await fetch('/api/scrape', {
@@ -665,7 +709,11 @@ function bindEventHandlers() {
 
   // Public (tunnel) visitors get a read-only dashboard: hide the scrape button for them
   fetch('/api/whoami').then(r => r.json()).then(w => {
-    if (!w.can_edit) document.getElementById('trigger-scrape-btn')?.classList.add('hidden');
+    canEdit = !!w.can_edit;
+    if (!w.can_edit) {
+      document.getElementById('trigger-scrape-btn')?.classList.add('hidden');
+      document.getElementById('profile-scrape-row')?.classList.add('hidden');
+    }
   }).catch(() => {});
 
   document.getElementById('action-dismiss-btn')?.addEventListener('click', async () => {
@@ -793,4 +841,129 @@ function showToast(kind, title, message) {
   t.querySelector('button').onclick = () => t.remove();
   box.appendChild(t);
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 7000);
+}
+
+
+// ==========================================
+// 10. Sign-up profile and "Select all" checkboxes
+// ==========================================
+async function initProfile() {
+  try {
+    const list = await fetch('/api/fields').then(r => r.json());
+    fieldLabels = Object.fromEntries(list.map(f => [f.key, f.label]));
+    const options = list.map(f => `<option value="${escapeHtml(f.key)}">${escapeHtml(f.label)}</option>`).join('');
+    ['profile-field', 'scrape-field'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = options; });
+  } catch (e) { /* app restarting: the defaults still work */ }
+
+  document.getElementById('edit-profile-btn')?.addEventListener('click', () => openProfileModal(false));
+  document.getElementById('close-profile-btn')?.addEventListener('click', closeProfileModal);
+  document.getElementById('profile-form')?.addEventListener('submit', saveProfileFromForm);
+
+  // "Select all" boxes: one per group of checkboxes, in both forms
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.selectAll) {
+      t.form.querySelectorAll(`input[name="${t.dataset.selectAll}"]`).forEach(cb => { cb.checked = t.checked; });
+      t.indeterminate = false;
+    } else if (t.type === 'checkbox' && t.name && t.form) {
+      syncSelectAll(t.form);
+    }
+  });
+
+  updateProfileUI();
+  if (!profile) openProfileModal(true);
+}
+
+function setChecked(name, values) {
+  if (!Array.isArray(values)) return;
+  document.querySelectorAll(`input[name="${name}"]`).forEach(cb => { cb.checked = values.includes(cb.value); });
+}
+
+function syncSelectAll(root) {
+  root.querySelectorAll('[data-select-all]').forEach(all => {
+    const boxes = [...root.querySelectorAll(`input[name="${all.dataset.selectAll}"]`)];
+    const on = boxes.filter(b => b.checked).length;
+    all.checked = boxes.length > 0 && on === boxes.length;
+    all.indeterminate = on > 0 && on < boxes.length;
+  });
+}
+
+function openProfileModal(firstVisit) {
+  const modal = document.getElementById('profile-modal');
+  if (!modal) return;
+  if (profile) {
+    document.getElementById('profile-name').value = profile.name || '';
+    document.getElementById('profile-field').value = profile.field || 'ai_ml';
+    const exp = document.querySelector(`input[name="experience"][value="${profile.experience}"]`);
+    if (exp) exp.checked = true;
+    document.getElementById('profile-companies').value = (profile.companies || []).join(', ');
+    setChecked('p_sources', profile.sources);
+    setChecked('p_regions', profile.regions);
+  }
+  document.getElementById('profile-scrape-now').checked = firstVisit;
+  document.getElementById('close-profile-btn').classList.toggle('hidden', firstVisit);
+  syncSelectAll(modal);
+  modal.classList.remove('hidden');
+  document.getElementById('profile-field')?.focus();
+}
+
+function closeProfileModal() {
+  if (!profile) return;   // first visit: the form must be filled once
+  document.getElementById('profile-modal').classList.add('hidden');
+}
+
+async function saveProfileFromForm(e) {
+  e.preventDefault();
+  const form = e.target;
+  const checked = name => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(cb => cb.value);
+  const next = {
+    name: document.getElementById('profile-name').value.trim(),
+    field: document.getElementById('profile-field').value || 'ai_ml',
+    experience: (form.querySelector('input[name="experience"]:checked') || {}).value || '0',
+    companies: document.getElementById('profile-companies').value.split(',').map(c => c.trim()).filter(Boolean),
+    sources: checked('p_sources'),
+    regions: checked('p_regions'),
+  };
+  const scrapeNow = canEdit && document.getElementById('profile-scrape-now').checked;
+  if (scrapeNow && !next.sources.length) {
+    showToast('error', 'Pick at least one site', 'Choose the sites to search, or untick "Search these sites now".');
+    return;
+  }
+  writeProfile(next);
+  document.getElementById('profile-modal').classList.add('hidden');
+  updateProfileUI();
+  applyFiltersAndRender();
+
+  if (!scrapeNow) { showToast('success', 'Profile saved', 'The list now follows your field and experience.'); return; }
+  try {
+    const res = await fetch('/api/scrape', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field: next.field, sources: next.sources, regions: next.regions })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.status === 'running') showToast('info', 'Profile saved', 'A search is already running. Start yours with "Submit an Opportunity" when it ends.');
+    else showToast('success', 'Profile saved, searching now', `Searching ${next.sources.length} site(s) for ${fieldLabels[next.field] || next.field} internships. They appear as each site finishes and passes the scam check.`);
+  } catch (err) {
+    showToast('error', 'Profile saved, search did not start', 'The app is not answering. Is python app.py running?');
+  }
+}
+
+function updateProfileUI() {
+  const label = document.getElementById('profile-btn-label');
+  const box = document.getElementById('profile-summary');
+  if (!profile) {
+    if (label) label.textContent = 'Set up profile';
+    if (box) box.classList.add('hidden');
+    return;
+  }
+  const field = fieldLabels[profile.field] || profile.field;
+  if (label) label.textContent = profile.name ? `${profile.name} · ${field}` : field;
+  if (box) {
+    const exp = { '0': '0 years experience (unpaid shown)', '1-2': '1–2 years experience (paid only)', '3+': '3+ years experience (paid only)' }[profile.experience] || '';
+    const picks = (profile.companies || []).length ? ` · Preferred: ${profile.companies.map(escapeHtml).join(', ')}` : '';
+    box.innerHTML = `<i class="ph ph-user-focus text-base text-orange-500"></i>
+      <span>Showing <b class="text-slate-900">${escapeHtml(field)}</b> internships · ${exp}${picks}</span>
+      <button type="button" class="ml-auto text-orange-600 hover:underline" onclick="openProfileModal(false)">Edit profile</button>`;
+    box.classList.remove('hidden');
+  }
 }
