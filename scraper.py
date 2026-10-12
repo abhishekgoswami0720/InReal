@@ -25,6 +25,9 @@ from sites.niche import scrape_niche_boards, scrape_aggregators
 from sites.universities import scrape_universities
 from sites.search_engine import scrape_search_engine
 
+# Sites whose scrapers were rebuilt and checked against the live site (see SELECTOR_TRACKER.md)
+UPGRADED_SOURCES = ["internshala", "unstop", "naukri", "linkedin", "shine", "foundit", "apna"]
+
 ALL_SCRAPERS = {
     "internshala": scrape_internshala,
     "unstop": scrape_unstop,
@@ -232,7 +235,7 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
             "regions": ["india", "worldwide", "usa", "europe", "remote"],
             "topics": ["ml", "ai", "nlp", "cv", "ds", "research", "llm/genai"],
             "paid_only": False,
-            "sources": ["linkedin", "internshala", "unstop", "naukri", "bigtech", "remotive", "universities", "government"]
+            "sources": UPGRADED_SOURCES
         }
     
     logger.info(f"🚀 Starting selective scraper with config: {config}")
@@ -250,41 +253,19 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
     req_sources = set([s.lower() for s in config.get("sources", [])])
     
     scrapers_to_run = {}
-    
-    # Map scrapers to explicit UI checkboxes
-    if "internshala" in req_sources: 
-        scrapers_to_run["internshala"] = scrape_internshala
-        
-    if "naukri" in req_sources: 
-        scrapers_to_run.update({
-            "naukri": scrape_naukri, "shine": scrape_shine, 
-            "foundit": scrape_foundit, "apna": scrape_apna, "cutshort": scrape_cutshort
-        })
-        
-    if "unstop" in req_sources: 
-        scrapers_to_run["unstop"] = scrape_unstop
-        
-    if "linkedin" in req_sources: 
-        scrapers_to_run["linkedin"] = scrape_linkedin
-        
-    if "bigtech" in req_sources: 
-        scrapers_to_run["bigtech"] = scrape_bigtech
-        
-    if "remotive" in req_sources: 
-        scrapers_to_run.update({
-            "remotive": scrape_remotive, 
-            "weworkremotely": scrape_weworkremotely, 
-            "international": scrape_international, 
-            "niche": scrape_niche_boards, 
-            "aggregators": scrape_aggregators, 
-            "search": scrape_search_engine
-        })
-        
-    if "government" in req_sources: 
-        scrapers_to_run["government"] = scrape_government
-        
-    if "universities" in req_sources:
-        scrapers_to_run["universities"] = scrape_universities
+
+    # Each dashboard checkbox is now one site (its --source name). The old group
+    # names still work so old saved settings don't break, but "naukri" means only
+    # Naukri now; it used to also start Shine, Foundit, Apna and Cutshort.
+    legacy_groups = {
+        "remotive": ["remotive", "weworkremotely", "international", "niche", "aggregators", "search"],
+    }
+    for name in [s.lower() for s in config.get("sources", [])]:
+        for source in legacy_groups.get(name, [name]):
+            if source in ALL_SCRAPERS:
+                scrapers_to_run[source] = ALL_SCRAPERS[source]
+            else:
+                logger.warning(f"Unknown source in dashboard settings: {source}")
 
     if specific_source:
         wanted = [x.strip().lower() for x in specific_source.split(",") if x.strip()]

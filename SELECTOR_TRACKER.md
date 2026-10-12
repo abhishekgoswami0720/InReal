@@ -10,6 +10,22 @@ Websites change their page structure often, so when a scraper suddenly returns 0
 python scraper.py --source <name> --dry-run
 ```
 
+## Test round 2: latest code, terminal + web (started 12 Oct 06:06)
+
+No new sites until all 7 upgraded sites pass both checks on the laptop. The filters changed after the first runs (unpaid in title, copies shown once, new flags), so every site is tested again.
+
+| Site | Terminal `--dry-run` | Web dashboard (only this site ticked) |
+|---|---|---|
+| Internshala | ⏳ | ⏳ |
+| Unstop | ⏳ | ⏳ |
+| Naukri | ⏳ | ⏳ |
+| LinkedIn | ⏳ | ⏳ |
+| Shine | ⏳ | ⏳ |
+| Foundit | ⏳ | ⏳ |
+| Apna | ⏳ | ⏳ |
+
+Dashboard settings now have one checkbox per site; the not-upgraded ones are listed separately and unticked.
+
 ## Summary
 
 | # | Platform | `--source` | File | How it reads the site | Status |

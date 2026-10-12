@@ -218,7 +218,8 @@ def parse_search_html(html: str, label: str):
                 "required_skills": "",
                 "application_deadline": "",
                 "apply_link": link,
-                "source_platform": f"LinkedIn ({label})",
+                "source_platform": "LinkedIn",
+                "search_label": label,          # which of the 65 searches found it
                 "date_scraped": datetime.now().strftime("%Y-%m-%d"),
                 "org_type": "Company",
                 "role_type": "Research" if "research" in title.lower() else "Applied",
