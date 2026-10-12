@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "about": "Phrases seen in fake internship and job offers in India (fees, task scams, data theft, training sold as an internship). Each listing's text is split into short chunks and every chunk is compared with these phrases by meaning (embeddings), so a reworded scam still matches. The 'genuine' list holds the honest versions of the same topics ('we never charge a fee'), so a chunk is scored by how much closer it is to a scam phrase than to an honest one. Add a phrase here when you confirm a new scam, then run: python -m moderation.build_index",
+  "categories": {
+    "upfront_fee": {
+      "label": "Asks the candidate to pay",
+      "severity": "high",
+      "patterns": [
+        "A refundable registration fee of Rs 999 has to be paid to confirm your internship.",
+        "Pay Rs 499 to block your internship slot before the deadline.",
+        "Selected candidates must pay a security deposit which will be returned after the internship.",
+        "The offer letter will be issued after payment of documentation charges.",
+        "A one-time onboarding fee is required before joining.",
+        "Laptop and kit will be provided after a refundable deposit.",
+        "Candidates need to pay the training fee before the internship starts.",
+        "Pay the certificate fee to receive your internship certificate and offer letter.",
+        "Interview slot booking charges of Rs 299 are applicable.",
+        "Joining ke liye registration fees jama karni hogi.",
+        "Transfer the amount to our UPI ID to complete the joining formalities.",
+        "Verification charges must be paid to process your application."
+      ]
+    },
+    "task_scam": {
+      "label": "Pays for online tasks (task scam)",
+      "severity": "high",
+      "patterns": [
+        "Earn Rs 500 per task by liking YouTube videos and following Instagram pages.",
+        "Complete simple online tasks daily and get paid instantly.",
+        "Rate hotels and restaurants on Google Maps and earn commission for every review.",
+        "Join our Telegram group to receive daily paid tasks.",
+        "Prepaid merchant tasks give you higher returns on your deposit.",
+        "Work from home typing and copy paste job, earn 30000 per month with no experience.",
+        "Part time job, just like and share posts, daily payment guaranteed."
+      ]
+    },
+    "data_harvest": {
+      "label": "Asks for ID, bank details or OTP before selection",
+      "severity": "high",
+      "patterns": [
+        "Send your Aadhaar card, PAN card and bank passbook copy on WhatsApp to apply.",
+        "Share the OTP you received on your phone to complete the verification.",
+        "Provide your bank account number and IFSC code before the interview for stipend processing.",
+        "Fill this form with your Aadhaar number and date of birth to get selected.",
+        "Download our app and give access to your contacts to start the internship."
+      ]
+    },
+    "off_platform_contact": {
+      "label": "Moves the candidate to WhatsApp, Telegram or a personal email",
+      "severity": "medium",
+      "patterns": [
+        "Contact our HR on WhatsApp for joining details.",
+        "Message us on Telegram to get your offer letter.",
+        "Send your resume to our HR at a gmail.com address.",
+        "Call or WhatsApp this number for direct selection.",
+        "Apply only through the Google Form link shared on WhatsApp."
+      ]
+    },
+    "too_good_to_be_true": {
+      "label": "Promises that real internships don't make",
+      "severity": "medium",
+      "patterns": [
+        "No interview required, direct selection for all applicants.",
+        "Earn up to 50,000 per month working only two hours a day from home.",
+        "Guaranteed income with no skills or experience required.",
+        "Everyone who applies is selected, no screening process.",
+        "Freshers can earn unlimited income from home with zero investment of time."
+      ]
+    },
+    "pressure": {
+      "label": "Rushes the candidate to pay or decide",
+      "severity": "low",
+      "patterns": [
+        "Only a few seats are left, register today to confirm your seat.",
+        "This offer is valid for 24 hours only, complete the payment now.",
+        "Complete the payment within 2 hours or your selection will be cancelled.",
+        "Hurry, limited slots available for this batch."
+      ]
+    },
+    "training_sale": {
+      "label": "A paid course or certificate sold as an internship",
+      "severity": "medium",
+      "patterns": [
+        "100 percent placement guarantee after completing our training program.",
+        "Internship with paid certification program and lifetime course access.",
+        "Enroll in our course to get an internship certificate and letter of recommendation.",
+        "Learn and earn program, course fee applicable.",
+        "Guaranteed certificate and LOR after paying the program fee.",
+        "Training cum internship program with job assistance, fee includes study material.",
+        "Become an AI engineer in 45 days with our live classes and get an internship certificate."
+      ]
+    },
+    "mlm": {
+      "label": "Pay comes from recruiting others (MLM)",
+      "severity": "medium",
+      "patterns": [
+        "Earn commission by referring your friends to join the program.",
+        "Build your own team and earn from their sales.",
+        "Pay the joining amount and recruit members to grow your income.",
+        "Your stipend depends on how many students you enroll."
+      ]
+    }
+  },
+  "genuine": [
+    "We do not charge any fee from candidates at any stage of hiring.",
+    "There is no registration fee or deposit for this internship.",
+    "Beware of fraudsters asking for money; we never ask candidates for payment.",
+    "A stipend of 15,000 rupees per month will be paid by the company.",
+    "Selection is through a technical interview and a take-home assignment.",
+    "Candidates will be shortlisted based on their resume and then interviewed.",
+    "You will build and evaluate machine learning models with our engineering team.",
+    "Responsibilities include data preprocessing, model training and writing reports.",
+    "Apply through the official careers page of the company.",
+    "A certificate and letter of recommendation are given on completion at no cost.",
+    "The company will provide a laptop for the duration of the internship.",
+    "Work with our data science team on real customer problems.",
+    "Interns are paid every month by bank transfer after joining.",
+    "Pre-placement offer based on performance during the internship.",
+    "Knowledge of Python, SQL and statistics is required."
+  ]
+}

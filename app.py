@@ -11,9 +11,14 @@ import tempfile
 # Import the scraper orchestrator
 # We need to add the current dir to path to import scraper properly if needed, but it's in the same dir
 from scraper import run_scrapers
+from output_handler import pending_moderation, save_verdict
+from moderation.env import load_env
+from moderation.link_check import resolve as resolve_link
 
+load_env()
 app = Flask(__name__)
 DATA_FILE = Path(__file__).parent / "internships.csv"
+PATTERN_INDEX = Path(__file__).parent / "moderation" / "pattern_index.json"
 
 # Global state for scraping
 scraper_t = None
@@ -48,11 +53,68 @@ def trigger_scrape():
     def scrape_job(cfg):
         # Running the full scraper
         run_scrapers(dry_run=False, config=cfg)
+        notify_n8n()
         
     scraper_t = threading.Thread(target=scrape_job, args=(config,))
     scraper_t.start()
     
     return jsonify({"status": "started", "message": "Scraper started successfully. This might take a while."})
+
+def notify_n8n():
+    """Starts the n8n moderation workflow after a scrape, if N8N_WEBHOOK_URL is set in .env."""
+    url = os.environ.get("N8N_WEBHOOK_URL", "").strip()
+    if not url:
+        return
+    try:
+        import requests
+        pending = len(pending_moderation(limit=10_000))
+        if pending:
+            requests.post(url, json={"event": "scrape_finished", "pending": pending}, timeout=5)
+    except Exception as e:
+        print(f"Could not reach n8n at {url}: {e}")
+
+
+# ---- Moderation API, called by the n8n workflow in n8n/inreal_moderation.json ----
+
+@app.route("/api/moderation/pending")
+def moderation_pending():
+    try:
+        limit = int(request.args.get("limit", 40))
+    except ValueError:
+        limit = 40
+    return jsonify(pending_moderation(limit))
+
+
+@app.route("/api/moderation/patterns")
+def moderation_patterns():
+    if not PATTERN_INDEX.exists():
+        return jsonify({"error": "moderation/pattern_index.json is missing. Run: python -m moderation.build_index"}), 404
+    return app.response_class(PATTERN_INDEX.read_text(encoding="utf-8"), mimetype="application/json")
+
+
+@app.route("/api/moderation/resolve")
+def moderation_resolve():
+    """Opens one listing's apply link: redirect chain, final domain, status, 'closed' wording."""
+    listing_id = request.args.get("id", "")
+    rows = {r["id"]: r for r in pending_moderation(limit=10_000)}
+    row = rows.get(listing_id)
+    if row is None:
+        return jsonify({"id": listing_id, "error": "unknown or already moderated id"}), 404
+    return jsonify({"id": listing_id, **resolve_link(row.get("apply_link", ""))})
+
+
+@app.route("/api/moderation/verdict", methods=["POST"])
+def moderation_verdict():
+    data = request.get_json(silent=True) or {}
+    try:
+        ok = save_verdict(str(data.get("id", "")), str(data.get("status", "")),
+                          data.get("scam_risk", 0), data.get("reasons", []))
+    except (TypeError, ValueError) as e:
+        return jsonify({"saved": False, "error": str(e)}), 400
+    if not ok:
+        return jsonify({"saved": False, "error": "unknown id"}), 404
+    return jsonify({"saved": True, "id": data.get("id"), "status": data.get("status")})
+
 
 @app.route("/api/scrape/status")
 def scrape_status():

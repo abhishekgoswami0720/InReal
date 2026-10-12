@@ -1,6 +1,6 @@
 import json
 import csv
-import pandas as pd
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -15,8 +15,18 @@ CSV_HEADERS = [
     "required_skills", "application_deadline", "apply_link",
     "source_platform", "date_scraped", "is_new", 
     "org_type", "role_type", "match_score",
-    "posted", "trust_flags"
+    "posted", "trust_flags",
+    # text the n8n moderation pipeline reads, and what it decided
+    "description", "moderation_status", "scam_risk", "moderation_reasons", "moderated_at",
 ]
+MODERATION_FIELDS = ["moderation_status", "scam_risk", "moderation_reasons", "moderated_at"]
+# If any of these change, the listing is a different post and must be moderated again
+CONTENT_FIELDS = ["company_name", "role_title", "stipend", "apply_link", "description"]
+MODERATION_STATUSES = {"approved", "review", "blocked", "expired"}
+DESCRIPTION_LIMIT = 3000
+
+# The scraper thread and the n8n verdict calls both write internships.csv
+_CSV_LOCK = threading.RLock()
 
 def load_log():
     if LOG_FILE.exists():
@@ -38,70 +48,28 @@ def is_duplicate(internship_id: str, log_data: dict = None) -> bool:
         log_data = load_log()
     return internship_id in log_data.get("seen_ids", [])
 
-def append_to_csv(internships: list) -> int:
-    """
-    Saves a list of internship dicts to CSV. 
-    Also updates the json log.
-    Returns: Number of new records added.
-    """
-    if not internships:
-        return 0
-        
-    log_data = load_log()
-    seen_ids = set(log_data.setdefault("seen_ids", []))
-    
-    new_records = []
-    
-    for item in internships:
-        if item["id"] not in seen_ids:
-            item["is_new"] = True
-            new_records.append(item)
-            seen_ids.add(item["id"])
-        
-    if not new_records:
-        return 0
-        
-    log_data["seen_ids"] = list(seen_ids)
-    log_data["total_scraped"] = len(seen_ids)
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    log_data["last_run"] = today_str
-    
-    file_exists = CSV_FILE.exists()
-    if file_exists:
-        # Older CSVs were written before new columns were added; rewrite the header once
-        with open(CSV_FILE, "r", encoding="utf-8") as f:
-            header = f.readline().strip().split(",")
-        if header != CSV_HEADERS:
-            old = pd.read_csv(CSV_FILE)
-            old.reindex(columns=CSV_HEADERS).to_csv(CSV_FILE, index=False)
-    
-    with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
-        if not file_exists:
-            writer.writeheader()
-        for rec in new_records:
-            filtered_rec = {k: rec.get(k, "") for k in CSV_HEADERS}
-            writer.writerow(filtered_rec)
-            
-    # Read and sort by date_scraped descending
-    try:
-        df = pd.read_csv(CSV_FILE)
-        if "date_scraped" in df.columns:
-            df["date_scraped"] = pd.to_datetime(df["date_scraped"], errors='coerce')
-            df = df.sort_values(by="date_scraped", ascending=False)
-            df["date_scraped"] = df["date_scraped"].dt.strftime("%Y-%m-%d")
-            df.to_csv(CSV_FILE, index=False)
-    except Exception as e:
-        print(f"Warning: Could not sort CSV: {e}")
-            
-    save_log(log_data)
-    return len(new_records)
-    
 def _read_rows() -> list:
     if not CSV_FILE.exists():
         return []
     with open(CSV_FILE, newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def _write_rows(rows: list):
+    rows.sort(key=lambda r: str(r.get("date_scraped", "")), reverse=True)
+    tmp = CSV_FILE.with_suffix(".csv.tmp")
+    with open(tmp, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_HEADERS, extrasaction="ignore")
+        writer.writeheader()
+        for r in rows:
+            writer.writerow({k: r.get(k, "") for k in CSV_HEADERS})
+    tmp.replace(CSV_FILE)   # the dashboard never reads a half-written file
+
+
+def _record(item: dict) -> dict:
+    rec = {k: item.get(k, "") for k in CSV_HEADERS if k not in MODERATION_FIELDS}
+    rec["description"] = " ".join(str(item.get("description") or "").split())[:DESCRIPTION_LIMIT]
+    return rec
 
 
 def sync_listings(kept: list, dropped_ids: list) -> dict:
@@ -115,50 +83,84 @@ def sync_listings(kept: list, dropped_ids: list) -> dict:
       - kept listing not seen before -> added and marked new
       - listing this run re-checked and dropped -> removed from the dashboard
     Listings that simply did not appear in this run are left alone.
+    The n8n verdict is kept unless the post's own text changed; then it is moderated again.
     """
-    log_data = load_log()
-    seen_ids = set(log_data.setdefault("seen_ids", []))
-    rows = _read_rows()
-    by_id = {r.get("id"): r for r in rows}
-    keep_as_is = {"id", "date_scraped", "is_new"}
-    added = updated = 0
+    with _CSV_LOCK:
+        log_data = load_log()
+        seen_ids = set(log_data.setdefault("seen_ids", []))
+        rows = _read_rows()
+        by_id = {r.get("id"): r for r in rows}
+        keep_as_is = {"id", "date_scraped", "is_new", *MODERATION_FIELDS}
+        added = updated = 0
 
-    for item in kept:
-        rec = {k: item.get(k, "") for k in CSV_HEADERS}
-        old = by_id.get(item["id"])
-        if old is not None:
-            changed = False
-            for k in CSV_HEADERS:
-                if k in keep_as_is:
-                    continue
-                if str(old.get(k, "") or "") != str(rec[k] if rec[k] is not None else ""):
-                    old[k] = rec[k]
-                    changed = True
-            updated += changed
-        elif item["id"] not in seen_ids:
-            rec["is_new"] = True
-            rows.append(rec)
-            by_id[item["id"]] = rec
-            seen_ids.add(item["id"])
-            added += 1
+        for item in kept:
+            rec = _record(item)
+            old = by_id.get(item["id"])
+            if old is not None:
+                changed = False
+                # includes a description arriving for a row saved before descriptions were stored
+                content_changed = any(str(old.get(k, "") or "") != str(rec.get(k, "") or "") for k in CONTENT_FIELDS)
+                for k, v in rec.items():
+                    if k in keep_as_is:
+                        continue
+                    if str(old.get(k, "") or "") != str(v if v is not None else ""):
+                        old[k] = v
+                        changed = True
+                if content_changed and old.get("moderation_status"):
+                    for k in MODERATION_FIELDS:
+                        old[k] = ""
+                updated += changed
+            elif item["id"] not in seen_ids:
+                rec["is_new"] = True
+                rows.append(rec)
+                by_id[item["id"]] = rec
+                seen_ids.add(item["id"])
+                added += 1
 
-    gone = set(dropped_ids) & set(by_id)
-    if gone:
-        rows = [r for r in rows if r.get("id") not in gone]
-        seen_ids -= gone   # so it can come back if the post changes or the rules relax
+        gone = set(dropped_ids) & set(by_id)
+        if gone:
+            rows = [r for r in rows if r.get("id") not in gone]
+            seen_ids -= gone   # so it can come back if the post changes or the rules relax
 
-    rows.sort(key=lambda r: str(r.get("date_scraped", "")), reverse=True)
-    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_HEADERS, extrasaction="ignore")
-        writer.writeheader()
-        for r in rows:
-            writer.writerow({k: r.get(k, "") for k in CSV_HEADERS})
-
-    log_data["seen_ids"] = sorted(seen_ids)
-    log_data["total_scraped"] = len(seen_ids)
-    log_data["last_run"] = datetime.now().strftime("%Y-%m-%d")
-    save_log(log_data)
+        _write_rows(rows)
+        log_data["seen_ids"] = sorted(seen_ids)
+        log_data["total_scraped"] = len(seen_ids)
+        log_data["last_run"] = datetime.now().strftime("%Y-%m-%d")
+        save_log(log_data)
     return {"added": added, "updated": updated, "removed": len(gone)}
+
+
+PENDING_FIELDS = ["id", "company_name", "role_title", "location", "duration", "stipend", "stipend_numeric",
+                  "required_skills", "apply_link", "source_platform", "org_type", "trust_flags", "description"]
+
+
+def pending_moderation(limit: int = 40) -> list:
+    """Listings the n8n pipeline has not judged yet, newest first."""
+    with _CSV_LOCK:
+        rows = _read_rows()
+    todo = [r for r in rows if not (r.get("moderation_status") or "").strip()]
+    return [{k: r.get(k, "") for k in PENDING_FIELDS} for r in todo[:max(1, limit)]]
+
+
+def save_verdict(listing_id: str, status: str, scam_risk, reasons) -> bool:
+    """Stores the n8n verdict on one listing. Returns False if the id is unknown."""
+    if status not in MODERATION_STATUSES:
+        raise ValueError(f"status must be one of {sorted(MODERATION_STATUSES)}")
+    risk = float(scam_risk)
+    if not 0.0 <= risk <= 1.0:
+        raise ValueError("scam_risk must be between 0 and 1")
+    if isinstance(reasons, (list, tuple)):
+        reasons = " | ".join(str(r).replace("|", "/").strip() for r in reasons if str(r).strip())
+    with _CSV_LOCK:
+        rows = _read_rows()
+        row = next((r for r in rows if r.get("id") == listing_id), None)
+        if row is None:
+            return False
+        row.update({"moderation_status": status, "scam_risk": f"{risk:.2f}",
+                    "moderation_reasons": str(reasons or "")[:1500],
+                    "moderated_at": datetime.now().strftime("%Y-%m-%d %H:%M")})
+        _write_rows(rows)
+    return True
 
 
 def update_run_history(new_listings_count: int, sources_failed: list):

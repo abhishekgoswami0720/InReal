@@ -27,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Setup event listeners
     document.getElementById("search-input").addEventListener("input", renderListings);
     document.getElementById("source-filter").addEventListener("change", renderListings);
+    document.getElementById("mod-filter").addEventListener("change", renderListings);
 
     // Group filter listeners
     setupFilters("location-filters", "location");
@@ -246,6 +247,7 @@ function renderListings() {
     const stipF = window.activeStipendFilter || "all";
     const orgF = window.activeOrgFilter || "all";
     const roleF = window.activeRoleFilter || "all";
+    const modF = document.getElementById("mod-filter").value;
 
     let filtered = allInternships.filter(item => {
         // Search
@@ -253,6 +255,12 @@ function renderListings() {
             const str = `${item.role_title} ${item.company_name} ${item.required_skills}`.toLowerCase();
             if (!str.includes(searchQ)) return false;
         }
+
+        // Scam check verdict from the n8n moderation workflow
+        const mod = item.moderation_status || "";
+        if (modF === "hide_blocked" && mod === "blocked") return false;
+        if (modF === "review" && mod !== "review") return false;
+        if (modF === "blocked" && mod !== "blocked") return false;
 
         // Source
         if (sourceF !== "all" && item.source_platform !== sourceF) return false;
@@ -280,7 +288,12 @@ function renderListings() {
     // Listings with no warnings first, then fewer warnings, then Match Score, then Date.
     // (12 Oct: a "Guaranteed Certification" post with two warnings sat in the top row at 70%.)
     const warnCount = i => String(i.trust_flags || "").split(";").filter(f => f.trim()).length;
+    // n8n verdict first: approved/unchecked, then "needs a look", then likely scams, then closed links
+    const MOD_RANK = { approved: 0, "": 0, review: 1, blocked: 2, expired: 3 };
+    const modRank = i => MOD_RANK[i.moderation_status || ""] ?? 0;
     filtered.sort((a, b) => {
+        const modDiff = modRank(a) - modRank(b);
+        if (modDiff !== 0) return modDiff;
         const warnDiff = warnCount(a) - warnCount(b);
         if (warnDiff !== 0) return warnDiff;
         const scoreA = a.match_score || 0;
@@ -307,9 +320,11 @@ function renderListings() {
         if (emptyMsg) emptyMsg.remove();
     }
 
-    // 1. Remove cards that are no longer valid (filtered out)
+    // 1. Remove cards that are no longer valid (filtered out), or whose verdict/warnings changed
+    //    since they were drawn (n8n writes verdicts after the scrape), so they are drawn again
+    const versionOf = new Map(filtered.map(i => [String(i.id), cardVersion(i)]));
     existingCards.forEach(card => {
-        if (!validIds.has(card.dataset.id)) {
+        if (!validIds.has(card.dataset.id) || card.dataset.ver !== versionOf.get(card.dataset.id)) {
             card.remove();
             existingIds.delete(card.dataset.id);
         }
@@ -332,9 +347,13 @@ function renderListings() {
             const durBadge = item.duration ? `<span class="tag tag-dur"><i class="ph ph-clock"></i> ${durDisp}</span>` : '';
             // Genuine check (genuine.py): listings that failed it are never saved; softer warnings arrive in trust_flags
             const flags = String(item.trust_flags || "").split(";").map(f => f.trim()).filter(Boolean);
+            // A green "no warnings" next to an n8n "likely scam" would contradict itself, so it is left out then
+            const flagged = ["review", "blocked"].includes(item.moderation_status);
             const trustHtml = flags.length
                 ? `<div class="trust trust-warn"><i class="ph ph-warning"></i><span><strong>Check before applying:</strong> ${flags.map(escapeHtml).join(" &bull; ")}</span></div>`
-                : `<div class="trust trust-ok"><i class="ph ph-shield-check"></i><span>No warning signs found</span></div>`;
+                : (flagged ? "" : `<div class="trust trust-ok"><i class="ph ph-shield-check"></i><span>No warning signs found</span></div>`);
+
+            const modHtml = moderationHtml(item);
 
             const safeCompany = escapeHtml(item.company_name);
             const safeRole = escapeHtml(item.role_title);
@@ -343,6 +362,8 @@ function renderListings() {
 
             const card = document.createElement("div");
             card.dataset.id = item.id;
+            card.dataset.ver = cardVersion(item);
+            if (item.moderation_status === "blocked" || item.moderation_status === "expired") card.classList.add("card-dim");
 
             // Only animate the newly added cards that fit in the first page view to prevent lag 
             if (newCardsCount < 30) {
@@ -369,6 +390,7 @@ function renderListings() {
                 </div>
 
                 ${trustHtml}
+                ${modHtml}
                 
                 <div class="skills-list">
                     <strong>Skills:</strong> ${skillsDisp}
@@ -402,6 +424,29 @@ function renderListings() {
             cardNode.style.order = index;
         }
     });
+}
+
+function cardVersion(item) {
+    return [item.moderation_status || "", item.scam_risk || "", item.trust_flags || ""].join("|");
+}
+
+// One line from the n8n scam-moderation verdict; the full list of reasons is in the tooltip
+function moderationHtml(item) {
+    const status = item.moderation_status || "";
+    const risk = item.scam_risk !== "" && item.scam_risk != null ? Number(item.scam_risk).toFixed(2) : "";
+    const reasons = String(item.moderation_reasons || "").split(" | ").map(r => r.trim()).filter(Boolean);
+    const tip = escapeHtml(reasons.join("\n"));
+    const first = reasons.length ? ` &mdash; ${escapeHtml(reasons[0].slice(0, 140))}` : "";
+    const views = {
+        "": ["mod-pending", "ph-hourglass", "Scam check pending"],
+        approved: ["mod-ok", "ph-shield-check", `Scam check passed (risk ${risk})`],
+        review: ["mod-review", "ph-eye", `Needs a human look (risk ${risk})`],
+        blocked: ["mod-block", "ph-prohibit", `Likely scam (risk ${risk})`],
+        expired: ["mod-expired", "ph-link-break", "Apply link closed or dead"],
+    };
+    const [cls, icon, label] = views[status] || views[""];
+    const detail = status === "approved" || status === "" ? "" : first;
+    return `<div class="mod ${cls}" title="${tip}"><i class="ph ${icon}"></i><span><strong>${label}</strong>${detail}</span></div>`;
 }
 
 /**

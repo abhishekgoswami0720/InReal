@@ -644,6 +644,39 @@ body {
     color: #fbbf24;
 }
 
+.mod {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.45;
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin: -8px 0 16px;
+    border: 1px dashed transparent;
+    cursor: help;
+}
+
+.tags + .mod {
+    margin-top: 0;
+}
+
+.mod i {
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.mod-pending { color: var(--text-muted); border-color: rgba(148, 163, 184, 0.25); }
+.mod-ok { color: #34d399; border-color: rgba(52, 211, 153, 0.3); }
+.mod-review { color: #fbbf24; border-color: rgba(251, 191, 36, 0.45); background-color: rgba(245, 158, 11, 0.06); }
+.mod-block { color: #f87171; border-color: rgba(248, 113, 113, 0.5); background-color: rgba(239, 68, 68, 0.08); }
+.mod-expired { color: #94a3b8; border-color: rgba(148, 163, 184, 0.35); }
+
+.card-dim {
+    opacity: 0.6;
+}
+
 .match-score-badge {
     position: absolute;
     top: 16px;

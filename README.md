@@ -129,6 +129,9 @@ A listing is **removed** only for things a real internship never does:
 
 Softer warnings are **kept** and written to the `trust_flags` column: very short duration, a brand-new employer with no hires yet, an employer that posts a lot but hires few, or no stated stipend. Big real companies can look odd on one number, so these never delete a listing on their own.
 
+### 🔎 Scam Moderation Pipeline (n8n)
+After every scrape, an n8n workflow checks each new listing in three stages: rules on the apply link and contact details, a vector search of every sentence against known scam phrases (and honest ones, so "no fee" doesn't match "pay the fee"), and one LLM call that must quote the post. Quotes are checked against the real text and the scores are combined, so the LLM alone can never block a post. Verdicts appear on each card. Setup and design: [N8N_SETUP.md](N8N_SETUP.md).
+
 ### 🧪 Test One Platform
 ```bash
 python scraper.py --source internshala --dry-run
@@ -139,7 +142,8 @@ Nothing is saved to `internships.csv`. It prints how many listings were kept or 
 | Platform | Checked on live site | Status |
 |---|---|---|
 | Internshala | 12 Oct 2026 | Selectors updated (title is now `h2 a.job-title-href`, location `.row-1-item.locations`, duration by calendar icon, last page by `#isLastPage`); detail page adds employer activity |
-| Unstop, Naukri, LinkedIn, Shine, Foundit, Apna, Cutshort, RSS, WWR | — | Not re-checked yet |
+| Unstop, Naukri, LinkedIn, Shine, Foundit, Apna, Govt (AICTE) | 12 Oct 2026 | Upgraded; see [SELECTOR_TRACKER.md](SELECTOR_TRACKER.md) for each site's test results |
+| Cutshort, RSS, WWR | — | Not re-checked yet |
 
 ---
 
