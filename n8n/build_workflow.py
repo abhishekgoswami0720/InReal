@@ -15,9 +15,11 @@ CODE = HERE / "code"
 OUT = HERE / "inreal_moderation.json"
 GLUE = "// ==== n8n glue (below this line runs only inside n8n) ===="
 GEMINI_CRED = {"httpHeaderAuth": {"id": "inrealGeminiKey", "name": "Gemini API key"}}
-# One Header Auth credential for both Azure OpenAI nodes (embeddings + gpt-4o judge): Name "api-key".
-# To go back to Gemini, give those nodes a Header Auth with Name "x-goog-api-key" instead.
-AZURE_CRED = {"httpHeaderAuth": {"id": "inrealAzureKey", "name": "Azure OpenAI key"}}
+# Embeddings and the judge can live on different services, so each node has its own Header Auth:
+#   Embed chunks  -> "Embedding API key"  (Name x-goog-api-key for Gemini, api-key for Azure)
+#   LLM judge     -> "Judge API key"      (Name api-key for Azure gpt-4o, x-goog-api-key for Gemini)
+EMBED_CRED = {"httpHeaderAuth": {"id": "inrealEmbedKey", "name": "Embedding API key"}}
+JUDGE_CRED = {"httpHeaderAuth": {"id": "inrealJudgeKey", "name": "Judge API key"}}
 CFG = "$('Config').first().json"
 
 
@@ -50,7 +52,7 @@ def http(name, pos, url, method="GET", body_expr=None, gemini=False, batch=None,
         params.update({"sendBody": True, "specifyBody": "json", "jsonBody": body_expr})
     if gemini or embed_cred or judge_cred:
         params.update({"authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth"})
-        extra["credentials"] = AZURE_CRED if (embed_cred or judge_cred) else GEMINI_CRED
+        extra["credentials"] = EMBED_CRED if embed_cred else JUDGE_CRED if judge_cred else GEMINI_CRED
     if batch:
         params["options"]["batching"] = {"batch": {"batchSize": batch[0], "batchInterval": batch[1]}}
     if not must_work:
@@ -92,7 +94,7 @@ def build():
             assignment("geminiBase", "https://generativelanguage.googleapis.com", "string"),
             # LLM judge: "azure" (gpt-4o deployment below) or "gemini" (judgeModel on geminiBase)
             assignment("judgeProvider", "azure", "string"),
-            assignment("azureJudgeUrl", "https://YOUR-RESOURCE.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview", "string"),
+            assignment("azureJudgeUrl", "https://inreal1907.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview", "string"),
             assignment("judgeModel", "gemini-3.5-flash-lite", "string"),
             assignment("batchLimit", 120, "number"),
             assignment("blockAt", 0.7, "number"),

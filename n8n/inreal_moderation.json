@@ -74,7 +74,7 @@
             {
               "id": "efccf601-7b81-53e5-bcd6-a4b2835062aa",
               "name": "azureJudgeUrl",
-              "value": "https://YOUR-RESOURCE.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview",
+              "value": "https://inreal1907.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview",
               "type": "string"
             },
             {
@@ -321,8 +321,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "inrealAzureKey",
-          "name": "Azure OpenAI key"
+          "id": "inrealEmbedKey",
+          "name": "Embedding API key"
         }
       },
       "onError": "continueRegularOutput"
@@ -434,8 +434,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "inrealAzureKey",
-          "name": "Azure OpenAI key"
+          "id": "inrealJudgeKey",
+          "name": "Judge API key"
         }
       },
       "onError": "continueRegularOutput"

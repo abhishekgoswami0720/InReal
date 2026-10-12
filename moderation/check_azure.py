@@ -48,7 +48,11 @@ def _explain_401(what):
 def preflight():
     """Catches the usual .env mistakes before calling Azure, without printing the key."""
     problems = []
-    for k in ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_EMBED_DEPLOYMENT", "AZURE_OPENAI_KEY", "AZURE_OPENAI_JUDGE_URL"]:
+    embed_azure = os.environ.get("EMBED_PROVIDER", "gemini").strip().lower() == "azure"
+    needed = (["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_EMBED_DEPLOYMENT", "AZURE_OPENAI_KEY"] if embed_azure else []) + ["AZURE_OPENAI_JUDGE_URL"]
+    if not (os.environ.get("AZURE_OPENAI_JUDGE_KEY") or os.environ.get("AZURE_OPENAI_KEY")):
+        problems.append("AZURE_OPENAI_JUDGE_KEY (or AZURE_OPENAI_KEY) is empty")
+    for k in needed:
         v = os.environ.get(k, "").strip()
         if not v:
             problems.append(f"{k} is empty")
@@ -59,9 +63,9 @@ def preflight():
     for k in ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_EMBED_DEPLOYMENT", "AZURE_OPENAI_JUDGE_URL"]:
         v = os.environ.get(k, "")
         print(f"  {k} = {v[:110]}  [{'from .env' if k in LOADED_FROM_FILE else 'from Windows/terminal'}]")
-    key = os.environ.get("AZURE_OPENAI_KEY", "").strip()
+    key = (os.environ.get("AZURE_OPENAI_JUDGE_KEY") or os.environ.get("AZURE_OPENAI_KEY", "")).strip()
     if key:
-        print(f"Key in .env: {len(key)} characters, starts '{key[:4]}', ends '{key[-4:]}'")
+        print(f"Judge key in .env: {len(key)} characters, starts '{key[:4]}', ends '{key[-4:]}'")
         if key != key.strip("'\"") or " " in key:
             problems.append("AZURE_OPENAI_KEY has quotes or spaces in it")
     for p in problems:
@@ -74,10 +78,10 @@ def main():
     if not preflight():
         sys.exit(1)
     ok = True
-    cfg = settings()
-    if cfg["provider"] != "azure":
+    if os.environ.get("EMBED_PROVIDER", "gemini").strip().lower() != "azure":
         print("EMBED_PROVIDER is not 'azure' in .env, checking the judge only")
     else:
+        cfg = settings()
         t = time.time()
         r = _post(cfg["url"], {"input": ["pay a registration fee", "we never charge a fee"], "dimensions": DIMS},
                   cfg["key"], "Embeddings")
@@ -93,7 +97,8 @@ def main():
                 _explain_401("Embeddings")
 
     url = os.environ.get("AZURE_OPENAI_JUDGE_URL", "").strip()
-    key = os.environ.get("AZURE_OPENAI_KEY", "").strip()
+    # the gpt-4o deployment can be on another Azure resource with its own key
+    key = (os.environ.get("AZURE_OPENAI_JUDGE_KEY") or os.environ.get("AZURE_OPENAI_KEY", "")).strip()
     if not url:
         sys.exit("AZURE_OPENAI_JUDGE_URL is missing in .env")
     node = shutil.which("node")

@@ -149,3 +149,15 @@ embed node now waits only 0.3 s between calls (one call carries up to 90 sentenc
   to the queue for the next run.
 - Live check of both deployments from the laptop: `python -m moderation.check_azure`.
 - Tested in n8n 2.42.6 with fake Azure servers: 106 listings, 2 runs queued one after another, 31 s.
+
+
+## Current setup (12 Oct evening)
+
+- **Embeddings: Gemini** (`EMBED_PROVIDER=gemini`). The first Azure resource's key is rejected (401) and the new
+  resource `inreal1907` has no embedding deployment. To move embeddings to Azure later, deploy
+  `text-embedding-3-small` on `inreal1907`, then set `EMBED_PROVIDER=azure` and rebuild the index.
+- **LLM judge: Azure gpt-4o on `inreal1907`**, key in `AZURE_OPENAI_JUDGE_KEY`. Live-tested 12 Oct 18:05 with the
+  strict JSON schema: a deposit post came back scam 1.0 with exact quotes, an honest post genuine 0.0;
+  2 posts = 1,071 tokens, 5 s.
+- n8n credentials: **Embed chunks** → `Embedding API key` (Header Auth, Name `x-goog-api-key`, Gemini key);
+  **LLM judge** → `Judge API key` (Header Auth, Name `api-key`, gpt-4o key).
