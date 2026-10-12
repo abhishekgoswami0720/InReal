@@ -36,8 +36,8 @@ def code_node(name, pos, *files):
     return node(name, "n8n-nodes-base.code", 2, pos, {"mode": "runOnceForEachItem", "jsCode": code_source(*files)})
 
 
-def http(name, pos, url, method="GET", body_expr=None, gemini=False, batch=None, **extra):
-    params = {"url": url, "options": {"response": {"response": {"neverError": True}}, "timeout": 30000}}
+def http(name, pos, url, method="GET", body_expr=None, gemini=False, batch=None, must_work=False, **extra):
+    params = {"url": url, "options": {"response": {"response": {"neverError": not must_work}}, "timeout": 30000}}
     if method != "GET":
         params["method"] = method
     if body_expr:
@@ -47,7 +47,9 @@ def http(name, pos, url, method="GET", body_expr=None, gemini=False, batch=None,
         extra["credentials"] = GEMINI_CRED
     if batch:
         params["options"]["batching"] = {"batch": {"batchSize": batch[0], "batchInterval": batch[1]}}
-    return node(name, "n8n-nodes-base.httpRequest", 4.2, pos, params, onError="continueRegularOutput", **extra)
+    if not must_work:
+        extra["onError"] = "continueRegularOutput"
+    return node(name, "n8n-nodes-base.httpRequest", 4.2, pos, params, **extra)
 
 
 def if_node(name, pos, left, rights):
@@ -79,7 +81,8 @@ def build():
              {"httpMethod": "POST", "path": "inreal-moderate", "responseMode": "onReceived", "options": {}},
              webhookId=_id("webhook")),
         node("Config", "n8n-nodes-base.set", 3.4, [-960, 300], {"assignments": {"assignments": [
-            assignment("flaskBase", "http://localhost:5000", "string"),
+            # not "localhost": Node 24 tries ::1 first and Flask only listens on IPv4
+            assignment("flaskBase", "http://127.0.0.1:5000", "string"),
             assignment("geminiBase", "https://generativelanguage.googleapis.com", "string"),
             assignment("judgeModel", "gemini-3.5-flash-lite", "string"),
             assignment("batchLimit", 40, "number"),
@@ -90,9 +93,9 @@ def build():
             assignment("strongFloor", "", "string"),
             assignment("margin", "", "string"),
         ]}, "options": {}}),
-        http("Fetch pattern bank", [-740, 300], f"={{{{ {CFG}.flaskBase }}}}/api/moderation/patterns", executeOnce=True),
+        http("Fetch pattern bank", [-740, 300], f"={{{{ {CFG}.flaskBase }}}}/api/moderation/patterns", executeOnce=True, must_work=True),
         http("Fetch pending listings", [-520, 300],
-             f"={{{{ {CFG}.flaskBase }}}}/api/moderation/pending?limit={{{{ {CFG}.batchLimit }}}}", executeOnce=True),
+             f"={{{{ {CFG}.flaskBase }}}}/api/moderation/pending?limit={{{{ {CFG}.batchLimit }}}}", executeOnce=True, must_work=True),
         http("Resolve apply link", [-300, 300],
              f"={{{{ {CFG}.flaskBase }}}}/api/moderation/resolve?id={{{{ $json.id }}}}", batch=(5, 0)),
         if_node("Link dead or closed?", [-80, 300], "={{ $json.link_state }}", ["dead", "closed"]),

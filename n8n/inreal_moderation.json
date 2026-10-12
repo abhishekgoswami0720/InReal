@@ -56,7 +56,7 @@
             {
               "id": "25b1486a-56d4-5b3a-8047-7afcf8bdee4c",
               "name": "flaskBase",
-              "value": "http://localhost:5000",
+              "value": "http://127.0.0.1:5000",
               "type": "string"
             },
             {
@@ -126,7 +126,7 @@
         "options": {
           "response": {
             "response": {
-              "neverError": true
+              "neverError": false
             }
           },
           "timeout": 30000
@@ -140,7 +140,6 @@
         -740,
         300
       ],
-      "onError": "continueRegularOutput",
       "executeOnce": true
     },
     {
@@ -149,7 +148,7 @@
         "options": {
           "response": {
             "response": {
-              "neverError": true
+              "neverError": false
             }
           },
           "timeout": 30000
@@ -163,7 +162,6 @@
         -520,
         300
       ],
-      "onError": "continueRegularOutput",
       "executeOnce": true
     },
     {
@@ -296,13 +294,13 @@
         380,
         400
       ],
-      "onError": "continueRegularOutput",
       "credentials": {
         "httpHeaderAuth": {
           "id": "inrealGeminiKey",
           "name": "Gemini API key"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -411,13 +409,13 @@
         1280,
         520
       ],
-      "onError": "continueRegularOutput",
       "credentials": {
         "httpHeaderAuth": {
           "id": "inrealGeminiKey",
           "name": "Gemini API key"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
