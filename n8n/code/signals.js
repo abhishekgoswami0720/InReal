@@ -65,7 +65,7 @@ function combine(signals) {
   return Math.min(0.95, 1 - signals.reduce((p, s) => p * (1 - s.weight), 1));
 }
 
-function chunkText(listing, maxChunks = 30) {
+function chunkText(listing, maxChunks = 12) {
   const head = `${listing.role_title || ""} at ${listing.company_name || ""}. Stipend: ${listing.stipend || "not stated"}.`;
   const body = String(listing.description || "").replace(/\s+/g, " ").trim();
   const sentences = body.split(/(?<=[.!?।])\s+|\s*[•●▪]\s*|\s+-\s+(?=[A-Z])/).map(s => s.trim()).filter(Boolean);

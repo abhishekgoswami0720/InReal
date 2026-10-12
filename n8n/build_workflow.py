@@ -103,7 +103,7 @@ def build():
         code_node("Link + contact signals", [160, 400], "signals.js"),
         http("Embed chunks (Gemini)", [380, 400],
              f"={{{{ {CFG}.geminiBase }}}}/v1beta/models/{{{{ $('Fetch pattern bank').first().json.model }}}}:batchEmbedContents",
-             method="POST", body_expr="={{ JSON.stringify($json.embedRequest) }}", gemini=True, batch=(1, 700)),
+             method="POST", body_expr="={{ JSON.stringify($json.embedRequest) }}", gemini=True, batch=(1, 8000)),  # free tier counts every chunk; 12 chunks per 8 s stays under its per-minute cap
         code_node("Vector search vs scam patterns", [600, 400], "vector_search.js"),
         if_node("Stage 1 conclusive?", [820, 400], "={{ $json.gate.decision }}", ["block"]),
         code_node("Blocked at stage 1", [1060, 220], "_verdict_lib.js", "stage1_verdict.js"),
