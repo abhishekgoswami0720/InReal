@@ -65,13 +65,24 @@ def notify_n8n():
     url = os.environ.get("N8N_WEBHOOK_URL", "").strip()
     if not url:
         return
+    from loguru import logger
     try:
         import requests
         pending = len(pending_moderation(limit=10_000))
-        if pending:
-            requests.post(url, json={"event": "scrape_finished", "pending": pending}, timeout=5)
+        if not pending:
+            return
+        r = requests.post(url, json={"event": "scrape_finished", "pending": pending}, timeout=5)
+        if r.status_code == 404:
+            # n8n only registers /webhook/... while the workflow is published (active)
+            logger.warning(f"n8n answered 404 for {url}: open the 'InReal – scam moderation' workflow in n8n "
+                           f"and click Publish, or run it with 'Execute workflow'. {pending} listings are waiting.")
+        elif r.status_code >= 400:
+            logger.warning(f"n8n webhook returned HTTP {r.status_code}: {r.text[:200]}")
+        else:
+            logger.info(f"Scam check started in n8n for {pending} listings")
     except Exception as e:
-        print(f"Could not reach n8n at {url}: {e}")
+        logger.warning(f"Could not reach n8n at {url} ({type(e).__name__}). Is n8n running? "
+                       f"The workflow's 30-minute schedule will pick the listings up once it is.")
 
 
 # ---- Moderation API, called by the n8n workflow in n8n/inreal_moderation.json ----
