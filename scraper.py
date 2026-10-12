@@ -208,6 +208,9 @@ def process_and_save(source_name: str, raw_listings: list):
         extra.append(f"refreshed {res['updated']} already saved")
     if res["removed"]:
         extra.append(f"removed {res['removed']} that no longer pass the checks")
+    if res["added"] or res["updated"]:
+        from moderation.notify import notify_n8n
+        notify_n8n(source_name)   # n8n checks this site while the next one is being scraped
     logger.info(f"[{source_name}] Analyzed {len(raw_listings)} listings, found {len(valid_listings)} matches, "
                 f"and saved {res['added']} brand new ones!" + (f" ({', '.join(extra)})" if extra else ""))
     return res["added"]

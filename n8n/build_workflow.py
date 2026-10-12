@@ -32,8 +32,11 @@ def node(name, type_, version, pos, params, **extra):
     return n
 
 
-def code_node(name, pos, *files):
-    return node(name, "n8n-nodes-base.code", 2, pos, {"mode": "runOnceForEachItem", "jsCode": code_source(*files)})
+def code_node(name, pos, *files, all_items=False):
+    params = {"jsCode": code_source(*files)}
+    if not all_items:
+        params["mode"] = "runOnceForEachItem"
+    return node(name, "n8n-nodes-base.code", 2, pos, params)
 
 
 def http(name, pos, url, method="GET", body_expr=None, gemini=False, batch=None, must_work=False, **extra):
@@ -85,7 +88,7 @@ def build():
             assignment("flaskBase", "http://127.0.0.1:5000", "string"),
             assignment("geminiBase", "https://generativelanguage.googleapis.com", "string"),
             assignment("judgeModel", "gemini-3.5-flash-lite", "string"),
-            assignment("batchLimit", 40, "number"),
+            assignment("batchLimit", 120, "number"),
             assignment("blockAt", 0.7, "number"),
             assignment("reviewAt", 0.4, "number"),
             # empty = use the thresholds measured by build_index.py
@@ -95,32 +98,33 @@ def build():
         ]}, "options": {}}),
         http("Fetch pattern bank", [-740, 300], f"={{{{ {CFG}.flaskBase }}}}/api/moderation/patterns", executeOnce=True, must_work=True),
         http("Fetch pending listings", [-520, 300],
-             f"={{{{ {CFG}.flaskBase }}}}/api/moderation/pending?limit={{{{ {CFG}.batchLimit }}}}", executeOnce=True, must_work=True),
+             f"={{{{ {CFG}.flaskBase }}}}/api/moderation/pending?claim=1&limit={{{{ {CFG}.batchLimit }}}}", executeOnce=True, must_work=True),
         http("Resolve apply link", [-300, 300],
-             f"={{{{ {CFG}.flaskBase }}}}/api/moderation/resolve?id={{{{ $json.id }}}}", batch=(5, 0)),
+             f"={{{{ {CFG}.flaskBase }}}}/api/moderation/resolve?id={{{{ $json.id }}}}", batch=(10, 0)),
         if_node("Link dead or closed?", [-80, 300], "={{ $json.link_state }}", ["dead", "closed"]),
         code_node("Expired listing", [160, 80], "expired_verdict.js"),
         code_node("Link + contact signals", [160, 400], "signals.js"),
-        http("Embed chunks (Gemini)", [380, 400],
+        code_node("Pack embedding mini-batches", [380, 400], "pack_embed.js", all_items=True),
+        http("Embed chunks (Gemini)", [600, 400],
              f"={{{{ {CFG}.geminiBase }}}}/v1beta/models/{{{{ $('Fetch pattern bank').first().json.model }}}}:batchEmbedContents",
-             method="POST", body_expr="={{ JSON.stringify($json.embedRequest) }}", gemini=True, batch=(1, 8000)),  # free tier counts every chunk; 12 chunks per 8 s stays under its per-minute cap
-        code_node("Vector search vs scam patterns", [600, 400], "vector_search.js"),
-        if_node("Stage 1 conclusive?", [820, 400], "={{ $json.gate.decision }}", ["block"]),
-        code_node("Blocked at stage 1", [1060, 220], "_verdict_lib.js", "stage1_verdict.js"),
-        code_node("Build one-shot judge request", [1060, 520], "judge_prompt.js"),
-        http("LLM judge (Gemini, one call)", [1280, 520],
+             method="POST", body_expr="={{ JSON.stringify($json.embedRequest) }}", gemini=True, batch=(1, 2000)),
+        code_node("Vector search vs scam patterns", [820, 400], "vector_search.js", all_items=True),
+        if_node("Stage 1 conclusive?", [1040, 400], "={{ $json.gate.decision }}", ["block"]),
+        code_node("Blocked at stage 1", [1280, 220], "_verdict_lib.js", "stage1_verdict.js"),
+        code_node("Pack judge mini-batches", [1280, 520], "judge_prompt.js", all_items=True),
+        http("LLM judge (Gemini, 8 posts per call)", [1500, 520],
              f"={{{{ {CFG}.geminiBase }}}}/v1beta/models/{{{{ {CFG}.judgeModel }}}}:generateContent",
              method="POST", body_expr="={{ JSON.stringify($json.judgeRequest) }}", gemini=True, batch=(1, 4000)),
-        code_node("Verify evidence + fuse scores", [1500, 520], "_verdict_lib.js", "fuse.js"),
-        http("Save verdict", [1740, 300], f"={{{{ {CFG}.flaskBase }}}}/api/moderation/verdict",
-             method="POST", body_expr="={{ JSON.stringify($json.verdict) }}"),
+        code_node("Verify evidence + fuse scores", [1720, 520], "_verdict_lib.js", "fuse.js", all_items=True),
+        http("Save verdict", [1960, 300], f"={{{{ {CFG}.flaskBase }}}}/api/moderation/verdict",
+             method="POST", body_expr="={{ JSON.stringify($json.verdict) }}", batch=(10, 0)),
         sticky("About", [-1260, -220], (
             "## InReal scam moderation\n"
-            "New listings from the scraper go through 3 stages:\n"
+            "Runs after EACH site is scraped (claims its own listings, so runs overlap safely). New listings go through 3 stages in mini-batches:\n"
             "**0. Rules** – where the apply link redirects, WhatsApp/Telegram/UPI/free-mail in the post\n"
             "**1. Vector search** – each sentence vs a bank of known scam phrases *and* honest phrases "
             "(moderation/scam_patterns.json). Near-copies of high-risk scams are blocked here.\n"
-            "**2. One-shot LLM judge** – one call, fixed JSON schema, must quote the post. Quotes are checked "
+            "**2. One-shot LLM judge** – 8 posts per call, fixed JSON schema, must quote each post. Quotes are checked "
             "against the real text and the score is fused with stages 0–1, so the LLM can't block a post alone.\n"
             "Verdicts go back to the dashboard: approved / review / blocked / expired."), 520, 300),
         sticky("Stage 1 note", [360, 620], (
@@ -134,12 +138,13 @@ def build():
         c("Fetch pending listings", "Resolve apply link"), c("Resolve apply link", "Link dead or closed?"),
         c("Link dead or closed?", "Expired listing", 0), c("Link dead or closed?", "Link + contact signals", 1),
         c("Expired listing", "Save verdict"),
-        c("Link + contact signals", "Embed chunks (Gemini)"), c("Embed chunks (Gemini)", "Vector search vs scam patterns"),
+        c("Link + contact signals", "Pack embedding mini-batches"),
+        c("Pack embedding mini-batches", "Embed chunks (Gemini)"), c("Embed chunks (Gemini)", "Vector search vs scam patterns"),
         c("Vector search vs scam patterns", "Stage 1 conclusive?"),
-        c("Stage 1 conclusive?", "Blocked at stage 1", 0), c("Stage 1 conclusive?", "Build one-shot judge request", 1),
+        c("Stage 1 conclusive?", "Blocked at stage 1", 0), c("Stage 1 conclusive?", "Pack judge mini-batches", 1),
         c("Blocked at stage 1", "Save verdict"),
-        c("Build one-shot judge request", "LLM judge (Gemini, one call)"),
-        c("LLM judge (Gemini, one call)", "Verify evidence + fuse scores"), c("Verify evidence + fuse scores", "Save verdict"),
+        c("Pack judge mini-batches", "LLM judge (Gemini, 8 posts per call)"),
+        c("LLM judge (Gemini, 8 posts per call)", "Verify evidence + fuse scores"), c("Verify evidence + fuse scores", "Save verdict"),
     ]
     connections = {}
     for a, b, out in links:

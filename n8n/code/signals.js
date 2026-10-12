@@ -1,6 +1,6 @@
 // Stage 0 — "Link + contact signals" (n8n Code node, runs once for each listing)
 // Deterministic checks on the apply link (where it redirects) and on contact details in the
-// post, then cuts the post into short chunks and prepares one embedding request for them.
+// post, then cuts the post into short chunks (embedded later in shared mini-batches).
 // No AI here: every signal is a rule a human can read and argue with.
 
 const SHORTENERS = ["bit.ly", "tinyurl.com", "t.co", "cutt.ly", "rb.gy", "shorturl.at", "is.gd", "goo.gl",
@@ -107,7 +107,7 @@ function analyse(listing, link, bank) {
     signals,
     signal_risk: Number(combine(signals).toFixed(3)),
     chunks,
-    embedRequest: embedRequest(chunks, bank),
+    listing,   // carried along so later nodes don't depend on item pairing across mini-batches
   };
 }
 

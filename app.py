@@ -11,7 +11,7 @@ import tempfile
 # Import the scraper orchestrator
 # We need to add the current dir to path to import scraper properly if needed, but it's in the same dir
 from scraper import run_scrapers
-from output_handler import pending_moderation, save_verdict
+from output_handler import moderation_counts, pending_moderation, save_verdict
 from moderation.env import load_env
 from moderation.link_check import resolve as resolve_link
 
@@ -52,38 +52,12 @@ def trigger_scrape():
         
     def scrape_job(cfg):
         # Running the full scraper
-        run_scrapers(dry_run=False, config=cfg)
-        notify_n8n()
+        run_scrapers(dry_run=False, config=cfg)   # calls n8n after each site (moderation/notify.py)
         
     scraper_t = threading.Thread(target=scrape_job, args=(config,))
     scraper_t.start()
     
     return jsonify({"status": "started", "message": "Scraper started successfully. This might take a while."})
-
-def notify_n8n():
-    """Starts the n8n moderation workflow after a scrape, if INREAL_N8N_WEBHOOK is set in .env."""
-    url = os.environ.get("INREAL_N8N_WEBHOOK", "").strip()
-    if not url:
-        return
-    from loguru import logger
-    try:
-        import requests
-        pending = len(pending_moderation(limit=10_000))
-        if not pending:
-            return
-        r = requests.post(url, json={"event": "scrape_finished", "pending": pending}, timeout=5)
-        if r.status_code == 404:
-            # n8n only registers /webhook/... while the workflow is published (active)
-            logger.warning(f"n8n answered 404 for {url}: open the 'InReal – scam moderation' workflow in n8n "
-                           f"and click Publish, or run it with 'Execute workflow'. {pending} listings are waiting.")
-        elif r.status_code >= 400:
-            logger.warning(f"n8n webhook returned HTTP {r.status_code}: {r.text[:200]}")
-        else:
-            logger.info(f"Scam check started in n8n for {pending} listings")
-    except Exception as e:
-        logger.warning(f"Could not reach n8n at {url} ({type(e).__name__}). Is n8n running? "
-                       f"The workflow's 30-minute schedule will pick the listings up once it is.")
-
 
 # ---- Moderation API, called by the n8n workflow in n8n/inreal_moderation.json ----
 
@@ -93,7 +67,12 @@ def moderation_pending():
         limit = int(request.args.get("limit", 40))
     except ValueError:
         limit = 40
-    return jsonify(pending_moderation(limit))
+    return jsonify(pending_moderation(limit, claim=request.args.get("claim") == "1"))
+
+
+@app.route("/api/moderation/status")
+def moderation_status():
+    return jsonify(moderation_counts())
 
 
 @app.route("/api/moderation/patterns")
@@ -107,10 +86,10 @@ def moderation_patterns():
 def moderation_resolve():
     """Opens one listing's apply link: redirect chain, final domain, status, 'closed' wording."""
     listing_id = request.args.get("id", "")
-    rows = {r["id"]: r for r in pending_moderation(limit=10_000)}
-    row = rows.get(listing_id)
+    from output_handler import _read_rows
+    row = next((r for r in _read_rows() if r.get("id") == listing_id), None)
     if row is None:
-        return jsonify({"id": listing_id, "error": "unknown or already moderated id"}), 404
+        return jsonify({"id": listing_id, "error": "unknown id"}), 404
     return jsonify({"id": listing_id, **resolve_link(row.get("apply_link", ""))})
 
 

@@ -103,3 +103,17 @@ the workflow again. The same files are tested by `tests/test_moderation.py`.
 last part). The whole workflow was also imported into n8n 2.42.6 and run end to end against a fake
 Gemini server: 40 listings, the fee post and the Telegram task post were blocked at stage 1, a made-up
 LLM quote was discounted, and the webhook trigger from the app worked.
+
+
+## Speed: overlapping runs and mini-batches (12 Oct)
+
+- The scraper calls the webhook after **each site** is saved, not after the whole run, so n8n checks
+  Internshala while Naukri is still being scraped.
+- Each run **claims** up to 120 listings (`pending?claim=1` marks them "checking"), so two runs that overlap
+  never check the same listing. A claim that is not finished in 15 minutes is released.
+- Embeddings: chunks of many posts go into one `batchEmbedContents` call (≤90 texts). LLM judge: 8 posts per
+  call, one result per post id, then split and verified post by post.
+- Dashboard shows **Verified only** by default and reloads as verdicts arrive; the header shows how many are
+  being checked or waiting.
+- Measured with a fake Gemini: 106 listings, two overlapping runs, all judged in 25 s. With the real free tier
+  the waits between calls (2 s embed, 4 s judge) dominate: about 1.5 minutes per 100 listings (was ~9).

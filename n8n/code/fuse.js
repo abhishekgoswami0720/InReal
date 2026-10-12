@@ -1,4 +1,5 @@
-// Stage 2b — "Verify evidence + fuse scores" (n8n Code node, runs once for each listing)
+// Stage 2b — "Verify evidence + fuse scores" (n8n Code node, runs once for ALL mini-batches:
+// splits each batch answer back into one verdict per post)
 // The LLM's answer is treated as one witness, not the judge:
 //   1. every quote it gives is searched for in the real post; quotes that aren't there are thrown out
 //   2. a high scam probability with no surviving quote is pulled back towards 0.5 ("can't tell")
@@ -86,7 +87,33 @@ function fuse(listing, item, resp, cfg) {
   };
 }
 
+// One mini-batch answer -> one Gemini-shaped answer per post, so fuse() judges each post alone
+function splitBatch(posts, resp) {
+  let results = null, error = null;
+  try {
+    const text = resp.candidates[0].content.parts.map(p => p.text || "").join("");
+    results = JSON.parse(text).results || [];
+  } catch (e) {
+    error = resp && resp.error ? resp.error : { message: String(e.message || e) };
+  }
+  return posts.map(p => {
+    if (!results) return { error };
+    const r = results.find(x => String(x.id) === String(p.id));
+    if (!r) return { error: { message: "the LLM returned no result for this post" } };
+    return { candidates: [{ content: { parts: [{ text: JSON.stringify(r) }] } }] };
+  });
+}
+
+function fuseBatches(batches, answers, cfg) {
+  const out = [];
+  batches.forEach((b, i) => {
+    const per = splitBatch(b.posts, answers[i] || {});
+    b.posts.forEach((p, k) => out.push({ verdict: fuse(p.listing, p, per[k], cfg) }));
+  });
+  return out;
+}
+
 // ==== n8n glue (below this line runs only inside n8n) ====
-const listing = $('Fetch pending listings').item.json;
-const item = $('Build one-shot judge request').item.json;
-return { json: { verdict: fuse(listing, item, $json, $('Config').first().json) } };
+const batches = $('Pack judge mini-batches').all().map(i => i.json);
+const answers = $input.all().map(i => i.json);
+return fuseBatches(batches, answers, $('Config').first().json).map(json => ({ json }));

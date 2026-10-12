@@ -181,8 +181,7 @@ def test_signals_and_chunks(index):
     assert {"short_link", "form_link", "upi_id", "whatsapp", "phone", "redirect"} <= codes
     assert 0.75 < out["signal_risk"] <= 0.95   # 1 - product of (1 - weight)
     assert out["chunks"][0].startswith("AI Intern at Acme") and len(out["chunks"]) >= 3
-    req = out["embedRequest"]["requests"]
-    assert len(req) == len(out["chunks"]) and req[0]["embedContentConfig"]["outputDimensionality"] == 768
+    assert out["listing"]["id"] == "s"
 
     clean = js("signals.js", "analyse", _listing("c", CLEAN_TEXT), {"link_state": "portal_blocks_bots"}, bank)
     assert clean["signals"] == [] and clean["signal_risk"] == 0
@@ -247,3 +246,59 @@ def test_description_arriving_later_triggers_new_moderation(store):
     oh.save_verdict("old", "approved", 0.1, ["title only"])
     oh.sync_listings([_row("old", "AI Intern", desc="Pay a registration fee to join.")], [])
     assert [p["id"] for p in oh.pending_moderation()] == ["old"]
+
+
+@needs_node
+def test_mini_batches_map_answers_back_to_the_right_posts(index):
+    bank = {k: index[k] for k in ("model", "dims", "request_style", "task_type")}
+    posts = [{"id": f"p{i}", "chunks": [f"chunk {i}.{j}" for j in range(n)]} for i, n in enumerate([30, 40, 30, 5])]
+    batches = js("pack_embed.js", "packEmbeds", posts, bank)
+    assert [len(b["embedRequest"]["requests"]) for b in batches] == [70, 35]        # max 90 texts per call
+    assert batches[1]["members"] == [{"idx": 2, "start": 0, "n": 30}, {"idx": 3, "start": 30, "n": 5}]
+    assert batches[0]["embedRequest"]["requests"][0]["embedContentConfig"]["outputDimensionality"] == 768
+
+    # unpack: second batch failed -> its posts still go on, marked, to the LLM judge
+    full = [{**p, "signals": [], "signal_risk": 0, "listing": {"id": p["id"]}} for p in posts]
+    answers = [{"embeddings": [{"values": mock_gemini.embed(c)} for b in [batches[0]] for r in b["embedRequest"]["requests"]
+                               for c in [r["content"]["parts"][0]["text"]]]}, {"error": {"code": 429}}]
+    out = js("vector_search.js", "unpack", full, batches, answers, index, {})
+    assert [o["id"] for o in out] == ["p0", "p1", "p2", "p3"]
+    assert out[0]["stage1"]["chunks_checked"] == 30 and "Embedding failed" in out[3]["stage1"]["error"]
+
+
+@needs_node
+def test_judge_batches_split_per_post():
+    items = [{"id": f"x{i}", "stage1": {"categories": []}, "signals": [], "signal_risk": 0,
+              "listing": _listing(f"x{i}", SCAM_TEXT if i == 3 else CLEAN_TEXT)} for i in range(10)]
+    packed = js("judge_prompt.js", "packJudge", items)
+    assert [len(b["posts"]) for b in packed] == [8, 2]
+    prompt = packed[0]["judgeRequest"]["contents"][-1]["parts"][0]["text"]
+    assert prompt.count("POST x") == 8 and "results" in json.dumps(packed[0]["judgeRequest"]["generationConfig"])
+
+    def answer(batch, drop=None):
+        res = [{"id": p["id"], **mock_gemini.judge("Text: " + p["listing"]["description"])} for p in batch["posts"] if p["id"] != drop]
+        return {"candidates": [{"content": {"parts": [{"text": json.dumps({"results": res})}]}}]}
+
+    out = js("_verdict_lib.js,fuse.js", "fuseBatches", packed, [answer(packed[0], drop="x5"), {"error": {"code": 500}}],
+             {"blockAt": 0.7, "reviewAt": 0.4})
+    v = {o["verdict"]["id"]: o["verdict"] for o in out}
+    assert len(v) == 10
+    assert v["x3"]["parts"]["verified_quotes"] == 1 and v["x0"]["status"] == "approved"
+    assert v["x5"]["decided_by"] == "vector_search" and "no result for this post" in v["x5"]["reasons"][0]
+    assert v["x9"]["decided_by"] == "vector_search"                       # whole second call failed
+
+
+def test_claims_split_work_between_overlapping_runs(store):
+    oh.sync_listings([_row(f"c{i}", "AI Intern") for i in range(5)], [])
+    first = oh.pending_moderation(limit=3, claim=True)
+    second = oh.pending_moderation(limit=3, claim=True)
+    assert len(first) == 3 and len(second) == 2 and not {p["id"] for p in first} & {p["id"] for p in second}
+    assert oh.pending_moderation(limit=10, claim=True) == []
+    assert oh.moderation_counts()["checking"] == 5
+    # a claim nobody finished comes back after the timeout
+    rows = oh._read_rows()
+    rows[0]["moderated_at"] = "2026-01-01 00:00:00"
+    oh._write_rows(rows)
+    assert len(oh.pending_moderation(limit=10)) == 1
+    oh.save_verdict(first[0]["id"], "approved", 0.1, [])
+    assert oh.moderation_counts()["approved"] == 1

@@ -1,4 +1,5 @@
-// Stage 1 — "Vector search vs scam patterns" (n8n Code node, runs once for each listing)
+// Stage 1 — "Vector search vs scam patterns" (n8n Code node, runs once for ALL listings:
+// unpacks the mini-batch embedding answers back to their posts)
 // Each chunk of the post is compared by cosine similarity with every phrase in the pattern
 // bank (moderation/scam_patterns.json). A chunk only counts as a hit when it is
 //   (a) about as close to a scam phrase as two phrasings of the same trick are to each other, and
@@ -79,18 +80,30 @@ function gate(stage1, signals) {
   return { decision: "judge", why: "No conclusive match; sent to the LLM judge" };
 }
 
-// ==== n8n glue (below this line runs only inside n8n) ====
-const prev = $('Link + contact signals').item.json;
-const bank = $('Fetch pattern bank').first().json;
-const cfg = $('Config').first().json;
-const embeddings = ($json.embeddings || []);
-if (embeddings.length !== prev.chunks.length) {
-  // Embedding call failed: skip the vector stage, the LLM judge still runs and the reason says so
-  const stage1 = { error: `Embedding failed (${$json.error ? JSON.stringify($json.error).slice(0, 200) : "no vectors"})`,
-                   categories: [], vector_risk: 0, nearest: [], chunks_checked: 0 };
-  return { json: { ...prev, embedRequest: undefined, stage1, gate: { decision: "judge", why: stage1.error } } };
+function unpack(posts, batches, answers, bank, cfg) {
+  const out = [];
+  batches.forEach((b, bi) => {
+    const ans = answers[bi] || {};
+    const embs = ans.embeddings || [];
+    for (const m of b.members) {
+      const post = posts[m.idx];
+      const mine = embs.slice(m.start, m.start + m.n);
+      if (mine.length !== m.n) {
+        // Embedding call failed: skip the vector stage, the LLM judge still runs and the reason says so
+        const stage1 = { error: `Embedding failed (${ans.error ? JSON.stringify(ans.error).slice(0, 200) : "no vectors"})`,
+                         categories: [], vector_risk: 0, nearest: [], chunks_checked: 0 };
+        out.push({ ...post, stage1, gate: { decision: "judge", why: stage1.error } });
+        continue;
+      }
+      const stage1 = search(post.chunks, mine, bank, { hit_floor: cfg.hitFloor, strong_floor: cfg.strongFloor, margin: cfg.margin });
+      out.push({ ...post, stage1, gate: gate(stage1, post.signals) });
+    }
+  });
+  return out;
 }
-const stage1 = search(prev.chunks, embeddings, bank, {
-  hit_floor: cfg.hitFloor, strong_floor: cfg.strongFloor, margin: cfg.margin,
-});
-return { json: { ...prev, embedRequest: undefined, stage1, gate: gate(stage1, prev.signals) } };
+
+// ==== n8n glue (below this line runs only inside n8n) ====
+const posts = $('Link + contact signals').all().map(i => i.json);
+const batches = $('Pack embedding mini-batches').all().map(i => i.json);
+const answers = $input.all().map(i => i.json);
+return unpack(posts, batches, answers, $('Fetch pattern bank').first().json, $('Config').first().json).map(json => ({ json }));

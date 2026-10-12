@@ -120,6 +120,19 @@ document.addEventListener("DOMContentLoaded", () => {
         checkScraperStatus();
         fetchLogs();
     }, 4000);
+
+    // Poll the n8n scam check: reload the cards whenever more listings have been judged
+    let lastJudged = -1;
+    setInterval(async () => {
+        try {
+            const c = await fetch("/api/moderation/status").then(r => r.json());
+            const judged = c.approved + c.review + c.blocked + c.expired;
+            const waiting = c.pending + c.checking;
+            document.getElementById("mod-queue").textContent =
+                waiting ? `· ${c.checking} being checked by n8n, ${c.pending} waiting` : "";
+            if (judged !== lastJudged) { lastJudged = judged; loadData(); }
+        } catch (e) { /* app restarting */ }
+    }, 5000);
 });
 
 function setupFilters(containerId, filterType) {
@@ -258,6 +271,10 @@ function renderListings() {
 
         // Scam check verdict from the n8n moderation workflow
         const mod = item.moderation_status || "";
+        // Default: only listings n8n has checked and passed. They appear while scraping is
+        // still running, because n8n checks each site as soon as it is saved.
+        if (modF === "verified" && mod !== "approved") return false;
+        if (modF === "verified_review" && mod !== "approved" && mod !== "review") return false;
         if (modF === "hide_blocked" && mod === "blocked") return false;
         if (modF === "review" && mod !== "review") return false;
         if (modF === "blocked" && mod !== "blocked") return false;
@@ -289,7 +306,7 @@ function renderListings() {
     // (12 Oct: a "Guaranteed Certification" post with two warnings sat in the top row at 70%.)
     const warnCount = i => String(i.trust_flags || "").split(";").filter(f => f.trim()).length;
     // n8n verdict first: approved/unchecked, then "needs a look", then likely scams, then closed links
-    const MOD_RANK = { approved: 0, "": 0, review: 1, blocked: 2, expired: 3 };
+    const MOD_RANK = { approved: 0, "": 0, checking: 0, review: 1, blocked: 2, expired: 3 };
     const modRank = i => MOD_RANK[i.moderation_status || ""] ?? 0;
     filtered.sort((a, b) => {
         const modDiff = modRank(a) - modRank(b);
@@ -439,6 +456,7 @@ function moderationHtml(item) {
     const first = reasons.length ? ` &mdash; ${escapeHtml(reasons[0].slice(0, 140))}` : "";
     const views = {
         "": ["mod-pending", "ph-hourglass", "Scam check pending"],
+        checking: ["mod-pending", "ph-hourglass", "Being checked by n8n…"],
         approved: ["mod-ok", "ph-shield-check", `Scam check passed (risk ${risk})`],
         review: ["mod-review", "ph-eye", `Needs a human look (risk ${risk})`],
         blocked: ["mod-block", "ph-prohibit", `Likely scam (risk ${risk})`],

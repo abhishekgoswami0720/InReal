@@ -1066,3 +1066,8 @@ body {
 .region-tab.active .tab-count {
     background: rgba(255, 255, 255, 0.18);
 }
+.mod-queue {
+    margin-left: 8px;
+    font-size: 13px;
+    color: #fbbf24;
+}

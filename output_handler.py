@@ -22,7 +22,7 @@ CSV_HEADERS = [
 MODERATION_FIELDS = ["moderation_status", "scam_risk", "moderation_reasons", "moderated_at"]
 # If any of these change, the listing is a different post and must be moderated again
 CONTENT_FIELDS = ["company_name", "role_title", "stipend", "apply_link", "description"]
-MODERATION_STATUSES = {"approved", "review", "blocked", "expired"}
+MODERATION_STATUSES = {"approved", "review", "blocked", "expired"}   # "checking" is set only by a claim
 DESCRIPTION_LIMIT = 3000
 
 # The scraper thread and the n8n verdict calls both write internships.csv
@@ -134,12 +134,49 @@ PENDING_FIELDS = ["id", "company_name", "role_title", "location", "duration", "s
                   "required_skills", "apply_link", "source_platform", "org_type", "trust_flags", "description"]
 
 
-def pending_moderation(limit: int = 40) -> list:
-    """Listings the n8n pipeline has not judged yet, newest first."""
+CLAIM_TIMEOUT_MIN = 15   # a "checking" claim older than this is treated as lost (n8n stopped mid-run)
+
+
+def _is_pending(r: dict, now: datetime) -> bool:
+    status = (r.get("moderation_status") or "").strip()
+    if not status:
+        return True
+    if status == "checking":
+        try:
+            return (now - datetime.strptime(r.get("moderated_at", ""), "%Y-%m-%d %H:%M:%S")).total_seconds() > CLAIM_TIMEOUT_MIN * 60
+        except ValueError:
+            return True
+    return False
+
+
+def pending_moderation(limit: int = 40, claim: bool = False) -> list:
+    """
+    Listings the n8n pipeline has not judged yet, newest first.
+    claim=True marks them "checking", so a second n8n run started meanwhile (the scraper calls
+    n8n after EACH site, so runs overlap) takes different listings instead of the same ones.
+    """
+    now = datetime.now()
     with _CSV_LOCK:
         rows = _read_rows()
-    todo = [r for r in rows if not (r.get("moderation_status") or "").strip()]
-    return [{k: r.get(k, "") for k in PENDING_FIELDS} for r in todo[:max(1, limit)]]
+        todo = [r for r in rows if _is_pending(r, now)][:max(1, limit)]
+        if claim and todo:
+            for r in todo:
+                r["moderation_status"] = "checking"
+                r["moderated_at"] = now.strftime("%Y-%m-%d %H:%M:%S")
+            _write_rows(rows)
+    return [{k: r.get(k, "") for k in PENDING_FIELDS} for r in todo]
+
+
+def moderation_counts() -> dict:
+    now = datetime.now()
+    with _CSV_LOCK:
+        rows = _read_rows()
+    out = {"pending": 0, "checking": 0, "approved": 0, "review": 0, "blocked": 0, "expired": 0}
+    for r in rows:
+        st = (r.get("moderation_status") or "").strip()
+        key = "pending" if _is_pending(r, now) else st
+        out[key] = out.get(key, 0) + 1
+    return out
 
 
 def save_verdict(listing_id: str, status: str, scam_risk, reasons) -> bool:

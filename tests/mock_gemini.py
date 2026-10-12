@@ -71,8 +71,14 @@ class Handler(BaseHTTPRequestHandler):
                 out.append({"values": embed(r["content"]["parts"][0]["text"], dims)})
             return self._send(200, {"embeddings": out})
         if self.path.endswith(":generateContent"):
-            post = data["contents"][-1]["parts"][0]["text"]
-            return self._send(200, {"candidates": [{"content": {"parts": [{"text": json.dumps(judge(post))}], "role": "model"}}]})
+            text = data["contents"][-1]["parts"][0]["text"]
+            results = []
+            for block in re.split(r"\n\n---\n\n", text):
+                m = re.match(r"POST (\S+)", block)
+                if m:
+                    results.append({"id": m.group(1), **judge(block)})
+            body = {"results": results}
+            return self._send(200, {"candidates": [{"content": {"parts": [{"text": json.dumps(body)}], "role": "model"}}]})
         return self._send(404, {"error": {"code": 404, "message": "not found"}})
 
 

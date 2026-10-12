@@ -73,7 +73,9 @@
             <div class="filter-section">
                 <h3>Scam check (n8n)</h3>
                 <select id="mod-filter" class="custom-select">
-                    <option value="hide_blocked">Hide likely scams</option>
+                    <option value="verified">Verified only</option>
+                    <option value="verified_review">Verified + needs a look</option>
+                    <option value="hide_blocked">Everything except likely scams</option>
                     <option value="review">Only "needs a human look"</option>
                     <option value="blocked">Only likely scams</option>
                     <option value="all">Show everything</option>
@@ -130,6 +132,7 @@
                 </div>
                 <div class="nav-actions">
                     <span class="showing-text">Showing <strong id="visible-count">0</strong> results</span>
+                    <span class="mod-queue" id="mod-queue"></span>
                     <button class="icon-btn" id="info-btn" title="How to use this scraper">
                         <i class="ph ph-info"></i>
                     </button>
