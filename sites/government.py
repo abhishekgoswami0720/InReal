@@ -28,7 +28,7 @@ import requests
 from loguru import logger
 
 from filters import calculate_match_score
-from scraper_utils import get_random_headers, human_delay
+from scraper_utils import human_delay
 
 BASE = "https://internship.aicte-india.org"
 API = BASE + "/api/v1/catalogue/internships?{query}&sort=best&page={page}&pageSize=60"
@@ -42,16 +42,30 @@ GOVERNMENT_CATEGORIES = {"government", "army", "tulip"}
 MAX_PAGES = 10
 
 
+# Plain headers on purpose. get_random_headers() offers "br" (Brotli) compression,
+# and without the brotli package requests cannot unpack it: the laptop run on
+# 12 Oct 06:21 got compressed bytes and "Expecting value: line 1 column 1".
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Encoding": "gzip, deflate",
+    "Referer": BASE + "/internships",
+}
+
+
 def _get_json(url: str):
-    headers = {**get_random_headers(), "Accept": "application/json"}
     try:
-        r = requests.get(url, headers=headers, timeout=30)
+        r = requests.get(url, headers=HEADERS, timeout=30)
     except requests.exceptions.SSLError:
         # Government sites sometimes serve an incomplete certificate chain
         logger.warning("AICTE: certificate problem, retrying without verification for this public listing")
-        r = requests.get(url, headers=headers, timeout=30, verify=False)
+        r = requests.get(url, headers=HEADERS, timeout=30, verify=False)
     r.raise_for_status()
-    return r.json()
+    try:
+        return r.json()
+    except ValueError:
+        raise RuntimeError(f"not JSON (HTTP {r.status_code}, {r.headers.get('content-type')}): {r.text[:150]!r}")
 
 
 def parse_items(payload: dict):
