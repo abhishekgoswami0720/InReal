@@ -96,8 +96,9 @@ def build():
             assignment("judgeProvider", "azure", "string"),
             assignment("azureJudgeUrl", "https://inreal1907.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview", "string"),
             assignment("judgeModel", "gemini-3.5-flash-lite", "string"),
-            # 30 per run (was 120): a run finishes in about a minute; the scraper also saves ~30 per search
-            assignment("batchLimit", 30, "number"),
+            # 5 per run, picked round-robin across sites by the app: one embedding call + one judge call,
+            # so a run takes ~20 s and the next one starts by itself (13 Oct night; was 120, then 30)
+            assignment("batchLimit", 5, "number"),
             assignment("blockAt", 0.7, "number"),
             assignment("reviewAt", 0.4, "number"),
             # empty = use the thresholds measured by build_index.py
@@ -126,7 +127,8 @@ def build():
         # gpt-4o deployment: 50k tokens/min; one call of 8 posts is ~6-7k tokens, so 8 s apart
         http("LLM judge (8 posts per call)", [1500, 520],
              f"={{{{ {CFG}.judgeProvider === 'azure' ? {CFG}.azureJudgeUrl : {CFG}.geminiBase + '/v1beta/models/' + {CFG}.judgeModel + ':generateContent' }}}}",
-             method="POST", body_expr="={{ JSON.stringify($json.judgeRequest) }}", judge_cred=True, batch=(1, 8000)),
+             method="POST", body_expr="={{ JSON.stringify($json.judgeRequest) }}", judge_cred=True, batch=(1, 8000),
+             timeout=60000),
         code_node("Verify evidence + fuse scores", [1720, 520], "_verdict_lib.js", "fuse.js", all_items=True),
         http("Save verdict", [1960, 300], f"={{{{ {CFG}.flaskBase }}}}/api/moderation/verdict",
              method="POST", body_expr="={{ JSON.stringify($json.verdict) }}", batch=(10, 0),
@@ -167,7 +169,7 @@ def build():
         outs[out].append({"node": b, "type": "main", "index": 0})
 
     wf = {"name": "InReal – scam moderation", "nodes": nodes, "connections": connections, "active": False,
-          "settings": {"executionOrder": "v1"}, "pinData": {}, "meta": {"templateCredsSetupCompleted": False},
+          "settings": {"executionOrder": "v1", "executionTimeout": 150}, "pinData": {}, "meta": {"templateCredsSetupCompleted": False},
           "tags": []}
     OUT.write_text(json.dumps(wf, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Wrote {OUT} ({len(nodes)} nodes)")
