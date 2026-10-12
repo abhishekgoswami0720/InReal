@@ -784,6 +784,7 @@ let lastJudged = -1;
 async function pollModeration() {
   try {
     const c = await fetch('/api/moderation/status').then(r => r.json());
+    lastModCounts = c;
     const judged = c.approved + c.review + c.blocked + c.expired;
     const waiting = c.pending + c.checking;
     const q = document.getElementById('mod-queue');
@@ -801,28 +802,18 @@ let seenRunId = null, seenSites = 0, runAnnounced = true;
 
 function handleScrapeProgress(progress, isRunning) {
   if (!progress) return;
+  renderScanPanel(progress, isRunning);
   if (seenRunId === null) {            // page just opened: don't replay an old run
     seenRunId = progress.run_id; seenSites = progress.sites.length; runAnnounced = progress.finished;
     return;
   }
   if (progress.run_id !== seenRunId) { seenRunId = progress.run_id; seenSites = 0; runAnnounced = false; }
-  for (const site of progress.sites.slice(seenSites)) {
-    const name = site.source.charAt(0).toUpperCase() + site.source.slice(1);
-    if (site.ok) {
-      showToast(site.added ? 'success' : 'info', `${name} scraped`,
-        site.added ? `${site.added} new internship${site.added > 1 ? 's' : ''} saved. n8n is checking them now.`
-                   : 'No new internships this time.');
-    } else {
-      showToast('error', `${name} failed`, site.error || 'See the run log.');
-    }
-    loadData();
-  }
+  if (progress.sites.length > seenSites) loadData();   // new rows from a finished site
   seenSites = progress.sites.length;
   if (progress.finished && !runAnnounced && !isRunning) {
     runAnnounced = true;
     const failed = progress.failed.length ? ` · ${progress.failed.length} site(s) failed` : '';
     const held = progress.total_held ? ` ${progress.total_held} more are waiting: use "Search more" below the list.` : '';
-    showToast('success', 'Scraping finished', `${progress.total_added} new internships from ${progress.sites.length} site(s)${failed}. Verified ones appear as n8n approves them.${held}`);
     const h = document.getElementById('search-more-held');
     if (h) h.textContent = progress.total_held ? `${progress.total_held} more found last time.` : '';
   }
@@ -1054,5 +1045,77 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('error', 'Search did not start', 'The app is not answering. Is python app.py running?');
       setSearchMoreBusy(false);
     }
+  });
+});
+
+
+// ==========================================
+// 13. Live scan panel: each site's state while a search runs, then the scam check
+// ==========================================
+let lastModCounts = null, panelRunId = null, closedRunId = null;
+const frozenSecs = {};
+const SITE_NAMES = { internshala: 'Internshala', unstop: 'Unstop', naukri: 'Naukri', linkedin: 'LinkedIn', shine: 'Shine',
+  foundit: 'Foundit', apna: 'Apna', government: 'AICTE (Govt)', cutshort: 'Cutshort', remotive: 'Remote boards', universities: 'University pages' };
+
+function renderScanPanel(progress, isRunning) {
+  const panel = document.getElementById('scan-panel');
+  if (!panel) return;
+  if (isRunning && !progress.finished) panelRunId = progress.run_id;
+  const show = panelRunId !== null && panelRunId === progress.run_id && closedRunId !== progress.run_id;
+  panel.classList.toggle('hidden', !show);
+  if (!show) return;
+
+  const planned = progress.planned && progress.planned.length ? progress.planned : progress.sites.map(s => s.source);
+  const done = Object.fromEntries(progress.sites.map(s => [s.source, s]));
+  const running = new Set(progress.running || []);
+  const finished = progress.finished && !isRunning;
+  let secs = progress.started_at ? Math.max(0, Math.round(Date.now() / 1000 - progress.started_at)) : 0;
+  if (finished) { if (frozenSecs[progress.run_id] === undefined) frozenSecs[progress.run_id] = secs; secs = frozenSecs[progress.run_id]; }
+  const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+
+  document.getElementById('scan-title').textContent = finished ? 'Search finished' : 'Searching internships';
+  document.getElementById('scan-sub').textContent =
+    `${progress.field || ''}${progress.field ? ' · ' : ''}${progress.sites.length}/${planned.length} sites · ${clock}`;
+  document.getElementById('scan-bar').style.width = `${planned.length ? Math.round(100 * progress.sites.length / planned.length) : 0}%`;
+  const icon = document.getElementById('scan-icon');
+  icon.innerHTML = finished ? '<i class="ph ph-check-circle text-xl"></i>' : '<i class="ph ph-radar text-xl animate-spin" style="animation-duration:2.5s"></i>';
+  icon.className = `w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${finished ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'}`;
+
+  document.getElementById('scan-sites').innerHTML = planned.map(src => {
+    const name = escapeHtml(SITE_NAMES[src] || src);
+    const d = done[src];
+    let ic, txt, cls;
+    if (d && !d.ok) { ic = 'ph-x-circle text-rose-500'; txt = 'Failed'; cls = 'text-rose-600'; }
+    else if (d) {
+      ic = 'ph-check-circle text-emerald-500';
+      txt = d.added ? `${d.added} new` : 'Nothing new';
+      if (d.held) txt += ` · ${d.held} more later`;
+      cls = d.added ? 'text-emerald-700' : 'text-slate-500';
+    } else if (running.has(src)) { ic = 'ph-circle-notch animate-spin text-orange-500'; txt = 'Scanning…'; cls = 'text-orange-600'; }
+    else { ic = 'ph-circle text-slate-300'; txt = 'Waiting'; cls = 'text-slate-400'; }
+    return `<li class="flex items-center gap-2"><i class="ph ${ic} text-base"></i>
+      <span class="flex-1 font-semibold text-slate-700">${name}</span><span class="${cls} font-semibold">${txt}</span></li>`;
+  }).join('');
+
+  const check = document.getElementById('scan-check');
+  const total = progress.sites.reduce((n, s) => n + (s.added || 0), 0);
+  if (progress.sites.length && total && lastModCounts) {
+    const left = lastModCounts.pending + lastModCounts.checking;
+    check.innerHTML = left
+      ? `<span class="flex items-center gap-2 text-amber-700"><i class="ph ph-shield-checkered text-base"></i> Scam check: ${left} left. Verified ones appear in the list as they pass.</span>`
+      : `<span class="flex items-center gap-2 text-emerald-700"><i class="ph ph-shield-check text-base"></i> Scam check done. ${total} new internship${total > 1 ? 's' : ''} checked.</span>`;
+    check.classList.remove('hidden');
+  } else if (finished && !total) {
+    check.innerHTML = '<span class="text-slate-500">No new internships this time. Try more sites or another field.</span>';
+    check.classList.remove('hidden');
+  } else {
+    check.classList.add('hidden');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('scan-close')?.addEventListener('click', () => {
+    closedRunId = panelRunId;
+    document.getElementById('scan-panel').classList.add('hidden');
   });
 });

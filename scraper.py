@@ -277,14 +277,17 @@ def report_dry_run(source_name: str, raw_listings: list):
 
 # What the current / last web run has done so far; /api/scrape/status returns it so the
 # dashboard can pop up "Internshala: 12 new internships saved" as each site finishes.
-RUN_PROGRESS = {"run_id": 0, "sites": [], "finished": True, "total_added": 0, "failed": [], "total_held": 0}
+RUN_PROGRESS = {"run_id": 0, "sites": [], "finished": True, "total_added": 0, "failed": [], "total_held": 0,
+                "planned": [], "running": [], "field": "", "started_at": 0}
 
 
 def run_scrapers(dry_run=False, config=None, specific_source=None):
     total_added = 0
     failed_sources = []
     if not dry_run:
-        RUN_PROGRESS.update(run_id=RUN_PROGRESS["run_id"] + 1, sites=[], finished=False, total_added=0, failed=[], total_held=0)
+        import time as _t
+        RUN_PROGRESS.update(run_id=RUN_PROGRESS["run_id"] + 1, sites=[], finished=False, total_added=0, failed=[],
+                            total_held=0, planned=[], running=[], field="", started_at=_t.time())
     
     # Default to everything if no config passed
     if config is None:
@@ -345,7 +348,19 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
     visible_chrome = threading.Lock()
     VISIBLE_CHROME_SOURCES = {"naukri", "foundit"}
 
+    if not dry_run:   # the dashboard's live scan popup lists these
+        RUN_PROGRESS.update(planned=list(scrapers_to_run), field=fields.label())
+
     def run_one(source_name, scraper_func):
+        if not dry_run:
+            RUN_PROGRESS["running"].append(source_name)
+        try:
+            return _run_one(source_name, scraper_func)
+        finally:
+            if not dry_run and source_name in RUN_PROGRESS["running"]:
+                RUN_PROGRESS["running"].remove(source_name)
+
+    def _run_one(source_name, scraper_func):
         logger.info(f"🚀 Starting to check {source_name} for new opportunities...")
         if source_name in VISIBLE_CHROME_SOURCES:
             with visible_chrome:
