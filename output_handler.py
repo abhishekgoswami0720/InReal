@@ -158,7 +158,7 @@ PENDING_FIELDS = ["id", "company_name", "role_title", "location", "duration", "s
                   "required_skills", "apply_link", "source_platform", "org_type", "trust_flags", "description"]
 
 
-CLAIM_TIMEOUT_MIN = 15   # a "checking" claim older than this is treated as lost (n8n stopped mid-run)
+CLAIM_TIMEOUT_MIN = 4   # a "checking" claim older than this is treated as lost (n8n stopped mid-run)
 
 
 def _is_pending(r: dict, now: datetime) -> bool:

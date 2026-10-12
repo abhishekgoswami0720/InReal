@@ -163,13 +163,13 @@ _chain_lock = threading.Lock()
 def chain_next_batch():
     """
     When the last verdict of a run is saved and listings are still waiting, wake n8n again
-    right away instead of leaving them for the 30-minute schedule. Debounced: once per 20 s.
+    right away instead of leaving them for the 30-minute schedule. Debounced: once per 5 s.
     """
     counts = moderation_counts()
     if counts["checking"] or not counts["pending"]:
         return
     with _chain_lock:
-        if time.time() - _last_chain["t"] < 20:
+        if time.time() - _last_chain["t"] < 5:
             return
         _last_chain["t"] = time.time()
     from moderation.notify import notify_n8n

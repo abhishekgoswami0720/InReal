@@ -86,7 +86,7 @@
             {
               "id": "70866341-7a6a-5d53-a5c8-bafc24b25547",
               "name": "batchLimit",
-              "value": 30,
+              "value": 5,
               "type": "number"
             },
             {
@@ -409,7 +409,7 @@
               "neverError": true
             }
           },
-          "timeout": 30000,
+          "timeout": 60000,
           "batching": {
             "batch": {
               "batchSize": 1,
@@ -735,7 +735,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 150
   },
   "pinData": {},
   "meta": {
