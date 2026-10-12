@@ -143,7 +143,6 @@ async function loadData() {
     allInternships = data || [];
 
     populateSourceFilter(allInternships);
-    renderOverviewStats();
     applyFiltersAndRender();
   } catch (err) {
     console.error('Failed to load internships:', err);
@@ -154,6 +153,7 @@ function populateSourceFilter(internships) {
   const sourceSelect = document.getElementById('source-filter');
   if (!sourceSelect) return;
   const sources = new Set(internships.map(i => i.source_platform).filter(Boolean));
+  if (activeSource !== 'all') sources.add(activeSource);
   sourceSelect.innerHTML = '<option value="all">Source: All</option>';
   sources.forEach(src => {
     const opt = document.createElement('option');
@@ -161,12 +161,15 @@ function populateSourceFilter(internships) {
     opt.textContent = `Source: ${src}`;
     sourceSelect.appendChild(opt);
   });
+  sourceSelect.value = activeSource;   // the list reloads as n8n verdicts arrive; keep the user's choice
 }
 
-function renderOverviewStats() {
-  // Headline numbers count only listings the n8n scam check passed
-  const verified = allInternships.filter(i => i.moderation_status === 'approved');
-  const total = verified.length;
+function renderOverviewStats(shown, base) {
+  // Headline numbers = the cards currently shown (all filters applied, incl. the scam-check filter)
+  shown = shown || [];
+  base = base || shown;
+  const verified = shown;
+  const total = shown.length;
   const paidCount = verified.filter(i => {
     const val = Number(i.stipend_numeric || 0);
     return val > 0 || (i.stipend && !i.stipend.toLowerCase().includes('unpaid'));
@@ -186,10 +189,10 @@ function renderOverviewStats() {
   const countRemote = document.getElementById('count-remote');
   const countGlobal = document.getElementById('count-global');
 
-  if (countAll) countAll.innerText = total;
-  if (countIndia) countIndia.innerText = verified.filter(i => (i.location_type || '').toLowerCase() === 'india').length;
-  if (countRemote) countRemote.innerText = verified.filter(i => (i.location_type || '').toLowerCase() === 'remote').length;
-  if (countGlobal) countGlobal.innerText = verified.filter(i => (i.location_type || '').toLowerCase() === 'international').length;
+  if (countAll) countAll.innerText = base.length;
+  if (countIndia) countIndia.innerText = base.filter(i => (i.location_type || '').toLowerCase() === 'india').length;
+  if (countRemote) countRemote.innerText = base.filter(i => (i.location_type || '').toLowerCase() === 'remote').length;
+  if (countGlobal) countGlobal.innerText = base.filter(i => (i.location_type || '').toLowerCase() === 'international').length;
 }
 
 // ==========================================
@@ -199,7 +202,7 @@ function applyFiltersAndRender() {
   const searchInput = document.getElementById('search-input');
   const searchQuery = (searchInput ? searchInput.value : '').toLowerCase().trim();
 
-  const filtered = allInternships.filter(item => {
+  const matches = (item, ignoreLocation) => {
     if (showBookmarkedOnly && !bookmarks.includes(item.id)) return false;
 
     // Scam check verdict (n8n). Default: only what n8n checked and passed.
@@ -210,7 +213,7 @@ function applyFiltersAndRender() {
     if (activeModeration === 'blocked' && mod !== 'blocked') return false;
 
     // Location filter (from segmented tabs or dropdown)
-    if (activeLocation !== 'all') {
+    if (!ignoreLocation && activeLocation !== 'all') {
       if ((item.location_type || '').toLowerCase() !== activeLocation.toLowerCase()) {
         return false;
       }
@@ -248,8 +251,12 @@ function applyFiltersAndRender() {
     }
 
     return true;
-  });
+  };
 
+  // Every number on the page follows the filters (the location tabs count everything else that matches)
+  const base = allInternships.filter(item => matches(item, true));
+  const filtered = base.filter(item => matches(item, false));
+  renderOverviewStats(filtered, base);
   renderListings(filtered);
 }
 
@@ -456,6 +463,7 @@ async function pollScraperStatus() {
     const res = await fetch('/api/scrape/status');
     const data = await res.json();
     const isRunning = data.status === 'running';
+    handleScrapeProgress(data.progress, isRunning);
 
     const dot = document.getElementById('ping-dot');
     const text = document.getElementById('scraper-status-text');
@@ -725,4 +733,58 @@ async function pollModeration() {
     if (judged !== lastJudged) { lastJudged = judged; loadData(); }
   } catch (e) { /* app restarting */ }
   setTimeout(pollModeration, 5000);
+}
+
+
+// ==========================================
+// 9. Scrape popups: one per finished site, one summary at the end
+// ==========================================
+let seenRunId = null, seenSites = 0, runAnnounced = true;
+
+function handleScrapeProgress(progress, isRunning) {
+  if (!progress) return;
+  if (seenRunId === null) {            // page just opened: don't replay an old run
+    seenRunId = progress.run_id; seenSites = progress.sites.length; runAnnounced = progress.finished;
+    return;
+  }
+  if (progress.run_id !== seenRunId) { seenRunId = progress.run_id; seenSites = 0; runAnnounced = false; }
+  for (const site of progress.sites.slice(seenSites)) {
+    const name = site.source.charAt(0).toUpperCase() + site.source.slice(1);
+    if (site.ok) {
+      showToast(site.added ? 'success' : 'info', `${name} scraped`,
+        site.added ? `${site.added} new internship${site.added > 1 ? 's' : ''} saved. n8n is checking them now.`
+                   : 'No new internships this time.');
+    } else {
+      showToast('error', `${name} failed`, site.error || 'See the run log.');
+    }
+    loadData();
+  }
+  seenSites = progress.sites.length;
+  if (progress.finished && !runAnnounced && !isRunning) {
+    runAnnounced = true;
+    const failed = progress.failed.length ? ` · ${progress.failed.length} site(s) failed` : '';
+    showToast('success', 'Scraping finished', `${progress.total_added} new internships from ${progress.sites.length} site(s)${failed}. Verified ones appear as n8n approves them.`);
+  }
+}
+
+function showToast(kind, title, message) {
+  let box = document.getElementById('toast-stack');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'toast-stack';
+    box.className = 'fixed bottom-6 right-6 z-[60] flex flex-col gap-2 max-w-sm w-[calc(100%-3rem)]';
+    document.body.appendChild(box);
+  }
+  const colors = { success: 'border-l-emerald-500', info: 'border-l-slate-400', error: 'border-l-rose-500' };
+  const icons = { success: 'ph-check-circle text-emerald-600', info: 'ph-info text-slate-500', error: 'ph-warning-circle text-rose-600' };
+  const t = document.createElement('div');
+  t.className = `glass-panel p-3.5 shadow-xl border-l-4 ${colors[kind] || colors.info} flex gap-3 items-start transition-opacity duration-300`;
+  t.setAttribute('role', 'status');
+  t.innerHTML = `<i class="ph ${icons[kind] || icons.info} text-xl mt-0.5"></i>
+    <div class="flex-1"><div class="text-sm font-bold text-slate-900">${escapeHtml(title)}</div>
+    <div class="text-xs text-slate-600 mt-0.5">${escapeHtml(message)}</div></div>
+    <button class="text-slate-400 hover:text-slate-700" aria-label="Close"><i class="ph ph-x"></i></button>`;
+  t.querySelector('button').onclick = () => t.remove();
+  box.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 7000);
 }

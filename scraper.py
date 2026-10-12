@@ -261,9 +261,16 @@ def report_dry_run(source_name: str, raw_listings: list):
     print("=" * 70)
 
 
+# What the current / last web run has done so far; /api/scrape/status returns it so the
+# dashboard can pop up "Internshala: 12 new internships saved" as each site finishes.
+RUN_PROGRESS = {"run_id": 0, "sites": [], "finished": True, "total_added": 0, "failed": []}
+
+
 def run_scrapers(dry_run=False, config=None, specific_source=None):
     total_added = 0
     failed_sources = []
+    if not dry_run:
+        RUN_PROGRESS.update(run_id=RUN_PROGRESS["run_id"] + 1, sites=[], finished=False, total_added=0, failed=[])
     
     # Default to everything if no config passed
     if config is None:
@@ -344,10 +351,16 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
         for fut in as_completed(futures):
             name = futures[fut]
             try:
-                total_added += fut.result()
+                added = fut.result()
+                total_added += added
+                if not dry_run:
+                    RUN_PROGRESS["sites"].append({"source": name, "added": added, "ok": True})
             except Exception as e:
                 logger.exception(f"Failed {name}: {e}")
                 failed_sources.append(name)
+                if not dry_run:
+                    RUN_PROGRESS["sites"].append({"source": name, "added": 0, "ok": False,
+                                                  "error": str(e).splitlines()[0][:160]})
 
     if not dry_run:
         update_run_history(total_added, failed_sources)
@@ -358,6 +371,8 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
     if not dry_run:
         logger.info(f"🎉 Total new internships added today: {total_added}")
     logger.info("========================================")
+    if not dry_run:
+        RUN_PROGRESS.update(finished=True, total_added=total_added, failed=failed_sources)
     return total_added
 
 if __name__ == "__main__":

@@ -117,9 +117,9 @@ def moderation_verdict():
 @app.route("/api/scrape/status")
 def scrape_status():
     global scraper_t
-    if scraper_t and scraper_t.is_alive():
-        return jsonify({"status": "running"})
-    return jsonify({"status": "idle"})
+    import scraper as scraper_mod
+    running = bool(scraper_t and scraper_t.is_alive())
+    return jsonify({"status": "running" if running else "idle", "progress": scraper_mod.RUN_PROGRESS})
 
 @app.route("/api/logs")
 def get_logs():
