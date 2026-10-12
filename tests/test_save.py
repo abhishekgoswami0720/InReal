@@ -40,3 +40,19 @@ def test_refresh_add_and_remove(tmp_path, monkeypatch):
     r = oh.sync_listings([_row("a", "AI Intern", "Employer's name sounds like a training institute"),
                           _row("d", "AI Engineer Intern")], ["b"])
     assert r == {"added": 0, "updated": 0, "removed": 0}
+
+
+def test_run_limit_keeps_the_rest_for_search_more(tmp_path, monkeypatch):
+    monkeypatch.setattr(oh, "CSV_FILE", tmp_path / "internships.csv")
+    monkeypatch.setattr(oh, "LOG_FILE", tmp_path / "internships_log.json")
+    batch = [_row(f"n{i}", "ML Intern") for i in range(10)]
+    r = oh.sync_listings(batch, [], max_new=4)
+    assert r["added"] == 4 and r["held"] == 6
+    # "Search more": the held ones are still new and come in the next run
+    r = oh.sync_listings(batch, [], max_new=4)
+    assert r["added"] == 4 and r["held"] == 2
+    r = oh.sync_listings(batch, [], max_new=4)
+    assert r["added"] == 2 and r["held"] == 0
+    assert len(_rows(oh.CSV_FILE)) == 10
+    # no limit: the old behaviour and the old return shape
+    assert oh.sync_listings([_row("z", "ML Intern")], []) == {"added": 1, "updated": 0, "removed": 0}

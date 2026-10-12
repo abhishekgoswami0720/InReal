@@ -199,7 +199,10 @@ def collapse_copies(results):
     return results
 
 
-def process_and_save(source_name: str, raw_listings: list):
+HELD = {}   # source -> new listings left for "Search more" in the current run
+
+
+def process_and_save(source_name: str, raw_listings: list, max_new: int = None):
     results = evaluate(source_name, raw_listings)
     valid_listings = [item for item, kept, _ in results if kept]
     import fields
@@ -207,7 +210,10 @@ def process_and_save(source_name: str, raw_listings: list):
         item["field"] = fields.current()   # the dashboard shows each student their own field
     dropped_ids = [item["id"] for item, kept, _ in results if not kept and item.get("id")]
 
-    res = sync_listings(valid_listings, dropped_ids)
+    # Best matches first, so a capped run keeps the most relevant new ones
+    valid_listings.sort(key=lambda i: -float(i.get("match_score") or 0))
+    res = sync_listings(valid_listings, dropped_ids, max_new)
+    HELD[source_name] = res.get("held", 0)
     if not valid_listings:
         logger.info(f"[{source_name}] Searched through {len(raw_listings)} listings, but none matched our criteria.")
     extra = []
@@ -219,7 +225,8 @@ def process_and_save(source_name: str, raw_listings: list):
         from moderation.notify import notify_n8n
         notify_n8n(source_name)   # n8n checks this site while the next one is being scraped
     logger.info(f"[{source_name}] Analyzed {len(raw_listings)} listings, found {len(valid_listings)} matches, "
-                f"and saved {res['added']} brand new ones!" + (f" ({', '.join(extra)})" if extra else ""))
+                f"and saved {res['added']} brand new ones!" + (f" ({', '.join(extra)})" if extra else "")
+                + (f" {res['held']} more kept back for 'Search more'." if res.get("held") else ""))
     return res["added"]
 
 
@@ -270,14 +277,14 @@ def report_dry_run(source_name: str, raw_listings: list):
 
 # What the current / last web run has done so far; /api/scrape/status returns it so the
 # dashboard can pop up "Internshala: 12 new internships saved" as each site finishes.
-RUN_PROGRESS = {"run_id": 0, "sites": [], "finished": True, "total_added": 0, "failed": []}
+RUN_PROGRESS = {"run_id": 0, "sites": [], "finished": True, "total_added": 0, "failed": [], "total_held": 0}
 
 
 def run_scrapers(dry_run=False, config=None, specific_source=None):
     total_added = 0
     failed_sources = []
     if not dry_run:
-        RUN_PROGRESS.update(run_id=RUN_PROGRESS["run_id"] + 1, sites=[], finished=False, total_added=0, failed=[])
+        RUN_PROGRESS.update(run_id=RUN_PROGRESS["run_id"] + 1, sites=[], finished=False, total_added=0, failed=[], total_held=0)
     
     # Default to everything if no config passed
     if config is None:
@@ -350,7 +357,17 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
         if dry_run:
             report_dry_run(source_name, listings)
             return 0
-        return process_and_save(source_name, listings)   # also wakes n8n for this site
+        return process_and_save(source_name, listings, per_site)   # also wakes n8n for this site
+
+    # "limit" (from the dashboard): about this many NEW listings per run, shared between the sites,
+    # so the scam check gets a small batch and answers fast. The rest wait for "Search more".
+    import math
+    try:
+        limit = int(config.get("limit") or 0)
+    except (TypeError, ValueError):
+        limit = 0
+    per_site = max(3, math.ceil(limit / len(scrapers_to_run))) if limit > 0 else None
+    HELD.clear()
 
     workers = 1 if len(scrapers_to_run) == 1 else min(3, len(scrapers_to_run))
     if workers > 1:
@@ -363,7 +380,7 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
                 added = fut.result()
                 total_added += added
                 if not dry_run:
-                    RUN_PROGRESS["sites"].append({"source": name, "added": added, "ok": True})
+                    RUN_PROGRESS["sites"].append({"source": name, "added": added, "ok": True, "held": HELD.get(name, 0)})
             except Exception as e:
                 logger.exception(f"Failed {name}: {e}")
                 failed_sources.append(name)
@@ -381,7 +398,8 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
         logger.info(f"🎉 Total new internships added today: {total_added}")
     logger.info("========================================")
     if not dry_run:
-        RUN_PROGRESS.update(finished=True, total_added=total_added, failed=failed_sources)
+        RUN_PROGRESS.update(finished=True, total_added=total_added, failed=failed_sources,
+                            total_held=sum(HELD.values()))
     return total_added
 
 if __name__ == "__main__":

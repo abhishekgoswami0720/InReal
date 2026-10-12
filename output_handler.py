@@ -83,7 +83,7 @@ def _record(item: dict) -> dict:
     return rec
 
 
-def sync_listings(kept: list, dropped_ids: list) -> dict:
+def sync_listings(kept: list, dropped_ids: list, max_new: int = None) -> dict:
     """
     Saves one scraper run and keeps earlier rows up to date.
 
@@ -102,7 +102,7 @@ def sync_listings(kept: list, dropped_ids: list) -> dict:
         rows = _read_rows()
         by_id = {r.get("id"): r for r in rows}
         keep_as_is = {"id", "date_scraped", "is_new", *MODERATION_FIELDS}
-        added = updated = 0
+        added = updated = held = 0
 
         for item in kept:
             rec = _record(item)
@@ -128,6 +128,9 @@ def sync_listings(kept: list, dropped_ids: list) -> dict:
                     for k in MODERATION_FIELDS:
                         old[k] = ""
                 updated += changed
+            elif item["id"] not in seen_ids and max_new is not None and added >= max_new:
+                # over this run's limit: not saved and not marked seen, so "Search more" finds it next time
+                held += 1
             elif item["id"] not in seen_ids:
                 rec["is_new"] = True
                 rows.append(rec)
@@ -145,7 +148,10 @@ def sync_listings(kept: list, dropped_ids: list) -> dict:
         log_data["total_scraped"] = len(seen_ids)
         log_data["last_run"] = datetime.now().strftime("%Y-%m-%d")
         save_log(log_data)
-    return {"added": added, "updated": updated, "removed": len(gone)}
+    out = {"added": added, "updated": updated, "removed": len(gone)}
+    if max_new is not None:
+        out["held"] = held
+    return out
 
 
 PENDING_FIELDS = ["id", "company_name", "role_title", "location", "duration", "stipend", "stipend_numeric",

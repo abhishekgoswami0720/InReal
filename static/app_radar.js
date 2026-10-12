@@ -504,6 +504,7 @@ async function pollScraperStatus() {
     const dot = document.getElementById('ping-dot');
     const text = document.getElementById('scraper-status-text');
 
+    setSearchMoreBusy(isRunning);
     if (isRunning) {
       if (dot) dot.className = 'w-2 h-2 rounded-full bg-orange-500 animate-pulse';
       if (text) text.innerText = 'Scanning...';
@@ -692,7 +693,8 @@ function bindEventHandlers() {
     const config = {
       regions: checkedValues('regions'),
       sources: checkedValues('sources'),
-      field: document.getElementById('scrape-field')?.value || (profile && profile.field) || 'ai_ml'
+      field: document.getElementById('scrape-field')?.value || (profile && profile.field) || 'ai_ml',
+      limit: FIRST_BATCH
     };
     if (!config.sources.length) { showToast('error', 'Pick at least one site', 'Choose the sites to search, then start again.'); modal.classList.remove('hidden'); return; }
 
@@ -714,6 +716,7 @@ function bindEventHandlers() {
     if (!w.can_edit) {
       document.getElementById('trigger-scrape-btn')?.classList.add('hidden');
       document.getElementById('profile-scrape-row')?.classList.add('hidden');
+      document.getElementById('search-more-bar')?.classList.add('hidden');
     }
   }).catch(() => {});
 
@@ -818,7 +821,10 @@ function handleScrapeProgress(progress, isRunning) {
   if (progress.finished && !runAnnounced && !isRunning) {
     runAnnounced = true;
     const failed = progress.failed.length ? ` · ${progress.failed.length} site(s) failed` : '';
-    showToast('success', 'Scraping finished', `${progress.total_added} new internships from ${progress.sites.length} site(s)${failed}. Verified ones appear as n8n approves them.`);
+    const held = progress.total_held ? ` ${progress.total_held} more are waiting: use "Search more" below the list.` : '';
+    showToast('success', 'Scraping finished', `${progress.total_added} new internships from ${progress.sites.length} site(s)${failed}. Verified ones appear as n8n approves them.${held}`);
+    const h = document.getElementById('search-more-held');
+    if (h) h.textContent = progress.total_held ? `${progress.total_held} more found last time.` : '';
   }
 }
 
@@ -939,7 +945,7 @@ async function saveProfileFromForm(e) {
   try {
     const res = await fetch('/api/scrape', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ field: next.field, sources: next.sources, regions: next.regions })
+      body: JSON.stringify({ field: next.field, sources: next.sources, regions: next.regions, limit: FIRST_BATCH })
     });
     const data = await res.json().catch(() => ({}));
     if (data.status === 'running') showToast('info', 'Profile saved', 'A search is already running. Start yours with "Submit an Opportunity" when it ends.');
@@ -1002,4 +1008,42 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', (e) => { if (wrap && !wrap.contains(e.target)) setFilterMenu(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setFilterMenu(false); });
   updateFilterCount();
+});
+
+
+// ==========================================
+// 12. Small batches: first search ~30 new internships, "Search more" for the next batch
+// ==========================================
+const FIRST_BATCH = 30;
+
+function setSearchMoreBusy(busy) {
+  const btn = document.getElementById('search-more-btn');
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.classList.toggle('opacity-60', busy);
+  btn.querySelector('span').textContent = busy ? 'Searching…' : 'Search more';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('search-more-btn')?.addEventListener('click', async () => {
+    const limit = Number(document.getElementById('search-more-count')?.value || FIRST_BATCH);
+    const p = profile || {};
+    const config = {
+      field: p.field || 'ai_ml',
+      sources: (p.sources && p.sources.length) ? p.sources : ['internshala', 'unstop', 'naukri', 'linkedin', 'shine', 'foundit', 'apna', 'government'],
+      regions: (p.regions && p.regions.length) ? p.regions : ['india', 'remote'],
+      limit,
+    };
+    setSearchMoreBusy(true);
+    try {
+      const res = await fetch('/api/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 403) { showToast('info', 'View-only link', 'Searching can only be started on the host laptop.'); setSearchMoreBusy(false); }
+      else if (data.status === 'running') showToast('info', 'Already searching', 'Wait for the current search to finish.');
+      else showToast('info', 'Searching for more', `Up to ${limit} new ${fieldLabels[config.field] || ''} internships from ${config.sources.length} site(s). A popup appears as each site finishes.`);
+    } catch (e) {
+      showToast('error', 'Search did not start', 'The app is not answering. Is python app.py running?');
+      setSearchMoreBusy(false);
+    }
+  });
 });
