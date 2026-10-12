@@ -117,3 +117,19 @@ LLM quote was discounted, and the webhook trigger from the app worked.
   being checked or waiting.
 - Measured with a fake Gemini: 106 listings, two overlapping runs, all judged in 25 s. With the real free tier
   the waits between calls (2 s embed, 4 s judge) dominate: about 1.5 minutes per 100 listings (was ~9).
+
+
+## Embeddings on Azure OpenAI (12 Oct, Gemini free tier kept returning 429)
+
+1. In `.env`: `EMBED_PROVIDER=azure`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_EMBED_DEPLOYMENT`, `AZURE_OPENAI_KEY`
+   (see `.env.example`). The endpoint can be the bare resource URL or the full URL the portal shows.
+2. `python -m moderation.build_index` — rebuilds the phrase vectors with Azure (vectors from two different models
+   can't be compared, so this is required after switching). The index stores the Azure URL, never the key.
+3. In n8n, node **Embed chunks** → credential **Header Auth** named `Embedding API key`: Name `api-key`, Value = the Azure key.
+   The LLM judge keeps its own `Gemini API key` credential.
+4. Start n8n with `N8N_CONCURRENCY_PRODUCTION_LIMIT=1` so webhook runs queue one after another instead of
+   hitting the APIs together (PowerShell: `$env:N8N_CONCURRENCY_PRODUCTION_LIMIT="1"; npx n8n`).
+   Nothing is lost: listings a run didn't claim are taken by the next one.
+
+`text-embedding-3-small` deployment limits seen on the portal: 150,000 tokens and 900 requests per minute, so the
+embed node now waits only 0.3 s between calls (one call carries up to 90 sentences).

@@ -84,7 +84,8 @@ function unpack(posts, batches, answers, bank, cfg) {
   const out = [];
   batches.forEach((b, bi) => {
     const ans = answers[bi] || {};
-    const embs = ans.embeddings || [];
+    // Gemini answers {embeddings:[{values}]}, Azure OpenAI answers {data:[{embedding, index}]}
+    const embs = ans.embeddings || (ans.data || []).slice().sort((a, b) => a.index - b.index).map(d => ({ values: d.embedding }));
     for (const m of b.members) {
       const post = posts[m.idx];
       const mine = embs.slice(m.start, m.start + m.n);

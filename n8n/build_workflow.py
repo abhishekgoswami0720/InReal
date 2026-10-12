@@ -15,6 +15,8 @@ CODE = HERE / "code"
 OUT = HERE / "inreal_moderation.json"
 GLUE = "// ==== n8n glue (below this line runs only inside n8n) ===="
 GEMINI_CRED = {"httpHeaderAuth": {"id": "inrealGeminiKey", "name": "Gemini API key"}}
+# Header Auth for the embedding provider: name "api-key" for Azure OpenAI, "x-goog-api-key" for Gemini
+EMBED_CRED = {"httpHeaderAuth": {"id": "inrealEmbedKey", "name": "Embedding API key"}}
 CFG = "$('Config').first().json"
 
 
@@ -39,15 +41,15 @@ def code_node(name, pos, *files, all_items=False):
     return node(name, "n8n-nodes-base.code", 2, pos, params)
 
 
-def http(name, pos, url, method="GET", body_expr=None, gemini=False, batch=None, must_work=False, **extra):
+def http(name, pos, url, method="GET", body_expr=None, gemini=False, batch=None, must_work=False, embed_cred=False, **extra):
     params = {"url": url, "options": {"response": {"response": {"neverError": not must_work}}, "timeout": 30000}}
     if method != "GET":
         params["method"] = method
     if body_expr:
         params.update({"sendBody": True, "specifyBody": "json", "jsonBody": body_expr})
-    if gemini:
+    if gemini or embed_cred:
         params.update({"authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth"})
-        extra["credentials"] = GEMINI_CRED
+        extra["credentials"] = EMBED_CRED if embed_cred else GEMINI_CRED
     if batch:
         params["options"]["batching"] = {"batch": {"batchSize": batch[0], "batchInterval": batch[1]}}
     if not must_work:
@@ -105,9 +107,9 @@ def build():
         code_node("Expired listing", [160, 80], "expired_verdict.js"),
         code_node("Link + contact signals", [160, 400], "signals.js"),
         code_node("Pack embedding mini-batches", [380, 400], "pack_embed.js", all_items=True),
-        http("Embed chunks (Gemini)", [600, 400],
-             f"={{{{ {CFG}.geminiBase }}}}/v1beta/models/{{{{ $('Fetch pattern bank').first().json.model }}}}:batchEmbedContents",
-             method="POST", body_expr="={{ JSON.stringify($json.embedRequest) }}", gemini=True, batch=(1, 2000)),
+        # URL comes from the pattern index (Azure OpenAI or Gemini, whichever built it); key from the credential
+        http("Embed chunks", [600, 400], "={{ $('Fetch pattern bank').first().json.embed_url }}",
+             method="POST", body_expr="={{ JSON.stringify($json.embedRequest) }}", embed_cred=True, batch=(1, 300)),
         code_node("Vector search vs scam patterns", [820, 400], "vector_search.js", all_items=True),
         if_node("Stage 1 conclusive?", [1040, 400], "={{ $json.gate.decision }}", ["block"]),
         code_node("Blocked at stage 1", [1280, 220], "_verdict_lib.js", "stage1_verdict.js"),
@@ -140,7 +142,7 @@ def build():
         c("Link dead or closed?", "Expired listing", 0), c("Link dead or closed?", "Link + contact signals", 1),
         c("Expired listing", "Save verdict"),
         c("Link + contact signals", "Pack embedding mini-batches"),
-        c("Pack embedding mini-batches", "Embed chunks (Gemini)"), c("Embed chunks (Gemini)", "Vector search vs scam patterns"),
+        c("Pack embedding mini-batches", "Embed chunks"), c("Embed chunks", "Vector search vs scam patterns"),
         c("Vector search vs scam patterns", "Stage 1 conclusive?"),
         c("Stage 1 conclusive?", "Blocked at stage 1", 0), c("Stage 1 conclusive?", "Pack judge mini-batches", 1),
         c("Blocked at stage 1", "Save verdict"),

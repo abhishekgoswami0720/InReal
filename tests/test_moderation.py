@@ -302,3 +302,25 @@ def test_claims_split_work_between_overlapping_runs(store):
     assert len(oh.pending_moderation(limit=10)) == 1
     oh.save_verdict(first[0]["id"], "approved", 0.1, [])
     assert oh.moderation_counts()["approved"] == 1
+
+
+def test_azure_index_and_unpack(gemini, tmp_path, monkeypatch):
+    out = tmp_path / "pattern_index.json"
+    monkeypatch.setattr(build_index, "INDEX", out)
+    for k, v in {"EMBED_PROVIDER": "azure", "AZURE_OPENAI_KEY": "test-key", "AZURE_OPENAI_EMBED_DEPLOYMENT": "emb",
+                 "AZURE_OPENAI_ENDPOINT": gemini + "/openai/deployments/emb/embeddings?api-version=2023-05-15"}.items():
+        monkeypatch.setenv(k, v)
+    build_index.main()
+    idx = json.loads(out.read_text(encoding="utf-8"))
+    assert idx["provider"] == "azure" and idx["embed_url"] == gemini + "/openai/deployments/emb/embeddings?api-version=2024-10-21"
+    assert "test-key" not in out.read_text(encoding="utf-8")            # the key never goes into the index
+    fee = [it for it in idx["items"] if it["id"] == "upfront_fee-3"][0]
+    assert abs(sum(a * b for a, b in zip(fee["vector"], mock_gemini.embed(fee["text"]))) - 1) < 1e-3   # order kept
+    if NODE:
+        posts = [{"id": "a", "chunks": ["Selected candidates must pay a security deposit which will be returned after the internship."],
+                  "signals": [], "signal_risk": 0, "listing": {"id": "a"}}]
+        batches = js("pack_embed.js", "packEmbeds", posts, idx)
+        assert batches[0]["embedRequest"] == {"input": posts[0]["chunks"], "dimensions": 768}
+        ans = [{"data": [{"index": 0, "embedding": mock_gemini.embed(posts[0]["chunks"][0])}]}]
+        res = js("vector_search.js", "unpack", posts, batches, ans, idx, {})
+        assert res[0]["stage1"]["categories"][0]["category"] == "upfront_fee"

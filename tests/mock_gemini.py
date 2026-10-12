@@ -60,6 +60,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         REQUESTS.append({"path": self.path, "body": data})
+        if "/openai/deployments/" in self.path:          # Azure OpenAI embeddings
+            if self.headers.get("api-key") != KEY:
+                return self._send(401, {"error": {"code": "401", "message": "Access denied due to invalid subscription key"}})
+            dims = data.get("dimensions", 1536)
+            return self._send(200, {"data": [{"object": "embedding", "index": i, "embedding": embed(t, dims)}
+                                             for i, t in enumerate(data["input"])][::-1]})   # out of order on purpose
         if self.headers.get("x-goog-api-key") != KEY:
             return self._send(403, {"error": {"code": 403, "message": "API key not valid"}})
         if self.path.endswith(":batchEmbedContents"):
