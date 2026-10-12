@@ -315,22 +315,40 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
         logger.warning("No scrapers matched the provided configuration filters!")
         return 0
 
-    for source_name, scraper_func in scrapers_to_run.items():
-        try:
-            logger.info(f"🚀 Starting to check {source_name} for new opportunities...")
-            if source_name in ["linkedin", "search"]:
-                listings = scraper_func(config=config)
-            else:
+    # Sites run in parallel (3 at a time). Naukri and Foundit open a visible Chrome window and may
+    # wait for you to solve a check, so those two take turns instead of running together.
+    import threading
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    visible_chrome = threading.Lock()
+    VISIBLE_CHROME_SOURCES = {"naukri", "foundit"}
+
+    def run_one(source_name, scraper_func):
+        logger.info(f"🚀 Starting to check {source_name} for new opportunities...")
+        if source_name in VISIBLE_CHROME_SOURCES:
+            with visible_chrome:
                 listings = scraper_func()
-            if not dry_run:
-                added = process_and_save(source_name, listings)
-                total_added += added
-            else:
-                report_dry_run(source_name, listings)
-        except Exception as e:
-            logger.exception(f"Failed {source_name}: {e}")
-            failed_sources.append(source_name)
-            
+        elif source_name in ["linkedin", "search"]:
+            listings = scraper_func(config=config)
+        else:
+            listings = scraper_func()
+        if dry_run:
+            report_dry_run(source_name, listings)
+            return 0
+        return process_and_save(source_name, listings)   # also wakes n8n for this site
+
+    workers = 1 if len(scrapers_to_run) == 1 else min(3, len(scrapers_to_run))
+    if workers > 1:
+        logger.info(f"⚡ {len(scrapers_to_run)} sites, {workers} at a time")
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(run_one, name, fn): name for name, fn in scrapers_to_run.items()}
+        for fut in as_completed(futures):
+            name = futures[fut]
+            try:
+                total_added += fut.result()
+            except Exception as e:
+                logger.exception(f"Failed {name}: {e}")
+                failed_sources.append(name)
+
     if not dry_run:
         update_run_history(total_added, failed_sources)
         
