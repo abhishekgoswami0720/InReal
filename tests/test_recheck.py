@@ -2,8 +2,7 @@ import output_handler as oh
 from moderation import recheck
 
 
-def _rows(tmp_path, monkeypatch):
-    monkeypatch.setattr(oh, "CSV_FILE", tmp_path / "i.csv")
+def _rows(tmp_path=None, monkeypatch=None):
     rows = [
         {"id": "a", "source_platform": "Unstop", "moderation_status": "approved", "scam_risk": "0.1",
          "moderation_reasons": "Embedding failed (403) | ok", "moderated_at": "x", "date_scraped": "1"},
@@ -32,3 +31,13 @@ def test_by_source_and_all(tmp_path, monkeypatch):
     assert status()["c"] == "blocked"
     assert recheck.requeue(all_rows=True) == 1
     assert all(v == "" for v in status().values())
+
+
+def test_recheck_endpoint_and_guard(monkeypatch):
+    import app as app_mod
+    monkeypatch.delenv("INREAL_N8N_WEBHOOK", raising=False)
+    oh._write_rows([{"id": "a", "source_platform": "Unstop", "moderation_status": "approved",
+                     "moderation_reasons": "Embedding failed (403)", "date_scraped": "1"}])
+    c = app_mod.app.test_client()
+    assert c.post("/api/moderation/recheck", json={}, headers={"Cf-Connecting-Ip": "1.2.3.4"}).status_code == 403
+    assert c.post("/api/moderation/recheck", json={}).get_json() == {"requeued": 1}

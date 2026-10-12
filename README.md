@@ -136,7 +136,7 @@ After every scrape, an n8n workflow checks each new listing in three stages: rul
 ```bash
 python scraper.py --source internshala --dry-run
 ```
-Nothing is saved to `internships.csv`. It prints how many listings were kept or dropped and why, and writes every listing with its reason to `test_output/internshala.csv`. Offline parser tests (saved copies of the live pages): `python -m pytest tests -q`.
+Nothing is saved to `internships.csv`. It prints how many listings were kept or dropped and why, with the reasons, in the terminal (no file is written). Offline parser tests (saved copies of the live pages): `python -m pytest tests -q`.
 
 ### 🔧 Selector Upgrade Status
 | Platform | Checked on live site | Status |
@@ -238,8 +238,7 @@ internship_scraper/
 ├── static/style.css       ← Bloomberg dark aesthetic, glassmorphism
 ├── static/script.js       ← Live filtering, polling, XSS-safe card rendering
 │
-├── internships.csv        ← The database (gitignored)
-├── internships_log.json   ← Scraper memory for deduplication (gitignored)
+│   (no data files: listings, verdicts and seen IDs live in app.py's memory)
 ├── scraper_run.log        ← What the scraper did (gitignored)
 └── scraper_errors.log     ← What went wrong (gitignored)
 ```
@@ -267,7 +266,7 @@ internship_scraper/
 
 ## 📊 Output Format
 
-Every discovered internship is saved to `internships.csv` with:
+Every discovered internship is kept in the app's memory (lost when app.py stops) with:
 
 | Field | Description |
 |-------|-------------|
@@ -322,3 +321,13 @@ It starts the app with the `waitress` server (debug off) and prints a `https://�
 - The link changes every time the tunnel restarts, and stops when the laptop sleeps.
 - Optional: set `INREAL_ADMIN_TOKEN` in `.env` to allow writes from elsewhere with the `X-InReal-Token` header.
 - `set INREAL_DEBUG=1` brings back Flask's debug server, for local development only, never with a tunnel.
+
+
+## Data storage: memory only (12 Oct)
+
+No `internships.csv` or `internships_log.json` is written any more. Listings, n8n verdicts and the
+"already seen" IDs live inside the running `app.py`.
+- Restarting `app.py` starts empty: scrape again, and n8n judges again (Azure calls).
+- Scrape from the dashboard. `python scraper.py` / `scheduler.py` in another terminal can't reach the app's memory.
+- On start, `app.py` deletes leftover `internships.csv`, `internships.csv.tmp` and `internships_log.json`.
+- `python -m moderation.recheck` asks the running app to re-queue listings for n8n.

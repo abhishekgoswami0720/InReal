@@ -5,7 +5,7 @@ The verdict shows on its dashboard card: **passed**, **needs a human look**, **l
 (hidden by default), or **link closed**.
 
 ```
-scraper saves listings ──► Flask app (internships.csv)
+scraper saves listings ──► Flask app (in memory, no file)
                                │  webhook after each scrape, or every 30 min
                                ▼
 n8n ─ Config ─ Fetch pattern bank ─ Fetch pending listings

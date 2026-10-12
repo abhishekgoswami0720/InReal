@@ -1,5 +1,4 @@
 import argparse
-import csv
 import re
 from pathlib import Path
 
@@ -222,19 +221,10 @@ TEST_COLUMNS = ["status", "reason", "trust_flags", "role_title", "company_name",
 
 
 def report_dry_run(source_name: str, raw_listings: list):
-    """Prints what would be kept or dropped and why, and writes test_output/<source>.csv."""
+    """Prints what would be kept or dropped and why. Writes no file (no CSVs, 12 Oct night)."""
     results = evaluate(source_name, raw_listings)
     kept = [r for r in results if r[1]]
     dropped = [r for r in results if not r[1]]
-
-    out_dir = Path(__file__).parent / "test_output"
-    out_dir.mkdir(exist_ok=True)
-    out_file = out_dir / f"{source_name}.csv"
-    with open(out_file, "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.DictWriter(f, fieldnames=TEST_COLUMNS, extrasaction="ignore")
-        w.writeheader()
-        for item, ok, reason in sorted(results, key=lambda r: not r[1]):
-            w.writerow({**item, "status": "KEPT" if ok else "DROPPED", "reason": reason})
 
     reasons = {}
     for _, _, reason in dropped:
@@ -257,7 +247,6 @@ def report_dry_run(source_name: str, raw_listings: list):
         if not reason.startswith(("Not an AI/ML", "Unpaid", "Stipend below", "Not labelled", "Title has")):
             print(f"  DROPPED {item['role_title'][:28]:<28} | {item['company_name'][:20]:<20} | {reason[:70]}")
     print("-" * 70)
-    print(f"  Full list with reasons: {out_file}")
     print("=" * 70)
 
 
