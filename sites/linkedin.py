@@ -287,15 +287,31 @@ def scrape_linkedin(config=None):
                     return page.evaluate(FETCH_JS, url)
                 except Exception as e:
                     logger.warning(f"LinkedIn in-page fetch failed ({e}); calling the API directly")
-            resp = context.request.get(url, timeout=30000)
-            return {"status": resp.status, "text": resp.text() if resp.status == 200 else ""}
+            try:
+                resp = context.request.get(url, timeout=30000)
+                return {"status": resp.status, "text": resp.text() if resp.status == 200 else ""}
+            except Exception as e:
+                # Wi-Fi drop / DNS failure (laptop web run 12 Oct 10:18: "getaddrinfo ENOTFOUND
+                # www.linkedin.com" crashed the whole LinkedIn run and lost every card read so far)
+                logger.warning(f"LinkedIn: network error ({str(e).splitlines()[0][:120]})")
+                return {"status": 0, "text": ""}
+
+        network_failures = 0
 
         def get(url):
-            nonlocal rate_limited
+            nonlocal rate_limited, network_failures
             for attempt in range(2):
                 res = fetch(url)
                 if res["status"] == 200:
+                    network_failures = 0
                     return res["text"]
+                if res["status"] == 0:
+                    network_failures += 1
+                    if network_failures >= 4:
+                        rate_limited = True   # stop asking; keep what we have
+                        return None
+                    human_delay(5, 8)
+                    continue
                 if res["status"] in (429, 999) and attempt == 0:  # 999 = LinkedIn's "looks like a bot"
                     logger.warning(f"LinkedIn: HTTP {res['status']} (rate limit), waiting 20 s")
                     human_delay(20, 25)
@@ -340,6 +356,6 @@ def scrape_linkedin(config=None):
         browser.close()
 
     if rate_limited:
-        logger.warning(f"LinkedIn stopped early because of rate limiting; keeping {len(all_internships)} cards")
+        logger.warning(f"LinkedIn stopped early (rate limit or no network); keeping {len(all_internships)} cards")
     logger.info(f"LinkedIn: {len(all_internships)} unique cards")
     return all_internships
