@@ -16,13 +16,13 @@ No new sites until all 7 upgraded sites pass both checks on the laptop. The filt
 
 | Site | Terminal `--dry-run` | Web dashboard (only this site ticked) |
 |---|---|---|
-| Internshala | ⏳ | ⏳ |
+| Internshala | ✅ 06:11 — 393 read, 81 kept; 4 posts now flagged "one post listed for 6–11 towns" | ⏳ |
 | Unstop | ⏳ | ⏳ |
 | Naukri | ⏳ | ⏳ |
 | LinkedIn | ⏳ | ⏳ |
 | Shine | ⏳ | ⏳ |
 | Foundit | ⏳ | ⏳ |
-| Apna | ⏳ | ⏳ |
+| Apna | ✅ 06:07 — 49 read, 12 kept (IQVIA, Apple, Micron, Novartis, Sprinklr…), no flags; one sales role ("Artificial Intelligence Sales Intern", ByteDance) passes the AI/ML rule on its title | ⏳ |
 
 Dashboard settings now have one checkbox per site; the not-upgraded ones are listed separately and unticked.
 
@@ -36,7 +36,7 @@ Dashboard settings now have one checkbox per site; the not-upgraded ones are lis
 | 4 | LinkedIn (guest search) | `linkedin` | `sites/linkedin.py` | LinkedIn's guest job API (HTML cards) | ✅ |
 | 5 | Shine | `shine` | `sites/shine.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | ✅ |
 | 6 | Foundit | `foundit` | `sites/foundit.py` | Visible Chrome + Foundit's JSON endpoints | ✅ |
-| 7 | Apna | `apna` | `sites/apna.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | 🟡 |
+| 7 | Apna | `apna` | `sites/apna.py` | Playwright + HTML (server-rendered) + schema.org JSON on job pages | ✅ |
 | 8 | Cutshort | `cutshort` | `sites/misc_india.py` | Playwright + HTML | 🔴 |
 | 9 | We Work Remotely (search page) | `international` | `sites/international.py` | Playwright + HTML | 🔴 |
 | 10 | Remotive (RSS) | `remotive` | `sites/rss_feeds.py` | RSS feed, no selectors | 🔴 feed URL check only |
@@ -224,7 +224,7 @@ What we found: Sparks To Ideas again, now as "Free AI/ML Internship", posted by 
 
 **Laptop test, 12 Oct 05:51:** 7 searches, 108 posts, 60 descriptions read, 88 kept. But **about 50 of the 88 were Maxgen Technologies**: the same "DATA SCIENCE INTERNSHIP AT PUNE / AHMEDABAD" posted again and again with different three-town lists, some copies with the company name hidden as "**********". New rule for every portal: when one company posts the same internship (same first two title words) 3 or more times, it is shown once with "(+N more)" places and every warning found on any copy; 6 or more copies also get **Same company posted N copies of this internship**. Hidden names get **Company name hidden**. Same data after the rule: **38 kept**, Maxgen's 39 data-science copies are one card. Different roles from one company (Codeatrix on Internshala) are not merged.
 
-## 7. Apna 🟡
+## 7. Apna ✅
 
 Checked on the live site: 12 Oct 2026. Code moved to `sites/apna.py`.
 
@@ -242,7 +242,7 @@ Checked on the live site: 12 Oct 2026. Code moved to `sites/apna.py`.
 
 Trap: every card row has an inline `<style>` tag, so reading the whole row gives ".css-q7mezt{user-select:none…}Kochi". We remove `<style>` tags and read only the span.
 
-What we saw: this search returns mostly big-company internships (IQVIA, HPE, Apple, Micron, Sprinklr, LinkedIn), nearly all with pay "Not disclosed". Not tested on the laptop yet.
+What we saw: this search returns mostly big-company internships (IQVIA, HPE, Apple, Micron, Sprinklr, LinkedIn), nearly all with pay "Not disclosed". **Laptop test, 12 Oct 06:07:** 49 cards from 4 searches, 12 kept, 37 dropped (30 not AI/ML, 4 not internships, 3 PhD-only).
 
 ## 8. Cutshort 🔴
 
