@@ -1,42 +1,29 @@
 /**
- * InReal Dashboard
- * Corporate Polished UI with Genuine Company Logos, Consistent Actions, and Robust Filtering
+ * InReal dashboard: list of scraped internships with the n8n scam-check verdict for each.
+ * Data: /api/internships (rows of internships.csv). Live updates: /api/moderation/status,
+ * /api/scrape/status, /api/alerts. No frameworks: plain DOM, so it works offline except the font.
  */
 
 let allInternships = [];
 let activeLocation = 'all';
 let activeStipend = 'all';
 let activeSource = 'all';
-let activeRoleType = 'all';
-let activeModeration = 'verified';   // n8n scam check: show only listings it passed
+let activeModeration = 'verified';   // default: only listings the scam check passed
 let showBookmarkedOnly = false;
-let bookmarks = JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]');
+let bookmarks = readBookmarks();
 let activeDrawerJob = null;
+let lastFocus = null;
 
-// Genuine SVGs for company/organization logos
-const companyLogos = {
-  anthropic: `<svg viewBox="0 0 24 24" width="24" height="24" fill="#0F172A"><path d="M14.05 3.5h3.45L10.95 20.5H7.5L14.05 3.5zm-4.1 0h3.45L6.85 20.5H3.4L9.95 3.5z"/></svg>`,
-  deepmind: `<svg viewBox="0 0 24 24" width="24" height="24"><path fill="#4285F4" d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9Z"/></svg>`,
-  maxplanck: `<svg viewBox="0 0 24 24" width="24" height="24" fill="#0F172A"><circle cx="12" cy="12" r="9" stroke="#0F172A" stroke-width="1.8" fill="none"/><circle cx="12" cy="12" r="4" fill="#0F172A"/></svg>`,
-  mistral: `<svg viewBox="0 0 24 24" width="24" height="24"><rect x="3" y="4" width="5" height="16" fill="#F97316"/><rect x="10" y="4" width="5" height="10" fill="#EA580C"/><rect x="17" y="4" width="5" height="16" fill="#C2410C"/></svg>`,
-  iisc: `<svg viewBox="0 0 24 24" width="24" height="24" fill="#0D9488"><path d="M12 3L2 9l10 6 10-6-10-6zm0 14l-8-4.8v3.6L12 21l8-5.2v-3.6L12 17z"/></svg>`,
-  cohere: `<svg viewBox="0 0 24 24" width="24" height="24"><circle cx="8" cy="12" r="5" fill="#39594C"/><circle cx="16" cy="12" r="5" fill="#FF7759"/></svg>`,
-  default: `<svg viewBox="0 0 24 24" width="24" height="24" fill="#64748B"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm6 12H6v-1.4c0-2 4-3.1 6-3.1s6 1.1 6 3.1V18z"/></svg>`
-};
+const $ = (id) => document.getElementById(id);
 
-function getCompanyLogoSvg(companyName) {
-  const norm = (companyName || '').toLowerCase();
-  if (norm.includes('anthropic')) return companyLogos.anthropic;
-  if (norm.includes('deepmind') || norm.includes('google')) return companyLogos.deepmind;
-  if (norm.includes('max planck') || norm.includes('mpi')) return companyLogos.maxplanck;
-  if (norm.includes('mistral')) return companyLogos.mistral;
-  if (norm.includes('iisc') || norm.includes('bangalore')) return companyLogos.iisc;
-  if (norm.includes('cohere')) return companyLogos.cohere;
-  return companyLogos.default;
+function readBookmarks() {
+  try { return JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]'); } catch (e) { return []; }
+}
+function writeBookmarks() {
+  try { localStorage.setItem('inreal_bookmarks', JSON.stringify(bookmarks)); } catch (e) { /* private window */ }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  initGlassTranslucentBackground();
   bindEventHandlers();
   loadData();
   pollScraperStatus();
@@ -45,649 +32,509 @@ document.addEventListener('DOMContentLoaded', () => {
   updateBookmarkCounter();
 });
 
-// ==========================================
-// 1. Subtle Translucent 3D Ambient Mesh
-// ==========================================
-function initGlassTranslucentBackground() {
-  const canvas = document.getElementById('topo-radar-canvas');
-  if (!canvas || typeof THREE === 'undefined') return;
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 0, 40);
-
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-  const group = new THREE.Group();
-  scene.add(group);
-
-  const materials = [
-    new THREE.MeshBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.12 }),
-    new THREE.MeshBasicMaterial({ color: 0x3B82F6, transparent: true, opacity: 0.10 }),
-    new THREE.MeshBasicMaterial({ color: 0x10B981, transparent: true, opacity: 0.10 }),
-  ];
-
-  const meshes = [];
-
-  for (let i = 0; i < 16; i++) {
-    const geo = (i % 2 === 0) 
-      ? new THREE.IcosahedronGeometry(Math.random() * 2.2 + 1.2, 0)
-      : new THREE.TorusGeometry(Math.random() * 2 + 1.2, 0.4, 12, 24);
-
-    const mat = materials[i % materials.length];
-    const mesh = new THREE.Mesh(geo, mat);
-
-    mesh.position.set(
-      (Math.random() - 0.5) * 60,
-      (Math.random() - 0.5) * 45,
-      (Math.random() - 0.5) * 15
-    );
-
-    mesh.userData = {
-      rotX: (Math.random() - 0.5) * 0.006,
-      rotY: (Math.random() - 0.5) * 0.006,
-      floatSpeed: Math.random() * 0.4 + 0.3,
-      startY: mesh.position.y
-    };
-
-    group.add(mesh);
-    meshes.push(mesh);
-  }
-
-  let targetMouseX = 0, targetMouseY = 0, curMouseX = 0, curMouseY = 0;
-
-  window.addEventListener('mousemove', (e) => {
-    targetMouseX = (e.clientX / window.innerWidth - 0.5) * 2;
-    targetMouseY = -(e.clientY / window.innerHeight - 0.5) * 2;
-  }, { passive: true });
-
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
-
-  let clock = new THREE.Clock();
-
-  function animate() {
-    requestAnimationFrame(animate);
-    const elapsed = clock.getElapsedTime();
-
-    curMouseX += (targetMouseX - curMouseX) * 0.04;
-    curMouseY += (targetMouseY - curMouseY) * 0.04;
-
-    group.rotation.y = curMouseX * 0.12;
-    group.rotation.x = -curMouseY * 0.12;
-
-    meshes.forEach((m) => {
-      m.rotation.x += m.userData.rotX;
-      m.rotation.y += m.userData.rotY;
-      m.position.y = m.userData.startY + Math.sin(elapsed * m.userData.floatSpeed) * 1.2;
-    });
-
-    renderer.render(scene, camera);
-  }
-
-  animate();
-}
-
-// ==========================================
-// 2. Data Fetching & Overview Metrics
-// ==========================================
+// ─────────────────────────────────────────────
+// 1. Data
+// ─────────────────────────────────────────────
 async function loadData() {
   try {
     const res = await fetch('/api/internships');
-    const data = await res.json();
-    allInternships = data || [];
-
+    allInternships = (await res.json()) || [];
     populateSourceFilter(allInternships);
+    renderPipeline();
     applyFiltersAndRender();
   } catch (err) {
     console.error('Failed to load internships:', err);
   }
 }
 
-function populateSourceFilter(internships) {
-  const sourceSelect = document.getElementById('source-filter');
-  if (!sourceSelect) return;
-  const sources = new Set(internships.map(i => i.source_platform).filter(Boolean));
-  if (activeSource !== 'all') sources.add(activeSource);
-  sourceSelect.innerHTML = '<option value="all">Source: All</option>';
-  sources.forEach(src => {
-    const opt = document.createElement('option');
-    opt.value = src;
-    opt.textContent = `Source: ${src}`;
-    sourceSelect.appendChild(opt);
-  });
-  sourceSelect.value = activeSource;   // the list reloads as n8n verdicts arrive; keep the user's choice
+function populateSourceFilter(items) {
+  const sel = $('source-filter');
+  if (!sel) return;
+  const sources = [...new Set(items.map(i => i.source_platform).filter(Boolean))].sort();
+  if (activeSource !== 'all' && !sources.includes(activeSource)) sources.push(activeSource);
+  sel.innerHTML = '<option value="all">All sites</option>' +
+    sources.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(shortSource(s))}</option>`).join('');
+  sel.value = activeSource;   // the list reloads as verdicts arrive; keep the user's choice
 }
 
-function renderOverviewStats(shown, base) {
-  // Headline numbers = the cards currently shown (all filters applied, incl. the scam-check filter)
-  shown = shown || [];
-  base = base || shown;
-  const verified = shown;
-  const total = shown.length;
-  const paidCount = verified.filter(i => {
-    const val = Number(i.stipend_numeric || 0);
-    return val > 0 || (i.stipend && !i.stipend.toLowerCase().includes('unpaid'));
-  }).length;
-  const newCount = verified.filter(isNewToday).length;
-
-  const totalEl = document.getElementById('stat-total-jobs');
-  const paidEl = document.getElementById('stat-paid-jobs');
-  const newEl = document.getElementById('stat-new-jobs');
-
-  if (totalEl) totalEl.innerText = total;
-  if (paidEl) paidEl.innerText = paidCount;
-  if (newEl) newEl.innerText = newCount || '0';
-
-  const countAll = document.getElementById('count-all');
-  const countIndia = document.getElementById('count-india');
-  const countRemote = document.getElementById('count-remote');
-  const countGlobal = document.getElementById('count-global');
-
-  if (countAll) countAll.innerText = base.length;
-  if (countIndia) countIndia.innerText = base.filter(i => (i.location_type || '').toLowerCase() === 'india').length;
-  if (countRemote) countRemote.innerText = base.filter(i => (i.location_type || '').toLowerCase() === 'remote').length;
-  if (countGlobal) countGlobal.innerText = base.filter(i => (i.location_type || '').toLowerCase() === 'international').length;
+function shortSource(s) {
+  return String(s).replace(/ Internship Portal \(Govt of India\)/i, ' (Govt)');
 }
 
-// ==========================================
-// 3. Card Grid Rendering with Corporate Polish & Real Logos
-// ==========================================
+// Counts of the whole collection, independent of the filters below it
+function renderPipeline() {
+  const st = (r) => r.moderation_status || '';
+  $('pipe-all').textContent = allInternships.length;
+  $('pipe-pass').textContent = allInternships.filter(r => st(r) === 'approved').length;
+  $('pipe-look').textContent = allInternships.filter(r => st(r) === 'review').length;
+  $('pipe-scam').textContent = allInternships.filter(r => st(r) === 'blocked').length;
+  $('pipe-sites').textContent = new Set(allInternships.map(r => r.source_platform).filter(Boolean)).size;
+  syncPipelineButtons();
+}
+
+function syncPipelineButtons() {
+  document.querySelectorAll('.stage').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.show === activeModeration)));
+}
+
+// ─────────────────────────────────────────────
+// 2. Filters
+// ─────────────────────────────────────────────
+function isPaid(item) {
+  const num = Number(item.stipend_numeric || 0);
+  return num > 0 || (!!item.stipend && !/unpaid/i.test(item.stipend));
+}
+
 function applyFiltersAndRender() {
-  const searchInput = document.getElementById('search-input');
-  const searchQuery = (searchInput ? searchInput.value : '').toLowerCase().trim();
+  const q = ($('search-input')?.value || '').toLowerCase().trim();
 
-  const matches = (item, ignoreLocation) => {
+  const filtered = allInternships.filter(item => {
     if (showBookmarkedOnly && !bookmarks.includes(item.id)) return false;
 
-    // Scam check verdict (n8n). Default: only what n8n checked and passed.
     const mod = item.moderation_status || '';
     if (activeModeration === 'verified' && mod !== 'approved') return false;
     if (activeModeration === 'verified_review' && mod !== 'approved' && mod !== 'review') return false;
-    if (activeModeration === 'hide_blocked' && mod === 'blocked') return false;
+    if (activeModeration === 'review' && mod !== 'review') return false;
     if (activeModeration === 'blocked' && mod !== 'blocked') return false;
 
-    // Location filter (from segmented tabs or dropdown)
-    if (!ignoreLocation && activeLocation !== 'all') {
-      if ((item.location_type || '').toLowerCase() !== activeLocation.toLowerCase()) {
-        return false;
-      }
-    }
+    if (activeLocation !== 'all' && (item.location_type || '').toLowerCase() !== activeLocation.toLowerCase()) return false;
+    if (activeSource !== 'all' && item.source_platform !== activeSource) return false;
 
-    // Role Type filter
-    if (activeRoleType !== 'all') {
-      const roleStr = `${item.role_title || ''} ${item.role_type || ''}`.toLowerCase();
-      if (!roleStr.includes(activeRoleType.toLowerCase())) {
-        return false;
-      }
-    }
+    const pay = Number(item.stipend_numeric || 0);
+    if (activeStipend === 'paid' && !isPaid(item)) return false;
+    if (activeStipend === '20k' && pay < 20000) return false;
+    if (activeStipend === '50k' && pay < 50000) return false;
+    if (activeStipend === '100k' && pay < 100000) return false;
 
-    // Source platform filter
-    if (activeSource !== 'all' && item.source_platform !== activeSource) {
-      return false;
-    }
-
-    // Stipend filter
-    if (activeStipend === 'paid') {
-      const num = Number(item.stipend_numeric || 0);
-      if (num <= 0 && (!item.stipend || item.stipend.toLowerCase().includes('unpaid'))) return false;
-    } else if (activeStipend === '20k') {
-      if (Number(item.stipend_numeric || 0) < 20000) return false;
-    } else if (activeStipend === '50k') {
-      if (Number(item.stipend_numeric || 0) < 50000) return false;
-    } else if (activeStipend === '100k') {
-      if (Number(item.stipend_numeric || 0) < 100000) return false;
-    }
-
-    // Text search
-    if (searchQuery) {
+    if (q) {
       const text = `${item.role_title || ''} ${item.company_name || ''} ${item.required_skills || ''} ${item.location || ''}`.toLowerCase();
-      if (!text.includes(searchQuery)) return false;
+      if (!text.includes(q)) return false;
     }
-
     return true;
-  };
+  });
 
-  // Every number on the page follows the filters (the location tabs count everything else that matches)
-  const base = allInternships.filter(item => matches(item, true));
-  const filtered = base.filter(item => matches(item, false));
-  renderOverviewStats(filtered, base);
+  $('stat-total-jobs').textContent = filtered.length;
+  $('stat-paid-jobs').textContent = filtered.filter(isPaid).length;
+  $('stat-new-jobs').textContent = filtered.filter(isNewToday).length;
   renderListings(filtered);
 }
 
+// ─────────────────────────────────────────────
+// 3. Listing rows
+// ─────────────────────────────────────────────
+const VERDICT = {
+  approved: { cls: 'pass', short: 'Passed', long: 'Passed the check' },
+  review:   { cls: 'look', short: 'Look closer', long: 'Needs a closer look' },
+  blocked:  { cls: 'scam', short: 'Likely scam', long: 'Likely scam' },
+  expired:  { cls: 'closed', short: 'Link closed', long: 'Apply link is closed' },
+  checking: { cls: 'wait', short: 'Checking…', long: 'Being checked now' },
+  '':       { cls: 'wait', short: 'Not checked', long: 'Not checked yet' },
+};
+const verdictOf = (item) => VERDICT[item.moderation_status || ''] || VERDICT[''];
+
+const SAVE_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>';
+
 function renderListings(items) {
-  const container = document.getElementById('listings-container');
-  const emptyState = document.getElementById('empty-state');
-  if (!container) return;
+  const box = $('listings-container');
+  const empty = $('empty-state');
+  if (!box) return;
+  empty.classList.toggle('hidden', items.length > 0);
 
-  if (items.length === 0) {
-    container.innerHTML = '';
-    if (emptyState) {
-      emptyState.classList.remove('hidden');
-      emptyState.classList.add('flex');
-    }
-    return;
-  }
-
-  if (emptyState) {
-    emptyState.classList.add('hidden');
-    emptyState.classList.remove('flex');
-  }
-
-  container.innerHTML = items.map((item) => {
-    const isBookmarked = bookmarks.includes(item.id);
-    const skills = (item.required_skills || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
-    const logoSvg = getCompanyLogoSvg(item.company_name);
+  box.innerHTML = items.map(item => {
+    const v = verdictOf(item);
+    const saved = bookmarks.includes(item.id);
+    const skills = uniqueSkills(item.required_skills).slice(0, 4);
+    const flags = String(item.trust_flags || '').split(';').map(f => f.trim()).filter(Boolean);
+    const meta = [
+      `<span class="co">${escapeHtml(item.company_name || 'Company not named')}</span>`,
+      `<span>${escapeHtml(item.location || 'Location not stated')}</span>`,
+      `<span>${escapeHtml(shortSource(item.source_platform || ''))}</span>`,
+    ].join('');
+    const tags = [
+      isNewToday(item) ? '<span class="tag new">Added today</span>' : '',
+      flags.length ? `<span class="tag warn" title="${escapeHtml(flags.join('; '))}">${flags.length} note${flags.length > 1 ? 's' : ''}</span>` : '',
+      ...skills.map(s => `<span class="tag">${escapeHtml(s)}</span>`),
+    ].join('');
 
     return `
-      <article 
-        class="glass-card p-5 sm:p-6 flex flex-col justify-between cursor-pointer group"
-        onclick="openDetailDrawer('${escapeHtml(item.id)}')"
-      >
-        <div>
-          <!-- Top Row: Real Company Logo + Subtle Source Tag with colored dot + Bookmark -->
-          <div class="flex items-start justify-between mb-3.5">
-            <div class="flex items-center gap-3">
-              <!-- Genuine Square-Rounded Company Logo -->
-              <div class="company-logo-box" title="${escapeHtml(item.company_name || 'Organization')}">
-                ${logoSvg}
-              </div>
-
-              <div>
-                <!-- Subtle Source Badge with colored dot -->
-                <div class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                  <span class="w-1.5 h-1.5 rounded-full ${dotColor(item)}"></span>
-                  <span>${escapeHtml(item.source_platform || 'Direct Portal')}</span>
-                  ${isNewToday(item) ? '<span class="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 rounded text-[10px] ml-1">NEW</span>' : ''}
-                  ${moderationChip(item)}
-                  ${item.trust_flags ? `<span class="px-1.5 py-0.2 bg-amber-50 text-amber-700 font-bold border border-amber-200 rounded text-[10px] ml-1 flex items-center gap-0.5" title="${escapeHtml(item.trust_flags)}"><i class="ph ph-warning"></i> NOTE</span>` : ''}
-                </div>
-                <div class="text-xs font-bold text-slate-800 mt-0.5">${escapeHtml(item.company_name || 'Company')}</div>
-              </div>
-            </div>
-
-            <button 
-              type="button" 
-              class="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 transition"
-              onclick="event.stopPropagation(); toggleBookmark('${escapeHtml(item.id)}')"
-              title="Bookmark opportunity"
-            >
-              <i class="ph ${isBookmarked ? 'ph-fill ph-bookmark text-rose-500' : 'ph-bookmark'} text-base"></i>
-            </button>
-          </div>
-
-          <!-- Role Title -->
-          <h3 class="text-base font-bold text-slate-900 leading-snug line-clamp-2 group-hover:text-orange-600 transition-colors mt-2">
-            ${escapeHtml(item.role_title || 'Internship Opportunity')}
-          </h3>
-          
-          <!-- Location and Duration -->
-          <div class="text-xs text-slate-500 mt-1.5 flex items-center gap-2 font-medium">
-            <span class="flex items-center gap-1"><i class="ph ph-map-pin text-slate-400"></i> ${escapeHtml(item.location || 'Remote')}</span>
-            <span>&bull;</span>
-            <span>${escapeHtml(item.duration || 'Flexible')}</span>
-          </div>
-
-          <!-- Uniform Neutral Tech Stack Pills -->
-          <div class="flex flex-wrap gap-1.5 mt-4">
-            ${skills.map(skill => `<span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[11px] font-semibold border border-slate-200/60">${escapeHtml(skill)}</span>`).join('')}
-          </div>
+      <div class="row ${v.cls}" role="button" tabindex="0" data-id="${escapeHtml(item.id)}"
+           aria-label="${escapeHtml(`${item.role_title || 'Internship'} at ${item.company_name || 'unnamed company'}, ${v.long}`)}">
+        <span class="bar" aria-hidden="true"></span>
+        <div class="main">
+          <h3>${escapeHtml(item.role_title || 'Internship')}</h3>
+          <div class="meta">${meta}</div>
+          <div class="tags">${tags}</div>
         </div>
-
-        <!-- Footer: Clean Stipend Readout & Consistent Dark CTA -->
-        <div class="pt-4 mt-5 border-t border-slate-100 flex items-center justify-between text-xs">
-          <div>
-            <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Stipend</div>
-            <div class="font-extrabold text-slate-900 text-sm mt-0.5">${escapeHtml(item.stipend || 'Unspecified')}</div>
-          </div>
-          <div>
-            <!-- Consistent Sleek Dark Slate Button Across All Cards -->
-            <span class="px-3 py-1.5 bg-slate-900 text-white font-semibold rounded-lg group-hover:bg-orange-600 transition flex items-center gap-1 text-xs">
-              <span>View Details</span>
-              <i class="ph ph-arrow-right text-xs"></i>
-            </span>
-          </div>
+        <div class="side">
+          <div class="pay"><b title="${escapeHtml(item.stipend || '')}">${escapeHtml(tidyStipend(item.stipend) || 'Stipend not stated')}</b>${item.duration ? `<span>${escapeHtml(item.duration)}</span>` : ''}</div>
+          <div><span class="verdict ${v.cls}">${v.short}</span></div>
         </div>
-      </article>
-    `;
+        <button class="save" type="button" data-save="${escapeHtml(item.id)}" aria-pressed="${saved}"
+                aria-label="${saved ? 'Remove from saved' : 'Save'}">${SAVE_ICON}</button>
+      </div>`;
   }).join('');
 }
 
-// ==========================================
-// 4. Slide-Over Detail Drawer
-// ==========================================
+function uniqueSkills(str) {
+  const seen = new Set();
+  return String(str || '').split(',').map(s => s.trim()).filter(s => {
+    const k = s.toLowerCase();
+    if (!s || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+// ─────────────────────────────────────────────
+// 4. Detail drawer, with the scam check explained step by step
+// ─────────────────────────────────────────────
 function openDetailDrawer(id) {
   const item = allInternships.find(i => i.id === id);
   if (!item) return;
-
   activeDrawerJob = item;
-  document.getElementById('drawer-role-title').innerText = item.role_title || 'Opportunity';
-  document.getElementById('drawer-company-name').innerText = item.company_name || '';
-  document.getElementById('drawer-location').innerText = item.location || 'Remote';
-  document.getElementById('drawer-duration').innerText = item.duration || 'Flexible';
-  document.getElementById('drawer-stipend').innerText = item.stipend || 'Unspecified';
-  document.getElementById('drawer-deadline').innerText = item.application_deadline || 'Rolling';
-  document.getElementById('drawer-source').innerText = item.source_platform || 'Portal';
-  document.getElementById('drawer-date').innerText = item.date_scraped || 'Recent';
-  document.getElementById('drawer-org-badge').innerText = item.org_type || 'Company';
+  lastFocus = document.activeElement;
 
-  const applyLink = document.getElementById('drawer-apply-link');
-  applyLink.href = safeUrl(item.apply_link);
+  $('drawer-role-title').textContent = item.role_title || 'Internship';
+  $('drawer-company-name').textContent = item.company_name || 'Company not named';
+  $('drawer-stipend').textContent = tidyStipend(item.stipend) || 'Not stated';
+  $('drawer-duration').textContent = item.duration || 'Not stated';
+  $('drawer-deadline').textContent = formatDate(item.application_deadline) || 'Not stated';
+  $('drawer-location').textContent = item.location || 'Not stated';
+  $('drawer-source').textContent = shortSource(item.source_platform || '–');
+  $('drawer-org-badge').textContent = item.org_type || 'Company';
+  $('drawer-date').textContent = `${shortSource(item.source_platform || 'the site')} on ${formatDate(item.date_scraped) || 'an earlier run'}`;
+  $('drawer-apply-link').href = safeUrl(item.apply_link);
 
-  // n8n verdict with its reasons
-  const modBox = document.getElementById('drawer-mod-box');
-  const view = MOD_VIEWS[item.moderation_status || ''] || MOD_VIEWS[''];
-  modBox.className = `p-3 rounded-lg border text-xs ${view.box}`;
-  const risk = item.scam_risk !== '' && item.scam_risk != null ? ` · risk ${Number(item.scam_risk).toFixed(2)}` : '';
-  document.getElementById('drawer-mod-title').innerText = `${view.label}${risk}`;
-  const reasons = String(item.moderation_reasons || '').split(' | ').map(r => r.trim()).filter(Boolean);
-  document.getElementById('drawer-mod-reasons').innerHTML = reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('');
+  renderCheck(item);
+
+  const skills = uniqueSkills(item.required_skills);
+  $('drawer-skills-box').classList.toggle('hidden', !skills.length);
+  $('drawer-skills-list').innerHTML = skills.map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('');
 
   const desc = String(item.description || '').trim();
-  document.getElementById('drawer-desc-box').classList.toggle('hidden', !desc);
-  document.getElementById('drawer-description').innerText = desc;
-
-  const skillsContainer = document.getElementById('drawer-skills-list');
-  const skills = (item.required_skills || '').split(',').map(s => s.trim()).filter(Boolean);
-  skillsContainer.innerHTML = skills.length
-    ? skills.map(s => `<span class="px-2.5 py-1 bg-slate-100 border border-slate-200 text-slate-700 rounded-md text-xs font-semibold">${escapeHtml(s)}</span>`).join('')
-    : '<span class="text-xs text-slate-500">General qualifications.</span>';
-
-  const trustBox = document.getElementById('drawer-trust-box');
-  const trustText = document.getElementById('drawer-trust-flags');
-  if (trustBox && trustText) {
-    if (item.trust_flags) {
-      trustText.innerHTML = String(item.trust_flags).split(';').map(f => f.trim()).filter(Boolean)
-        .map(f => `<li>${escapeHtml(f)}</li>`).join('');
-      trustBox.classList.remove('hidden');
-    } else {
-      trustBox.classList.add('hidden');
-    }
-  }
+  $('drawer-desc-box').classList.toggle('hidden', !desc);
+  $('drawer-description').textContent = desc;
 
   updateDrawerBookmarkIcon();
-
-  const overlay = document.getElementById('detail-drawer-overlay');
-  const drawer = document.getElementById('detail-drawer');
-  overlay.classList.remove('hidden');
-  setTimeout(() => drawer.classList.remove('translate-x-full'), 10);
+  $('detail-drawer-overlay').classList.remove('hidden');
+  requestAnimationFrame(() => $('detail-drawer').classList.add('open'));
+  $('detail-drawer').querySelector('.d-body').scrollTop = 0;
+  $('close-drawer-btn').focus();
 }
 
 function closeDetailDrawer() {
-  const overlay = document.getElementById('detail-drawer-overlay');
-  const drawer = document.getElementById('detail-drawer');
-  drawer.classList.add('translate-x-full');
-  setTimeout(() => overlay.classList.add('hidden'), 200);
+  const overlay = $('detail-drawer-overlay');
+  if (overlay.classList.contains('hidden')) return;
+  $('detail-drawer').classList.remove('open');
+  setTimeout(() => overlay.classList.add('hidden'), 220);
+  activeDrawerJob = null;
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+}
+
+// Turns the pipeline's reason strings into three plain-language steps
+function explainCheck(item) {
+  const reasons = String(item.moderation_reasons || '').split(' | ').map(r => r.trim()).filter(Boolean);
+  const judged = ['approved', 'review', 'blocked'].includes(item.moderation_status || '');
+  const rules = String(item.trust_flags || '').split(';').map(f => f.trim()).filter(Boolean);
+  const wording = [];
+  let wordingSkipped = false, ai = null, aiSkipped = false, note = '';
+
+  for (const r of reasons) {
+    let m;
+    if ((m = r.match(/^LLM:\s*(\w+),\s*probability\s*([\d.]+)\s*[—-]\s*(.*)$/i))) {
+      ai = { verdict: m[1].toLowerCase(), p: Number(m[2]), summary: m[3] };
+    } else if (/^LLM judge unavailable/i.test(r)) {
+      aiSkipped = true;
+    } else if (/^Embedding failed/i.test(r)) {
+      wordingSkipped = true;
+    } else if ((m = r.match(/^Vector match,\s*(.*?)\s*\(similarity\s*([\d.]+)\):\s*"?(.*?)"?$/i))) {
+      wording.push({ label: m[1], quote: m[3] });
+    } else if (/^Near-copy of a known scam/i.test(r)) {
+      wording.push({ label: r.replace(/^Near-copy of a known scam:\s*/i, 'Near copy of a known scam: '), quote: '' });
+    } else if (/disagree/i.test(r)) {
+      note = 'The AI reviewer and the wording check disagree, so a person should look at this one.';
+    } else if ((m = r.match(/^Scraper warnings?:\s*(.*)$/i))) {
+      m[1].split(';').map(s => s.trim()).filter(Boolean).forEach(s => { if (!rules.includes(s)) rules.push(s); });
+    } else if (r.length < 160 && !/[{}]/.test(r)) {
+      if (!rules.includes(r)) rules.push(r);
+    }
+  }
+
+  const steps = [];
+  steps.push(rules.length
+    ? { ic: 'flag', t: 'Link and details', d: `<ul>${rules.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul>` }
+    : { ic: judged ? 'ok' : 'skip', t: 'Link and details', d: judged ? 'No warning signs in the apply link, contact details or the post.' : 'Not run yet.' });
+
+  if (wording.length) {
+    const strong = item.moderation_status === 'blocked';
+    steps.push({ ic: strong ? 'bad' : 'flag', t: 'Scam wording',
+      d: wording.map(w => `${escapeHtml(w.label)}${w.quote ? `: <q>${escapeHtml(w.quote)}</q>` : ''}`).join('<br>') });
+  } else if (wordingSkipped) {
+    steps.push({ ic: 'skip', t: 'Scam wording', d: 'Skipped: the similarity service did not answer in time. The other two steps decided.' });
+  } else {
+    steps.push({ ic: judged ? 'ok' : 'skip', t: 'Scam wording', d: judged ? 'Not close to the wording of any known scam post.' : 'Not run yet.' });
+  }
+
+  if (ai) {
+    const ic = ai.verdict === 'genuine' ? 'ok' : ai.verdict === 'scam' ? 'bad' : 'flag';
+    const word = { genuine: 'Looks genuine', suspicious: 'Unsure', scam: 'Looks like a scam' }[ai.verdict] || ai.verdict;
+    steps.push({ ic, t: 'AI reviewer', d: `${word} (${Math.round(ai.p * 100)}% scam chance). ${escapeHtml(ai.summary)}` });
+  } else if (aiSkipped) {
+    steps.push({ ic: 'skip', t: 'AI reviewer', d: 'Did not answer, so the first two steps decided.' });
+  } else if (item.moderation_status === 'blocked' && wording.length) {
+    steps.push({ ic: 'skip', t: 'AI reviewer', d: 'Not needed: the wording check was conclusive.' });
+  } else {
+    steps.push({ ic: 'skip', t: 'AI reviewer', d: judged ? 'Not run.' : 'Not run yet.' });
+  }
+  return { steps, note };
+}
+
+function renderCheck(item) {
+  const v = verdictOf(item);
+  const box = $('drawer-mod-box');
+  box.className = `check ${v.cls}`;
+  $('drawer-mod-title').textContent = v.long;
+  const risk = item.scam_risk !== '' && item.scam_risk != null && !isNaN(Number(item.scam_risk))
+    ? `Scam risk ${Math.round(Number(item.scam_risk) * 100)}%` : '';
+  $('drawer-mod-risk').textContent = risk;
+
+  const { steps, note } = explainCheck(item);
+  $('drawer-mod-note').textContent = note;
+  $('drawer-mod-note').classList.toggle('hidden', !note);
+  const mark = { ok: '✓', flag: '!', bad: '✕', skip: '–' };
+  $('drawer-mod-reasons').innerHTML = steps.map(s => `
+    <li><span class="ic ${s.ic}" aria-hidden="true">${mark[s.ic]}</span>
+      <div><div class="t">${s.t}</div><div class="d">${s.d}</div></div></li>`).join('');
 }
 
 function updateDrawerBookmarkIcon() {
-  const btn = document.getElementById('drawer-bookmark-btn');
+  const btn = $('drawer-bookmark-btn');
   if (!btn || !activeDrawerJob) return;
-  const isBookmarked = bookmarks.includes(activeDrawerJob.id);
-  btn.innerHTML = `<i class="ph ${isBookmarked ? 'ph-fill ph-bookmark text-rose-500' : 'ph-bookmark text-slate-600'} text-base"></i>`;
+  const saved = bookmarks.includes(activeDrawerJob.id);
+  btn.textContent = saved ? 'Saved' : 'Save';
+  btn.setAttribute('aria-pressed', String(saved));
 }
 
-// ==========================================
-// 5. Bookmarks & Local Storage
-// ==========================================
+// ─────────────────────────────────────────────
+// 5. Saved listings (this browser only)
+// ─────────────────────────────────────────────
 function toggleBookmark(id) {
-  if (bookmarks.includes(id)) {
-    bookmarks = bookmarks.filter(b => b !== id);
-  } else {
-    bookmarks.push(id);
-  }
-  localStorage.setItem('inreal_bookmarks', JSON.stringify(bookmarks));
+  bookmarks = bookmarks.includes(id) ? bookmarks.filter(b => b !== id) : [...bookmarks, id];
+  writeBookmarks();
   updateBookmarkCounter();
   applyFiltersAndRender();
-  if (activeDrawerJob && activeDrawerJob.id === id) {
-    updateDrawerBookmarkIcon();
-  }
+  if (activeDrawerJob && activeDrawerJob.id === id) updateDrawerBookmarkIcon();
 }
 
 function updateBookmarkCounter() {
-  const count = bookmarks.length;
-  const counter = document.getElementById('bookmark-count');
-  if (counter) counter.innerText = count;
+  const c = $('bookmark-count');
+  if (c) c.textContent = bookmarks.length;
 }
 
-// ==========================================
-// 6. Scraper Status & Activity Feeds
-// ==========================================
+// ─────────────────────────────────────────────
+// 6. Live status: scraper, alerts, scam-check queue
+// ─────────────────────────────────────────────
 async function pollScraperStatus() {
   try {
-    const res = await fetch('/api/scrape/status');
-    const data = await res.json();
-    const isRunning = data.status === 'running';
-    handleScrapeProgress(data.progress, isRunning);
-
-    const dot = document.getElementById('ping-dot');
-    const text = document.getElementById('scraper-status-text');
-
-    if (isRunning) {
-      if (dot) dot.className = 'w-2 h-2 rounded-full bg-orange-500 animate-pulse';
-      if (text) text.innerText = 'Scanning...';
-    } else {
-      if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-      if (text) text.innerText = 'System Ready';
-    }
-  } catch (e) {}
-
+    const data = await fetch('/api/scrape/status').then(r => r.json());
+    const running = data.status === 'running';
+    handleScrapeProgress(data.progress, running);
+    $('ping-dot').classList.toggle('busy', running);
+    $('scraper-status-text').textContent = running ? 'Scraping…' : 'Ready';
+  } catch (e) { /* app restarting */ }
   setTimeout(pollScraperStatus, 3500);
 }
 
 async function pollAlerts() {
   try {
-    const res = await fetch('/api/alerts');
-    const data = await res.json();
-    const banner = document.getElementById('action-banner');
-
+    const data = await fetch('/api/alerts').then(r => r.json());
     if (data.alert) {
-      document.getElementById('action-title').innerText = data.alert.title || `Action Required: ${data.alert.source || 'Scraper'}`;
-      document.getElementById('action-message').innerText = data.alert.message || 'Action required in browser window.';
-      banner.classList.remove('hidden');
+      $('action-title').textContent = data.alert.title || `${data.alert.source || 'A site'} needs you`;
+      $('action-message').textContent = data.alert.message || 'Finish the check in its browser window.';
+      $('action-banner').classList.remove('hidden');
     } else {
-      banner.classList.add('hidden');
+      $('action-banner').classList.add('hidden');
     }
-  } catch (e) {}
+  } catch (e) { /* app restarting */ }
   setTimeout(pollAlerts, 3000);
 }
 
-// ==========================================
-// 7. Event Handlers & Corporate Filter Bindings
-// ==========================================
-function bindEventHandlers() {
-  document.getElementById('search-input')?.addEventListener('input', applyFiltersAndRender);
-  document.getElementById('mod-filter')?.addEventListener('change', (e) => {
-    activeModeration = e.target.value;
-    applyFiltersAndRender();
-  });
+// Reload when n8n has judged more listings (it runs while scraping continues)
+let lastJudged = -1;
+async function pollModeration() {
+  try {
+    const c = await fetch('/api/moderation/status').then(r => r.json());
+    const judged = c.approved + c.review + c.blocked + c.expired;
+    const waiting = c.pending + c.checking;
+    $('mod-queue').textContent = waiting ? `${waiting} still being checked` : '';
+    const notes = [];
+    if (waiting) notes.push(`${waiting} still being checked`);
+    if (c.expired) notes.push(`${c.expired} with a closed apply link`);
+    $('pipe-note').textContent = notes.join(' · ');
+    if (judged !== lastJudged) { lastJudged = judged; loadData(); }
+  } catch (e) { /* app restarting */ }
+  setTimeout(pollModeration, 5000);
+}
 
-  // Dropdown 1: Role Type
-  document.getElementById('role-type-filter')?.addEventListener('change', (e) => {
-    activeRoleType = e.target.value;
-    applyFiltersAndRender();
-  });
-
-  // Dropdown 2: Location Select
-  document.getElementById('location-select-filter')?.addEventListener('change', (e) => {
-    activeLocation = e.target.value;
-    // Sync segmented tabs
-    document.querySelectorAll('#location-tabs .pill-segmented-item').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-val') === activeLocation);
-    });
-    applyFiltersAndRender();
-  });
-
-  // Dropdown 3: Min. Stipend
-  document.getElementById('stipend-select-filter')?.addEventListener('change', (e) => {
-    activeStipend = e.target.value;
-    // Sync segmented tabs
-    document.querySelectorAll('#stipend-filters .pill-segmented-item').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-val') === activeStipend);
-    });
-    applyFiltersAndRender();
-  });
-
-  // Dropdown 4: Source Filter
-  document.getElementById('source-filter')?.addEventListener('change', (e) => {
-    activeSource = e.target.value;
-    applyFiltersAndRender();
-  });
-
-  // Segmented Region Buttons
-  document.querySelectorAll('#location-tabs .pill-segmented-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#location-tabs .pill-segmented-item').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeLocation = btn.getAttribute('data-val');
-      const locSelect = document.getElementById('location-select-filter');
-      if (locSelect) locSelect.value = activeLocation;
-      applyFiltersAndRender();
-    });
-  });
-
-  // Segmented Stipend Buttons
-  document.querySelectorAll('#stipend-filters .pill-segmented-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#stipend-filters .pill-segmented-item').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeStipend = btn.getAttribute('data-val');
-      const stpSelect = document.getElementById('stipend-select-filter');
-      if (stpSelect) stpSelect.value = activeStipend;
-      applyFiltersAndRender();
-    });
-  });
-
-  // Saved Bookmarks Button
-  document.getElementById('filter-bookmarks-btn')?.addEventListener('click', () => {
-    showBookmarkedOnly = !showBookmarkedOnly;
-    const btn = document.getElementById('filter-bookmarks-btn');
-    if (showBookmarkedOnly) {
-      btn.classList.add('bg-rose-50', 'text-rose-600', 'border-rose-200');
+// One popup per finished site, one summary at the end
+let seenRunId = null, seenSites = 0, runAnnounced = true;
+function handleScrapeProgress(progress, isRunning) {
+  if (!progress) return;
+  if (seenRunId === null) {            // page just opened: don't replay an old run
+    seenRunId = progress.run_id; seenSites = progress.sites.length; runAnnounced = progress.finished;
+    return;
+  }
+  if (progress.run_id !== seenRunId) { seenRunId = progress.run_id; seenSites = 0; runAnnounced = false; }
+  for (const site of progress.sites.slice(seenSites)) {
+    const name = site.source.charAt(0).toUpperCase() + site.source.slice(1);
+    if (site.ok) {
+      showToast(site.added ? 'success' : 'info', `${name} done`,
+        site.added ? `${site.added} new internship${site.added > 1 ? 's' : ''} saved. Checking them for scams now.`
+                   : 'No new internships this time.');
     } else {
-      btn.classList.remove('bg-rose-50', 'text-rose-600', 'border-rose-200');
+      showToast('error', `${name} failed`, site.error || 'See scraper_run.log for details.');
     }
+    loadData();
+  }
+  seenSites = progress.sites.length;
+  if (progress.finished && !runAnnounced && !isRunning) {
+    runAnnounced = true;
+    const failed = progress.failed.length ? ` ${progress.failed.length} site${progress.failed.length > 1 ? 's' : ''} failed.` : '';
+    showToast('success', 'Scraping finished',
+      `${progress.total_added} new internship${progress.total_added === 1 ? '' : 's'} from ${progress.sites.length} site${progress.sites.length === 1 ? '' : 's'}.${failed} They appear in the list once they pass the check.`);
+  }
+}
+
+function showToast(kind, title, message) {
+  let stack = $('toast-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'toast-stack';
+    stack.setAttribute('aria-live', 'polite');
+    document.body.appendChild(stack);
+  }
+  const t = document.createElement('div');
+  t.className = `toast ${kind}`;
+  t.setAttribute('role', 'status');
+  t.innerHTML = `<div><b>${escapeHtml(title)}</b><span>${escapeHtml(message)}</span></div><button type="button" aria-label="Dismiss">×</button>`;
+  t.querySelector('button').onclick = () => t.remove();
+  stack.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 7000);
+}
+
+// ─────────────────────────────────────────────
+// 7. Events
+// ─────────────────────────────────────────────
+function setModeration(value) {
+  activeModeration = value;
+  const sel = $('mod-filter');
+  if (sel) sel.value = value;
+  syncPipelineButtons();
+  applyFiltersAndRender();
+}
+
+function bindEventHandlers() {
+  $('search-input')?.addEventListener('input', applyFiltersAndRender);
+  $('mod-filter')?.addEventListener('change', e => setModeration(e.target.value));
+  $('source-filter')?.addEventListener('change', e => { activeSource = e.target.value; applyFiltersAndRender(); });
+  $('location-select-filter')?.addEventListener('change', e => { activeLocation = e.target.value; applyFiltersAndRender(); });
+  $('stipend-select-filter')?.addEventListener('change', e => { activeStipend = e.target.value; applyFiltersAndRender(); });
+  document.querySelectorAll('.stage').forEach(b => b.addEventListener('click', () => {
+    setModeration(b.dataset.show);
+    document.querySelector('.filters').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+
+  $('filter-bookmarks-btn')?.addEventListener('click', () => {
+    showBookmarkedOnly = !showBookmarkedOnly;
+    const btn = $('filter-bookmarks-btn');
+    btn.classList.toggle('on', showBookmarkedOnly);
+    btn.setAttribute('aria-pressed', String(showBookmarkedOnly));
     applyFiltersAndRender();
   });
 
-  // Reset Filters Function
   const resetAll = () => {
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) searchInput.value = '';
-    activeLocation = 'all';
-    activeStipend = 'all';
-    activeSource = 'all';
-    activeRoleType = 'all';
+    $('search-input').value = '';
+    activeLocation = activeStipend = activeSource = 'all';
     showBookmarkedOnly = false;
-    
-    const roleSelect = document.getElementById('role-type-filter');
-    if (roleSelect) roleSelect.value = 'all';
-
-    const locSelect = document.getElementById('location-select-filter');
-    if (locSelect) locSelect.value = 'all';
-
-    const stpSelect = document.getElementById('stipend-select-filter');
-    if (stpSelect) stpSelect.value = 'all';
-
-    const sourceSelect = document.getElementById('source-filter');
-    if (sourceSelect) sourceSelect.value = 'all';
-    activeModeration = 'verified';
-    const modSelect = document.getElementById('mod-filter');
-    if (modSelect) modSelect.value = 'verified';
-    
-    const bookmarkBtn = document.getElementById('filter-bookmarks-btn');
-    if (bookmarkBtn) bookmarkBtn.classList.remove('bg-rose-50', 'text-rose-600', 'border-rose-200');
-
-    const allTab = document.querySelector('#location-tabs [data-val="all"]');
-    if (allTab) {
-      document.querySelectorAll('#location-tabs .pill-segmented-item').forEach(b => b.classList.remove('active'));
-      allTab.classList.add('active');
-    }
-
-    const allStipend = document.querySelector('#stipend-filters [data-val="all"]');
-    if (allStipend) {
-      document.querySelectorAll('#stipend-filters .pill-segmented-item').forEach(b => b.classList.remove('active'));
-      allStipend.classList.add('active');
-    }
-
-    applyFiltersAndRender();
+    $('location-select-filter').value = 'all';
+    $('stipend-select-filter').value = 'all';
+    $('source-filter').value = 'all';
+    $('filter-bookmarks-btn').classList.remove('on');
+    $('filter-bookmarks-btn').setAttribute('aria-pressed', 'false');
+    setModeration('verified');
   };
+  $('reset-filters-btn')?.addEventListener('click', resetAll);
+  $('empty-reset-btn')?.addEventListener('click', resetAll);
 
-  document.getElementById('reset-filters-btn')?.addEventListener('click', resetAll);
-  document.getElementById('empty-reset-btn')?.addEventListener('click', resetAll);
-
-  // Detail Drawer Interactions
-  document.getElementById('close-drawer-btn')?.addEventListener('click', closeDetailDrawer);
-  document.getElementById('detail-drawer-overlay')?.addEventListener('click', (e) => {
-    if (e.target === document.getElementById('detail-drawer-overlay')) {
-      closeDetailDrawer();
+  // Rows: one listener for the whole list
+  const list = $('listings-container');
+  list.addEventListener('click', e => {
+    const save = e.target.closest('[data-save]');
+    if (save) { toggleBookmark(save.dataset.save); return; }
+    const row = e.target.closest('.row');
+    if (row) openDetailDrawer(row.dataset.id);
+  });
+  list.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('row')) {
+      e.preventDefault();
+      openDetailDrawer(e.target.dataset.id);
     }
   });
-  document.getElementById('drawer-bookmark-btn')?.addEventListener('click', () => {
-    if (activeDrawerJob) toggleBookmark(activeDrawerJob.id);
-  });
 
-  // Opportunity Modal (Triggered by "Submit an Opportunity")
-  const modal = document.getElementById('scrape-config-modal');
-  document.getElementById('trigger-scrape-btn')?.addEventListener('click', () => {
+  $('close-drawer-btn')?.addEventListener('click', closeDetailDrawer);
+  $('detail-drawer-overlay')?.addEventListener('click', e => { if (e.target === $('detail-drawer-overlay')) closeDetailDrawer(); });
+  $('drawer-bookmark-btn')?.addEventListener('click', () => { if (activeDrawerJob) toggleBookmark(activeDrawerJob.id); });
+
+  // Scrape dialog
+  const modal = $('scrape-config-modal');
+  const closeModal = () => { modal.classList.add('hidden'); $('trigger-scrape-btn').focus(); };
+  $('trigger-scrape-btn')?.addEventListener('click', () => {
     modal.classList.remove('hidden');
+    modal.querySelector('input')?.focus();
   });
-  document.getElementById('close-config-btn')?.addEventListener('click', () => {
-    modal.classList.add('hidden');
-  });
+  $('close-config-btn')?.addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 
-  document.getElementById('scrape-config-form')?.addEventListener('submit', async (e) => {
+  $('scrape-config-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    modal.classList.add('hidden');
-
-    const checkedValues = (name) => Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(cb => cb.value);
-    const config = {
-      regions: checkedValues('regions'),
-      sources: checkedValues('sources')
-    };
-
+    const checked = name => [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(cb => cb.value);
+    const config = { regions: checked('regions'), sources: checked('sources') };
+    if (!config.sources.length) { showToast('error', 'Pick at least one site', 'Choose the sites to scrape, then start again.'); return; }
+    closeModal();
     try {
       const res = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.status === 403) showToast('info', 'View-only link', 'Scraping can only be started on the host laptop.');
+      else if (data.status === 'running') showToast('info', 'Already scraping', 'Wait for the current run to finish.');
+      else showToast('info', 'Scraping started', `${config.sources.length} site${config.sources.length > 1 ? 's' : ''}. A popup appears as each one finishes.`);
     } catch (err) {
-      console.error(err);
+      showToast('error', 'Could not start scraping', 'The app is not answering. Is python app.py still running?');
     }
   });
 
-  // Public (tunnel) visitors get a read-only dashboard: hide the scrape button for them
+  // Public (tunnel) visitors get a read-only page: no scrape button
   fetch('/api/whoami').then(r => r.json()).then(w => {
-    if (!w.can_edit) document.getElementById('trigger-scrape-btn')?.classList.add('hidden');
+    if (!w.can_edit) $('trigger-scrape-btn')?.classList.add('hidden');
   }).catch(() => {});
 
-  document.getElementById('action-dismiss-btn')?.addEventListener('click', async () => {
-    document.getElementById('action-banner').classList.add('hidden');
-    try {
-      await fetch('/api/alerts/dismiss', { method: 'POST' });
-    } catch (e) {}
+  $('action-dismiss-btn')?.addEventListener('click', async () => {
+    $('action-banner').classList.add('hidden');
+    try { await fetch('/api/alerts/dismiss', { method: 'POST' }); } catch (e) { /* ignore */ }
   });
 
-  // Keyboard navigation
-  window.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-      e.preventDefault();
-      document.getElementById('search-input')?.focus();
-    }
+  window.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('search-input')?.focus(); }
     if (e.key === 'Escape') {
       closeDetailDrawer();
-      modal.classList.add('hidden');
+      if (!modal.classList.contains('hidden')) closeModal();
     }
   });
 }
 
+// ─────────────────────────────────────────────
+// 8. Helpers
+// ─────────────────────────────────────────────
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -703,94 +550,13 @@ function isNewToday(item) {
   return String(item.is_new).toLowerCase() === 'true' && String(item.date_scraped || '').slice(0, 10) === today;
 }
 
-// ==========================================
-// 8. n8n scam check (moderation) — verdict chips and live queue
-// ==========================================
-const MOD_VIEWS = {
-  '':        { label: 'Scam check pending', chip: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-400', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-hourglass' },
-  checking:  { label: 'Being checked by n8n', chip: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-400', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-hourglass' },
-  approved:  { label: 'Verified by scam check', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', box: 'bg-emerald-50 border-emerald-200 text-emerald-800', icon: 'ph-shield-check' },
-  review:    { label: 'Needs a human look', chip: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500', box: 'bg-amber-50 border-amber-200 text-amber-800', icon: 'ph-eye' },
-  blocked:   { label: 'Likely scam', chip: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500', box: 'bg-rose-50 border-rose-200 text-rose-800', icon: 'ph-prohibit' },
-  expired:   { label: 'Apply link closed', chip: 'bg-slate-100 text-slate-500 border-slate-200', dot: 'bg-slate-400', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-link-break' },
-};
-
-function moderationChip(item) {
-  const v = MOD_VIEWS[item.moderation_status || ''] || MOD_VIEWS[''];
-  const short = { approved: 'VERIFIED', review: 'CHECK', blocked: 'SCAM?', expired: 'CLOSED', checking: 'CHECKING', '': 'PENDING' }[item.moderation_status || ''] || 'PENDING';
-  return `<span class="px-1.5 py-0.2 font-bold border rounded text-[10px] ml-1 flex items-center gap-0.5 ${v.chip}" title="${escapeHtml(v.label)}"><i class="ph ${v.icon}"></i> ${short}</span>`;
+function tidyStipend(s) {
+  return String(s || '').replace(/₹\s+/g, '₹').replace(/\s*-\s*/g, '–').replace(/\s+\/\s*/g, '/').trim();
 }
 
-function dotColor(item) {
-  const st = item.moderation_status || '';
-  if (st && st !== 'checking' && st !== 'approved') return (MOD_VIEWS[st] || MOD_VIEWS['']).dot;
-  return item.trust_flags ? 'bg-amber-500' : (st === 'approved' ? 'bg-emerald-500' : 'bg-slate-400');
-}
-
-// Reload the cards whenever n8n has judged more listings (it runs while scraping continues)
-let lastJudged = -1;
-async function pollModeration() {
-  try {
-    const c = await fetch('/api/moderation/status').then(r => r.json());
-    const judged = c.approved + c.review + c.blocked + c.expired;
-    const waiting = c.pending + c.checking;
-    const q = document.getElementById('mod-queue');
-    if (q) q.innerText = waiting ? `${c.checking} being checked · ${c.pending} waiting` : '';
-    if (judged !== lastJudged) { lastJudged = judged; loadData(); }
-  } catch (e) { /* app restarting */ }
-  setTimeout(pollModeration, 5000);
-}
-
-
-// ==========================================
-// 9. Scrape popups: one per finished site, one summary at the end
-// ==========================================
-let seenRunId = null, seenSites = 0, runAnnounced = true;
-
-function handleScrapeProgress(progress, isRunning) {
-  if (!progress) return;
-  if (seenRunId === null) {            // page just opened: don't replay an old run
-    seenRunId = progress.run_id; seenSites = progress.sites.length; runAnnounced = progress.finished;
-    return;
-  }
-  if (progress.run_id !== seenRunId) { seenRunId = progress.run_id; seenSites = 0; runAnnounced = false; }
-  for (const site of progress.sites.slice(seenSites)) {
-    const name = site.source.charAt(0).toUpperCase() + site.source.slice(1);
-    if (site.ok) {
-      showToast(site.added ? 'success' : 'info', `${name} scraped`,
-        site.added ? `${site.added} new internship${site.added > 1 ? 's' : ''} saved. n8n is checking them now.`
-                   : 'No new internships this time.');
-    } else {
-      showToast('error', `${name} failed`, site.error || 'See the run log.');
-    }
-    loadData();
-  }
-  seenSites = progress.sites.length;
-  if (progress.finished && !runAnnounced && !isRunning) {
-    runAnnounced = true;
-    const failed = progress.failed.length ? ` · ${progress.failed.length} site(s) failed` : '';
-    showToast('success', 'Scraping finished', `${progress.total_added} new internships from ${progress.sites.length} site(s)${failed}. Verified ones appear as n8n approves them.`);
-  }
-}
-
-function showToast(kind, title, message) {
-  let box = document.getElementById('toast-stack');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = 'toast-stack';
-    box.className = 'fixed bottom-6 right-6 z-[60] flex flex-col gap-2 max-w-sm w-[calc(100%-3rem)]';
-    document.body.appendChild(box);
-  }
-  const colors = { success: 'border-l-emerald-500', info: 'border-l-slate-400', error: 'border-l-rose-500' };
-  const icons = { success: 'ph-check-circle text-emerald-600', info: 'ph-info text-slate-500', error: 'ph-warning-circle text-rose-600' };
-  const t = document.createElement('div');
-  t.className = `glass-panel p-3.5 shadow-xl border-l-4 ${colors[kind] || colors.info} flex gap-3 items-start transition-opacity duration-300`;
-  t.setAttribute('role', 'status');
-  t.innerHTML = `<i class="ph ${icons[kind] || icons.info} text-xl mt-0.5"></i>
-    <div class="flex-1"><div class="text-sm font-bold text-slate-900">${escapeHtml(title)}</div>
-    <div class="text-xs text-slate-600 mt-0.5">${escapeHtml(message)}</div></div>
-    <button class="text-slate-400 hover:text-slate-700" aria-label="Close"><i class="ph ph-x"></i></button>`;
-  t.querySelector('button').onclick = () => t.remove();
-  box.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 7000);
+function formatDate(s) {
+  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(s || '');
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${Number(m[3])} ${months[Number(m[2]) - 1]} ${m[1]}`;
 }
