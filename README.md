@@ -1,5 +1,7 @@
-# 🤖 AI/ML Internship Radar
-### *Your personal robot that hunts down AI internships while you sleep.*
+# 🛡️ InReal by Team Chiranjeevi
+### *Built on the open-source AI/ML Internship Radar: your personal robot that hunts down internships while you sleep.*
+
+**Team:** Team Chiranjeevi · CodeX 3.0, PIET Panipat, Oct 2026
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://python.org)
 [![Flask](https://img.shields.io/badge/flask-3.x-green.svg)](https://flask.palletsprojects.com)
