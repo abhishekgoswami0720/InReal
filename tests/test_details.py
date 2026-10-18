@@ -77,3 +77,27 @@ def test_fill_details_reports_misses(monkeypatch):
     monkeypatch.setitem(details.FETCHERS, "Talent.com", lambda link: "")
     rows = [{"source_platform": "Talent.com", "description": "short", "apply_link": "https://x/1"}]
     assert details.fill_details(rows, 300) == 0 and rows[0]["description"] == "short"
+
+
+def test_stipend_from_text():
+    f = details.stipend_from_text
+    assert f("Location: Bangalore Stipend: 10,000/month Duration: 6 Months") == ("₹10,000 a month", 10000)
+    assert f("Fresher Stipend: 6,000 – 10,000 per month About") == ("₹6,000 – ₹10,000 a month", 6000)
+    assert f("stipend of INR 20k per month") == ("₹20,000 a month", 20000)
+    assert f("Stipend: Up to 25,000/month") == ("Up to ₹25,000 a month", 25000)
+    assert f("Stipend: 2.4 LPA")[1] == 20000
+    assert f("Stipend: Unpaid") == ("Unpaid", 0.0)
+    # no amount after the word "stipend": nothing is guessed
+    assert f("Stipend: Performance-based. CTC after internship 6 LPA") == ("", 0.0)
+    assert f("Stipend for 3 months will be given") == ("", 0.0)
+    assert f("We pay a good salary of 30,000") == ("", 0.0)
+
+
+def test_add_stipend_only_fills_an_empty_stipend_and_drops_the_flag():
+    row = {"stipend": "", "stipend_numeric": 0, "description": "Stipend: 10,000/month",
+           "trust_flags": "Stipend amount not stated; One post listed for 6 towns"}
+    assert details.add_stipend(row) is True
+    assert row["stipend"] == "₹10,000 a month" and row["stipend_numeric"] == 10000 and row["stipend_currency"] == "INR"
+    assert row["trust_flags"] == "One post listed for 6 towns"
+    kept = {"stipend": "₹20,000 a month", "stipend_numeric": 20000, "description": "Stipend: 5,000/month"}
+    assert details.add_stipend(kept) is False and kept["stipend"] == "₹20,000 a month"

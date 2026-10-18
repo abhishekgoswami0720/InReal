@@ -13,6 +13,7 @@ SimplyHired and Careerjet refuse scripts, so their pages are read inside the vis
 window that already opened for the search (fetch_in_page), right after each results page.
 """
 import json
+import re
 
 from loguru import logger
 
@@ -69,6 +70,64 @@ def text_under_heading(html, heading="Job description"):
     return ""
 
 
+# ---------- the stipend written inside the post ----------
+# Only an amount right after the word "stipend" counts (a CTC or "salary after the internship"
+# elsewhere in the post is not the stipend). Seen on 19 Oct 2026: "Stipend: 10,000/month",
+# "Stipend: 6,000 – 10,000 per month", "Stipend: Performance-based" (no amount: left empty).
+_AMOUNT = r"(?:₹|rs\.?|inr)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k|lpa|lakhs?)?"
+STIPEND_RE = re.compile(
+    r"\bstipend\b[^\n.]{0,25}?" + _AMOUNT + r"(?:\s*(?:-|–|—|to)\s*" + _AMOUNT + r")?"
+    r"(?:\s*(?:/|per|a|an)?\s*(month|mo|week|year|annum|day))?", re.I)
+UNPAID_STIPEND_RE = re.compile(r"\bstipend\b\s*[:\-–]?\s*(?:unpaid|none|nil|not\s+provided|no\s+stipend)\b"
+                               r"|\bunpaid\s+internship\b|\bno\s+stipend\b", re.I)
+
+
+def _rupees(num, unit):
+    value = float(num.replace(",", ""))
+    unit = (unit or "").lower()
+    if unit == "k":
+        value *= 1000
+    elif unit in ("lpa", "lakh", "lakhs"):
+        value *= 100000
+    return value, unit in ("lpa", "lakh", "lakhs")
+
+
+def stipend_from_text(text):
+    """(shown text, rupees per month) for the stipend the post states, or ("", 0.0).
+    "Unpaid" is returned as ("Unpaid", 0.0)."""
+    text = text or ""
+    if UNPAID_STIPEND_RE.search(text):
+        return "Unpaid", 0.0
+    for m in STIPEND_RE.finditer(text):
+        low, yearly1 = _rupees(m.group(1), m.group(2))
+        high, yearly2 = _rupees(m.group(3), m.group(4)) if m.group(3) else (low, yearly1)
+        period = (m.group(5) or "").lower()
+        if low < 500 and not m.group(2):
+            continue            # "stipend for 3 months", a year, a count: not an amount
+        per_year = yearly1 or yearly2 or period in ("year", "annum")
+        monthly = low / 12 if per_year else low * 4.33 if period == "week" else low * 22 if period == "day" else low
+        up_to = re.search(r"\b(up\s*to|upto|max(imum)?)\b", m.group(0), re.I)
+        amount = ("Up to " if up_to else "") + f"₹{low:,.0f}" + (f" – ₹{high:,.0f}" if high != low else "")
+        unit = " a year" if per_year else " a week" if period == "week" else " a day" if period == "day" else " a month"
+        return amount + unit, round(monthly)
+    return "", 0.0
+
+
+def add_stipend(row):
+    """If the row has no stipend yet, take it from its description. True if one was added."""
+    if str(row.get("stipend") or "").strip() or float(row.get("stipend_numeric") or 0):
+        return False
+    shown, monthly = stipend_from_text(row.get("description"))
+    if not shown:
+        return False
+    row["stipend"], row["stipend_numeric"] = shown, monthly
+    if monthly:
+        row["stipend_currency"] = "INR"
+    flags = [f.strip() for f in str(row.get("trust_flags") or "").split(";") if f.strip()]
+    row["trust_flags"] = "; ".join(f for f in flags if f != "Stipend amount not stated")
+    return True
+
+
 # ---------- at "Load 5 more" time, with plain requests ----------
 def _talent(link):
     """About 7 in 10 Talent.com posts carry a JobPosting; the rest only show the text under a
@@ -97,6 +156,7 @@ def fill_details(rows, min_chars):
             continue
         if len(text) > len(desc):
             row["description"] = text
+            add_stipend(row)
             filled += 1
         else:
             missed += 1
@@ -147,5 +207,6 @@ def fetch_in_page(page, records, mode):
         text = html_to_text(value, DETAIL_TEXT_LIMIT) if mode == "next" else jobposting_text(value)
         if len(text) > len(r.get("description") or ""):
             r["description"] = text
+            add_stipend(r)
             filled += 1
     return filled
