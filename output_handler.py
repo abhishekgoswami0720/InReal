@@ -1,3 +1,4 @@
+import re
 import json
 import csv
 import threading
@@ -274,6 +275,30 @@ def moderation_counts() -> dict:
     return out
 
 
+MIN_TEXT_TO_CHECK = 300   # characters of post text the scam check needs to say anything
+
+
+def approval_doubts(row: dict, reasons: str) -> list:
+    """
+    Reasons NOT to show an n8n "approved" as verified; the post goes to "review" instead.
+    Added 18 Oct 2026 after a batch where every post was approved:
+      1. the AI judge itself called it suspicious/scam and quoted the post (The SmartBridge and
+         VDOIT were approved at risk 0.39, just under the 0.40 review line);
+      2. the post had too little text to check (SimplyHired gave ~150 characters, so
+         "no scam signs" only meant "nothing to read");
+      3. the scam-wording search failed (embedding timeout), so only the AI judge had looked.
+    """
+    doubts = []
+    if re.search(r"\bLLM: (suspicious|scam)\b", reasons, re.I) and "Quote:" in reasons:
+        doubts.append("The AI judge called this suspicious and quoted the post, so a person should look")
+    text = len(str(row.get("description", "")).strip())
+    if text < MIN_TEXT_TO_CHECK:
+        doubts.append(f"Only {text} characters of the post could be read, too little to check for scams")
+    if "Embedding failed" in reasons:
+        doubts.append("The scam-wording check did not run, so this was not approved on the AI judge alone")
+    return doubts
+
+
 def save_verdict(listing_id: str, status: str, scam_risk, reasons) -> bool:
     """Stores the n8n verdict on one listing. Returns False if the id is unknown."""
     if status == "retry":   # the checks could not run (API down): back to the queue
@@ -298,6 +323,11 @@ def save_verdict(listing_id: str, status: str, scam_risk, reasons) -> bool:
         row = next((r for r in rows if r.get("id") == listing_id), None)
         if row is None:
             return False
+        if status == "approved":
+            held_back = approval_doubts(row, str(reasons or ""))
+            if held_back:
+                status = "review"
+                reasons = " | ".join(held_back + [str(reasons or "")])
         row.update({"moderation_status": status, "scam_risk": f"{risk:.2f}",
                     "moderation_reasons": str(reasons or "")[:1500],
                     "moderated_at": datetime.now().strftime("%Y-%m-%d %H:%M")})

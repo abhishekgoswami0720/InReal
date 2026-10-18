@@ -60,7 +60,13 @@ def test_index_built_with_calibration(index):
 
 # ---------- moderation storage + API ----------
 
-def _row(id_, title, desc="Build ML models with our team.", **kw):
+LONG_DESC = ("Build ML models with our team. You will clean data, train and evaluate models in Python, "
+             "write short reports on what worked, and pair with a mentor every week. The internship runs for "
+             "three months from our Bengaluru office with a monthly stipend, a certificate and a letter at the "
+             "end. Interviews are two technical rounds; there is no fee of any kind at any stage.")
+
+
+def _row(id_, title, desc=LONG_DESC, **kw):
     return {"id": id_, "company_name": "Acme", "role_title": title, "stipend": "15,000/month", "stipend_numeric": 15000,
             "apply_link": f"https://example.com/{id_}", "source_platform": "Naukri", "date_scraped": "2026-10-12",
             "description": desc, **kw}
@@ -468,3 +474,18 @@ def test_new_search_empties_the_list_search_more_keeps_it(store, monkeypatch):
     assert len(oh._read_rows()) == 1
     c.post("/api/scrape", json={"sources": ["unstop"]}); app_mod.scraper_t.join(1)
     assert oh._read_rows() == []
+
+
+def test_approval_is_held_back_when_the_check_is_weak(store):
+    oh.sync_listings([_row("a", "AI Intern"), _row("b", "ML Intern", "Short snippet only."),
+                      _row("c", "Data Intern"), _row("d", "NLP Intern")], [])
+    oh.save_verdict("a", "approved", 0.39, ["LLM: suspicious, probability 0.5 — sounds like a training sale",
+                                            'Quote: "learning opportunities" (could be a course)'])
+    oh.save_verdict("b", "approved", 0.0, ["LLM: genuine, probability 0"])
+    oh.save_verdict("c", "approved", 0.0, ["LLM: genuine, probability 0", "Embedding failed (timeout)"])
+    oh.save_verdict("d", "approved", 0.0, ["LLM: genuine, probability 0"])
+    rows = {r["id"]: r for r in oh._read_rows()}
+    assert rows["a"]["moderation_status"] == "review" and "quoted the post" in rows["a"]["moderation_reasons"]
+    assert rows["b"]["moderation_status"] == "review" and "too little to check" in rows["b"]["moderation_reasons"]
+    assert rows["c"]["moderation_status"] == "review" and "scam-wording check did not run" in rows["c"]["moderation_reasons"]
+    assert rows["d"]["moderation_status"] == "approved"
