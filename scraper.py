@@ -200,6 +200,7 @@ def collapse_copies(results):
 
 
 HELD = {}   # source -> new listings left for "Search more" in the current run
+RUN_TAG = {"value": ""}   # tag of the current search (set by the dashboard)
 # New listings are saved as "held" (not sent to the scam check). Nothing goes to n8n until the
 # student clicks "Load more" (5 at a time). INITIAL_RELEASE > 0 would send that many straight away.
 INITIAL_RELEASE = 0
@@ -218,7 +219,7 @@ def process_and_save(source_name: str, raw_listings: list, max_new: int = None):
 
     # Best matches first, so a capped run keeps the most relevant new ones
     valid_listings.sort(key=lambda i: -float(i.get("match_score") or 0))
-    res = sync_listings(valid_listings, dropped_ids, max_new, hold=True)
+    res = sync_listings(valid_listings, dropped_ids, max_new, hold=True, run_tag=RUN_TAG["value"])
     released = 0
     with _release_lock:
         if _release["left"] > 0 and res["added"]:
@@ -312,6 +313,7 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
     
     import fields
     fields.set_current(config.get("field"))   # every site searches for this field in this run
+    RUN_TAG["value"] = str(config.get("run_tag") or "")   # the dashboard shows this search's results
     logger.info(f"🚀 Starting selective scraper with config: {config} (field: {fields.label()})")
     
     # Clear old popup alerts from a previous run

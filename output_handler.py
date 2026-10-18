@@ -20,6 +20,7 @@ CSV_HEADERS = [
     # text the n8n moderation pipeline reads, and what it decided
     "description", "moderation_status", "scam_risk", "moderation_reasons", "moderated_at",
     "field",   # which field of study the run searched for (fields.py); empty on old rows = ai_ml
+    "last_run",   # tag of the latest search that found this post; the dashboard shows one search at a time
 ]
 MODERATION_FIELDS = ["moderation_status", "scam_risk", "moderation_reasons", "moderated_at"]
 # If any of these change, the listing is a different post and must be moderated again
@@ -83,7 +84,7 @@ def _record(item: dict) -> dict:
     return rec
 
 
-def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool = False) -> dict:
+def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool = False, run_tag: str = "") -> dict:
     """
     Saves one scraper run and keeps earlier rows up to date.
 
@@ -101,7 +102,7 @@ def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool
         seen_ids = set(log_data.setdefault("seen_ids", []))
         rows = _read_rows()
         by_id = {r.get("id"): r for r in rows}
-        keep_as_is = {"id", "date_scraped", "is_new", *MODERATION_FIELDS}
+        keep_as_is = {"id", "date_scraped", "is_new", "last_run", *MODERATION_FIELDS}
         added = updated = held = 0
 
         for item in kept:
@@ -109,6 +110,8 @@ def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool
             old = by_id.get(item["id"])
             if old is not None:
                 changed = False
+                if run_tag:
+                    old["last_run"] = run_tag   # found again: shows in this search, verdict kept
                 # includes a description arriving for a row saved before descriptions were stored
                 content_changed = any(str(old.get(k, "") or "") != str(rec.get(k, "") or "") for k in CONTENT_FIELDS)
                 for k, v in rec.items():
@@ -135,6 +138,7 @@ def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool
                 held += 1
             elif item["id"] not in seen_ids:
                 rec["is_new"] = True
+                rec["last_run"] = run_tag
                 if hold:
                     # saved, but NOT sent to the scam check until "Load more" releases it (13 Oct night)
                     rec["moderation_status"] = "held"
@@ -211,13 +215,15 @@ def hold_unreleased() -> int:
     return moved
 
 
-def release_held(n: int) -> int:
-    """'Load more': moves up to n held listings (round-robin across sites) into the scam-check queue."""
+def release_held(n: int, run_tag: str = "") -> int:
+    """'Load more': moves up to n held listings (round-robin across sites) into the scam-check queue.
+    run_tag: only listings of that search (the one on screen)."""
     if n <= 0:
         return 0
     with _CSV_LOCK:
         rows = _read_rows()
-        held = [r for r in rows if (r.get("moderation_status") or "").strip() == "held"]
+        held = [r for r in rows if (r.get("moderation_status") or "").strip() == "held"
+                and (not run_tag or r.get("last_run") == run_tag)]
         picked = round_robin(held, n)
         for r in picked:
             r["moderation_status"] = ""
