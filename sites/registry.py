@@ -39,7 +39,7 @@ SITES = [
     _s("cutshort", "Cutshort", "india", "page", "tested", "cutshort"),
     _s("talent_in", "Talent.com India", "india", "page", "tested", "talent"),
     _s("careerjet_in", "Careerjet India", "india", "browser", "tested", "careerjet"),
-    _s("simplyhired_in", "SimplyHired India", "india", "page", "tested", "simplyhired"),
+    _s("simplyhired_in", "SimplyHired India", "india", "browser", "tested", "simplyhired"),
     _s("hirist", "Hirist", "india", "page", "planned"),
     _s("iimjobs", "iimjobs", "india", "page", "planned"),
     _s("freshersworld", "Freshersworld", "india", "page", "planned"),
@@ -70,7 +70,7 @@ SITES = [
     _s("graduateland", "Graduateland", "europe", "page", "planned"),
 
     # Remote
-    _s("remotive", "Remotive", "remote", "api", "tested", "remotive"),
+    _s("remotive", "Remotive (free API: latest 12 jobs)", "remote", "api", "tested", "remotive"),
     _s("weworkremotely", "We Work Remotely", "remote", "rss", "tested", "weworkremotely"),
     _s("remoteok", "Remote OK", "remote", "api", "planned"),
     _s("himalayas", "Himalayas", "remote", "api", "planned"),

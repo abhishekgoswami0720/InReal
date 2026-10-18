@@ -14,7 +14,7 @@ real browser that day:
   Apple      GET  jobs.apple.com/en-us/search?team=internships-STDNT-INTRN&page=N
              (Apple's "Students: Internships" team; div.job-list-item rows; 108 on 18 Oct)
   Meta       metacareers.com/jobsearch/?roles[0]=Internship is drawn by JavaScript, so it opens in
-             Playwright and reads the /profile/job_details/<id> links (54 on 18 Oct)
+             Playwright and reads the /profile/job_details/<id> links, 10 a page (54 on 18 Oct)
   Amazon     GET  amazon.jobs/en/search.json?base_query=intern&offset=N (JSON, 443 on 18 Oct)
   NVIDIA, Intel, Adobe, Salesforce: Workday career sites,
              POST https://<host>/wday/cxs/<tenant>/<site>/jobs {"searchText": "intern", ...}
@@ -51,10 +51,38 @@ def parse_microsoft(data):
     return out
 
 
+def _ms_fetcher():
+    """The API answered 429 to a bare script on the laptop (18 Oct) but 200 inside the careers
+    page, so ask it from inside that page."""
+    from playwright.sync_api import sync_playwright
+    from scraper_utils import launch_browser
+    pw = sync_playwright().start()
+    browser = launch_browser(pw, headless=True)
+    page = browser.new_page()
+    page.goto("https://apply.careers.microsoft.com/careers?query=intern", timeout=60000, wait_until="domcontentloaded")
+    page.wait_for_timeout(3000)
+
+    def fetch(url):
+        return page.evaluate("async (u) => { const r = await fetch(u); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }", url)
+
+    def close():
+        browser.close()
+        pw.stop()
+    return fetch, close
+
+
 def scrape_microsoft():
+    fetch, close = _ms_fetcher()
+    try:
+        return _microsoft(fetch)
+    finally:
+        close()
+
+
+def _microsoft(fetch):
     out, start, total = [], 0, None
     while start < MAX_PER_COMPANY and (total is None or start < total):
-        data = get(MS_API.format(start=start)).json()
+        data = fetch(MS_API.format(start=start))
         positions = ((data.get("data") or {}).get("positions")) or []
         total = (data.get("data") or {}).get("count", 0)
         if not positions:
@@ -184,29 +212,35 @@ def parse_meta(rows):
 
 
 def scrape_meta():
+    """10 posts per page; the "next" arrow is labelled "Button to select next week" (18 Oct 2026)."""
     from playwright.sync_api import sync_playwright
     from scraper_utils import launch_browser
+    rows = []
     with sync_playwright() as p:
         browser = launch_browser(p, headless=True)
         page = browser.new_page()
         try:
             page.goto(META, timeout=60000, wait_until="domcontentloaded")
-            page.wait_for_selector('a[href*="/profile/job_details/"]', timeout=30000)
-            last = -1
-            for _ in range(30):          # the list grows as you scroll
-                count = page.locator('a[href*="/profile/job_details/"]').count()
-                if count == last:
+            links = 'a[href*="/profile/job_details/"]'
+            page.wait_for_selector(links, timeout=30000)
+            for _ in range(15):
+                rows += page.eval_on_selector_all(links, "els => els.map(a => [a.getAttribute('href'), a.innerText])")
+                nxt = page.locator('[aria-label="Button to select next week"]')
+                if not nxt.count() or nxt.first.get_attribute("aria-disabled") == "true":
                     break
-                last = count
-                page.mouse.wheel(0, 4000)
-                page.wait_for_timeout(1200)
-            rows = page.eval_on_selector_all('a[href*="/profile/job_details/"]',
-                                             "els => els.map(a => [a.getAttribute('href'), a.innerText])")
+                first = page.locator(links).first.get_attribute("href")
+                nxt.first.click()
+                try:
+                    page.wait_for_function(
+                        "(f) => { const a = document.querySelector('a[href*=\"/profile/job_details/\"]');"
+                        " return a && a.getAttribute('href') !== f; }", arg=first, timeout=15000)
+                except Exception:
+                    break
         finally:
             browser.close()
-    out = parse_meta(rows)
+    out = dedupe(parse_meta(rows))
     logger.info(f"Meta: {len(out)} internships")
-    return dedupe(out)
+    return out
 
 
 # ---------- Amazon ----------
