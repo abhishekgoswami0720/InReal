@@ -12,7 +12,10 @@ only linked to the search page. These read the real result pages, checked in a b
     the __NEXT_DATA__ JSON (title, company, location, salaryInfo, snippet, jobKey, requirements).
   - Careerjet: https://www.careerjet.co.in/jobs?s=<words>&l=India first shows a "Verification in
     progress" page that a real browser passes on its own after a few seconds; a headless one never
-    did (laptop test, 18 Oct), so SimplyHired (403 to scripts) and Careerjet open a visible Chrome. Results are <article class="job"> with h2 a, p.company, ul.location and div.desc.
+    did (laptop test, 18 Oct), so SimplyHired (403 to scripts) and Careerjet open a visible Chrome.
+The search pages only show a ~200-character snippet; the full text of each post is read from its
+own page (sites/details.py): inside that Chrome window for SimplyHired and Careerjet, and at
+"Load 5 more" time for Talent.com. Results are <article class="job"> with h2 a, p.company, ul.location and div.desc.
 
 Each site is searched with the student's field words (fields.py) plus "intern".
 The old scrape_niche_boards() also only returned made-up cards; its four sites are gone
@@ -28,6 +31,7 @@ from loguru import logger
 
 from scraper_utils import human_delay, launch_browser
 from sites._common import dedupe, get, record, search_words
+from sites.details import fetch_in_page
 
 TALENT = "https://in.talent.com/jobs?k={q}&l=India"
 SIMPLYHIRED = "https://www.simplyhired.co.in/search?q={q}&l=India"
@@ -110,7 +114,7 @@ def parse_simplyhired(html):
     return out
 
 
-def _in_chrome(source, url_tpl, wait_for, parse, settle=0):
+def _in_chrome(source, url_tpl, wait_for, parse, settle=0, details=None):
     """Opens each search in a visible Chrome window (these sites refuse scripts and headless
     browsers: SimplyHired answered 403, Careerjet's check never cleared, 18 Oct 2026)."""
     from playwright.sync_api import sync_playwright
@@ -127,7 +131,8 @@ def _in_chrome(source, url_tpl, wait_for, parse, settle=0):
                     if settle:
                         page.wait_for_timeout(settle)
                     found = parse(page.content())
-                    logger.info(f"{source} '{q}': {len(found)} results")
+                    full = fetch_in_page(page, found, details) if details and found else 0
+                    logger.info(f"{source} '{q}': {len(found)} results, full text read for {full}")
                     out += found
                 except Exception as e:
                     logger.warning(f"{source} '{q}' failed: {e}")
@@ -139,7 +144,7 @@ def _in_chrome(source, url_tpl, wait_for, parse, settle=0):
 
 
 def scrape_simplyhired():
-    return _in_chrome("SimplyHired", SIMPLYHIRED, "script#__NEXT_DATA__", parse_simplyhired)
+    return _in_chrome("SimplyHired", SIMPLYHIRED, "script#__NEXT_DATA__", parse_simplyhired, details="next")
 
 
 # ---------- Careerjet ----------
@@ -166,7 +171,8 @@ def parse_careerjet(html):
 
 def scrape_careerjet():
     # the "Verification in progress" page clears itself in a real window after a few seconds
-    return _in_chrome("Careerjet", CAREERJET, "article.job, .no-results, #search-noresults", parse_careerjet, settle=1000)
+    return _in_chrome("Careerjet", CAREERJET, "article.job, .no-results, #search-noresults", parse_careerjet, settle=1000,
+                      details="ldjson")
 
 
 def scrape_aggregators():
