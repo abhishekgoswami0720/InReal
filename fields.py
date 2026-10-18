@@ -22,6 +22,12 @@ FIELDS = {
     "software": {
         "label": "Software & Web Development",
         "search": ["software development", "web development", "full stack development", "android development"],
+        # titles that say "development" but are not software (SimplyHired/Careerjet test, 18 Oct 2026:
+        # "Business Development Executive (Internship)", "Sales Development Representative Intern",
+        # "Intern - Learning & Development", "Graphic Designer Intern" were kept as software)
+        "not_in_title": ["business development", "sales", "marketing", "learning & development",
+                         "learning and development", "graphic", "designer", "content writer", "hr ",
+                         "human resource", "recruit", "telecaller", "customer support"],
         "words": ["software", "developer", "development", "web", "frontend", "front end", "backend", "back end",
                   "full stack", "fullstack", "android", "ios", "flutter", "react", "angular", "node", "javascript",
                   "java", "python", "php", ".net", "programming", "sde", "devops", "cloud", "app"],
@@ -121,6 +127,13 @@ def matches(title_and_skills: str, field=None) -> bool:
     words = FIELDS[normalise(field or current())]["words"]
     text = " " + re.sub(r"[-_/,|()]+", " ", title_and_skills.lower()) + " "
     return any(re.search(r"(?<![a-z0-9])" + re.escape(w) + r"(?![a-z0-9])", text) for w in words)
+
+
+def excluded_title(title: str, field=None) -> bool:
+    """True when the title names work that is clearly not this field (see 'not_in_title')."""
+    words = FIELDS[normalise(field or current())].get("not_in_title", [])
+    t = " " + re.sub(r"[-_/,|()]+", " ", (title or "").lower()) + " "
+    return any(w in t for w in words)
 
 
 def slug(term: str) -> str:
