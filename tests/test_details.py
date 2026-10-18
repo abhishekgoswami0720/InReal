@@ -57,3 +57,23 @@ def test_fetch_in_page_survives_a_browser_error():
             raise RuntimeError("page closed")
     recs = [{"apply_link": "https://x/1", "description": "short"}]
     assert details.fetch_in_page(Broken(), recs, "next") == 0 and recs[0]["description"] == "short"
+
+
+TALENT_NO_LD = """<html><body><div class="a1"><h1>SDET Intern</h1></div>
+<div class="sc-9"><span class="sc-15">Job description</span>
+<div class="sc-10"><p>Job Title: SDET Intern</p><p>Stipend: 6,000 - 10,000 per month</p><p>""" + "Testing web apps with Selenium. " * 20 + """</p></div></div>
+<div data-testid="ListRelatedJobs">Other jobs</div></body></html>"""
+
+
+def test_talent_page_without_jobposting_uses_the_job_description_block(monkeypatch):
+    class R:
+        text = TALENT_NO_LD
+    monkeypatch.setattr(details, "get", lambda url: R)
+    text = details._talent("https://in.talent.com/view?id=1")
+    assert text.startswith("Job Title: SDET Intern") and "Stipend: 6,000" in text and "Other jobs" not in text
+
+
+def test_fill_details_reports_misses(monkeypatch):
+    monkeypatch.setitem(details.FETCHERS, "Talent.com", lambda link: "")
+    rows = [{"source_platform": "Talent.com", "description": "short", "apply_link": "https://x/1"}]
+    assert details.fill_details(rows, 300) == 0 and rows[0]["description"] == "short"
