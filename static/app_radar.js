@@ -71,7 +71,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initGlassTranslucentBackground();
   bindEventHandlers();
   initProfile();
-  loadData();
+  try { localStorage.removeItem('inreal_view_run'); } catch (e) {}
+  viewRun = '';
+  startSession();
   pollScraperStatus();
   pollAlerts();
   pollModeration();
@@ -239,13 +241,8 @@ function applyFiltersAndRender() {
   const matches = (item, ignoreLocation) => {
     if (showBookmarkedOnly && !bookmarks.includes(item.id)) return false;
 
-    // Only the search on screen (unless "Show all saved")
-    if (viewRun && !showAllSaved && item.last_run !== viewRun) return false;
-
     // The student's profile: only their field, and unpaid posts only for 0 years of experience
     if (profile) {
-      const rowFields = String(item.field || 'ai_ml').split(';').filter(Boolean);
-      if (!rowFields.includes(profile.field)) return false;
       if (profile.experience !== '0' && isUnpaid(item)) return false;
     }
 
@@ -318,7 +315,7 @@ function renderListings(items) {
     container.innerHTML = '';
     const h = document.querySelector('#empty-state h3'), t = document.querySelector('#empty-state p');
     const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').includes(profile.field));
-    if (viewRun && !showAllSaved) {
+    if (false) {
       const inView = allInternships.filter(r => r.last_run === viewRun);
       if (h) h.textContent = inView.length ? 'Nothing verified from this search yet' : 'New search started';
       if (t) t.textContent = inView.length
@@ -1251,3 +1248,12 @@ function updateViewNote() {
   };
 }
 document.addEventListener('DOMContentLoaded', updateViewNote);
+
+
+// ==========================================
+// 18. One session per page load: a refresh empties the list (internships.csv) on the laptop
+// ==========================================
+async function startSession() {
+  try { await fetch('/api/session/new', { method: 'POST' }); } catch (e) { /* public link: 403, keep data */ }
+  loadData();
+}
