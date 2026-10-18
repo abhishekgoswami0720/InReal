@@ -388,9 +388,9 @@ function renderListings(items) {
           
           <!-- Location and Duration -->
           <div class="text-xs text-slate-500 mt-1.5 flex items-center gap-2 font-medium">
-            <span class="flex items-center gap-1"><i class="ph ph-map-pin text-slate-400"></i> ${escapeHtml(item.location || 'Remote')}</span>
+            <span class="flex items-center gap-1"><i class="ph ph-map-pin text-slate-400"></i> ${escapeHtml(item.location || 'Location not stated')}</span>
             <span>&bull;</span>
-            <span>${escapeHtml(item.duration || 'Flexible')}</span>
+            <span>${escapeHtml(item.duration || 'Duration not stated')}</span>
           </div>
 
           <!-- Uniform Neutral Tech Stack Pills -->
@@ -403,7 +403,7 @@ function renderListings(items) {
         <div class="pt-4 mt-5 border-t border-slate-100 flex items-center justify-between text-xs">
           <div>
             <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Stipend</div>
-            <div class="font-extrabold text-slate-900 text-sm mt-0.5">${escapeHtml(item.stipend || 'Unspecified')}</div>
+            <div class="font-extrabold text-slate-900 text-sm mt-0.5">${escapeHtml(item.stipend || 'Not stated')}</div>
           </div>
           <div>
             <!-- Consistent Sleek Dark Slate Button Across All Cards -->
@@ -428,12 +428,12 @@ function openDetailDrawer(id) {
   activeDrawerJob = item;
   document.getElementById('drawer-role-title').innerText = item.role_title || 'Opportunity';
   document.getElementById('drawer-company-name').innerText = item.company_name || '';
-  document.getElementById('drawer-location').innerText = item.location || 'Remote';
-  document.getElementById('drawer-duration').innerText = item.duration || 'Flexible';
-  document.getElementById('drawer-stipend').innerText = item.stipend || 'Unspecified';
-  document.getElementById('drawer-deadline').innerText = item.application_deadline || 'Rolling';
-  document.getElementById('drawer-source').innerText = item.source_platform || 'Portal';
-  document.getElementById('drawer-date').innerText = item.date_scraped || 'Recent';
+  document.getElementById('drawer-location').innerText = item.location || 'Location not stated';
+  document.getElementById('drawer-duration').innerText = item.duration || 'Duration not stated';
+  document.getElementById('drawer-stipend').innerText = item.stipend || 'Not stated';
+  document.getElementById('drawer-deadline').innerText = item.application_deadline || 'Not stated';
+  document.getElementById('drawer-source').innerText = item.source_platform || '';
+  document.getElementById('drawer-date').innerText = item.date_scraped || '';
   document.getElementById('drawer-org-badge').innerText = item.org_type || 'Company';
 
   const applyLink = document.getElementById('drawer-apply-link');
@@ -456,7 +456,7 @@ function openDetailDrawer(id) {
   const skills = (item.required_skills || '').split(',').map(s => s.trim()).filter(Boolean);
   skillsContainer.innerHTML = skills.length
     ? skills.map(s => `<span class="px-2.5 py-1 bg-slate-100 border border-slate-200 text-slate-700 rounded-md text-xs font-semibold">${escapeHtml(s)}</span>`).join('')
-    : '<span class="text-xs text-slate-500">General qualifications.</span>';
+    : '<span class="text-xs text-slate-500">The post does not list skills.</span>';
 
   const trustBox = document.getElementById('drawer-trust-box');
   const trustText = document.getElementById('drawer-trust-flags');

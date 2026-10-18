@@ -164,7 +164,7 @@ def scrape_search_engine(config=None):
                         "stipend_numeric": 5000.0 if q_obj['loc_type'] == "India" else 1000.0, # Pass filters
                         "stipend_currency": "INR" if q_obj['loc_type'] == "India" else "USD",
                         "required_skills": "AI/ML (Extracted from search)", 
-                        "application_deadline": "Rolling", 
+                        "application_deadline": "", 
                         "apply_link": href,
                         "source_platform": source_platform,
                         "date_scraped": datetime.now().strftime("%Y-%m-%d"),
