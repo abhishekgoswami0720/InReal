@@ -1,14 +1,12 @@
-# 🛡️ InReal by Team Chiranjeevi
-### *Built on the open-source AI/ML Internship Radar: your personal robot that hunts down internships while you sleep.*
-
-**Team:** Team Chiranjeevi · CodeX 3.0, PIET Panipat, Oct 2026
+# 🤖 AI/ML Internship Radar
+### *Your personal robot that hunts down AI internships while you sleep.*
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://python.org)
 [![Flask](https://img.shields.io/badge/flask-3.x-green.svg)](https://flask.palletsprojects.com)
 [![Playwright](https://img.shields.io/badge/playwright-stealth-blueviolet.svg)](https://playwright.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **InReal** by Team Chiranjeevi (CodeX 3.0, PIET Panipat, Oct 2026): we took the open-source *AI/ML Internship Radar* (MIT licence), updated its scrapers to the portals' current page structure, and added a genuine-only check that removes listings asking for money, task-for-money schemes and mass "internship" programmes. The first commit in this repo is the original code, unchanged; every later commit is our work.
+> **InReal** (CodeX 3.0, PIET Panipat, Oct 2026): we took the open-source *AI/ML Internship Radar* (MIT licence), updated its scrapers to the portals' current page structure, and added a genuine-only check that removes listings asking for money, task-for-money schemes and mass "internship" programmes. The first commit in this repo is the original code, unchanged; every later commit is our work.
 
 ---
 
