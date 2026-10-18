@@ -1,102 +1,62 @@
-from playwright.sync_api import sync_playwright
-import time
-import random
+"""
+Cutshort internships.
+
+Checked in a real browser on 18 Oct 2026. The old scraper opened
+https://cutshort.io/jobs/ai-ml?type=internship and looked for div.job-card, which no longer
+exists, so it always returned nothing. The page https://cutshort.io/jobs/internship-jobs is
+server-rendered (Next.js) and carries every listed internship in its __NEXT_DATA__ JSON
+(23 on 18 Oct): headline, company, locations, salaryRange (INR per month), allSkills, the
+description (sanitizedComment) and publicUrl. We read that JSON; the field filter keeps the
+student's field.
+"""
+import json
+
 from bs4 import BeautifulSoup
-import hashlib
-from datetime import datetime
 from loguru import logger
-import urllib.parse
-import re
-from filters import calculate_match_score
-from playwright_stealth import Stealth
-from scraper_utils import human_delay, get_playwright_stealth_args
-from tenacity import retry, wait_exponential, stop_after_attempt
 
-def parse_job_card(html, selectors, source_name, url_base=""):
-    """Generic parser for simple job cards."""
-    soup = BeautifulSoup(html, "lxml")
-    listings = soup.find_all(selectors["card_tag"], class_=re.compile(selectors["card_class"], re.I))
-    
-    results = []
-    for listing in listings:
-        try:
-            # Title
-            title_elem = listing.find(selectors["title_tag"], class_=re.compile(selectors["title_class"] if selectors.get("title_class") else ""))
-            if not title_elem: continue
-            role_title = title_elem.text.strip()
-            
-            # Link
-            link_elem = listing.find("a") if title_elem.name != "a" else title_elem
-            apply_link = link_elem["href"] if link_elem and "href" in link_elem.attrs else ""
-            if apply_link and apply_link.startswith("/"):
-                apply_link = url_base + apply_link
-                
-            # Company
-            comp_elem = listing.find(selectors["comp_tag"], class_=re.compile(selectors.get("comp_class", "")))
-            company_name = comp_elem.text.strip() if comp_elem else "Unknown Company"
-            
-            # Location
-            loc_elem = listing.find(selectors["loc_tag"], class_=re.compile(selectors.get("loc_class", "")))
-            location = loc_elem.text.strip() if loc_elem else "India"
-            location_type = "Remote" if "Remote" in location or "Work From Home" in location else "India"
-            
-            org_type = "Company"
-            role_type = "Research" if "research" in role_title.lower() else "Applied"
-            match_score = calculate_match_score(role_title, ["AI/ML"], org_type, 0.0)
-            
-            id_hash = hashlib.md5(f"{company_name}-{role_title}-{source_name}".encode()).hexdigest()
-            
-            results.append({
-                "id": id_hash,
-                "company_name": company_name,
-                "role_title": role_title,
-                "location": location,
-                "location_type": location_type,
-                "duration": "",
-                "stipend": "",
-                "stipend_numeric": 0.0,
-                "stipend_currency": "INR",
-                "required_skills": "AI/ML", 
-                "application_deadline": "", 
-                "apply_link": apply_link,
-                "source_platform": source_name,
-                "date_scraped": datetime.now().strftime("%Y-%m-%d"),
-                "org_type": org_type,
-                "role_type": role_type,
-                "match_score": match_score
-            })
-        except Exception as e:
-            continue
-            
-    return results
+from sites._common import dedupe, get, html_to_text, record
 
-# scrape_shine moved to sites/shine.py (Shine changed its page structure, Oct 2026)
+CUTSHORT_URL = "https://cutshort.io/jobs/internship-jobs"
 
-# scrape_foundit moved to sites/foundit.py (Foundit now loads results from a JSON endpoint, Oct 2026)
 
-# scrape_apna moved to sites/apna.py (Apna changed its search URL and card markup, Oct 2026)
+def _stipend(rng):
+    if not rng or rng.get("currency") != "INR":
+        return "", 0.0
+    lo, hi = rng.get("min") or 0, rng.get("max") or 0
+    per = {"MONTH": "/month", "YEAR": "/year"}.get(rng.get("duration"), "")
+    if per == "/year":            # turn yearly figures into monthly so the ₹5,000/month check works
+        lo, hi, per = lo / 12, hi / 12, "/month"
+    if not (lo or hi):
+        return "", 0.0
+    text = f"₹ {lo:,.0f}{per}" if not hi or lo == hi else f"₹ {lo:,.0f} - {hi:,.0f}{per}"
+    return text, float(lo or hi)
 
-@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
+
+def parse_cutshort(html):
+    tag = BeautifulSoup(html, "lxml").find("script", id="__NEXT_DATA__")
+    if not tag:
+        return []
+    queries = json.loads(tag.string)["props"]["pageProps"]["dehydratedState"]["queries"]
+    jobs = []
+    for q in queries:
+        data = ((q.get("state") or {}).get("data") or {}).get("data") or {}
+        jobs = (data.get("pageData") or {}).get("jobs") or jobs
+    out = []
+    for j in jobs:
+        stipend, numeric = _stipend(j.get("salaryRange"))
+        out.append(record(
+            "Cutshort", j.get("headline", ""), (j.get("companyDetails") or {}).get("name"),
+            ", ".join(j.get("locations") or []) or "India", j.get("publicUrl", ""),
+            job_id=j.get("_id", ""), stipend=stipend, stipend_numeric=numeric,
+            currency="INR" if stipend else "", skills=j.get("allSkills") or [],
+            description=html_to_text(j.get("sanitizedComment")),
+            # the page also lists a few non-internships ("process executive - voice process");
+            # trust Cutshort's own "Internship" skill tag, else the title must say intern
+            labelled_internship=any(s.lower() == "internship" for s in j.get("allSkills") or [])))
+    return dedupe(out)
+
+
 def scrape_cutshort():
-    results = []
-    with sync_playwright() as p:
-        try:
-            browser = p.chromium.launch(headless=True, args=get_playwright_stealth_args())
-            page = browser.new_page()
-            Stealth().apply_stealth_sync(page)
-            url = "https://cutshort.io/jobs/ai-ml?type=internship"
-            page.goto(url, timeout=30000)
-            human_delay(3.0, 5.0)
-            
-            selectors = {
-                "card_tag": "div", "card_class": "job-card",
-                "title_tag": "div", "title_class": "title",
-                "comp_tag": "div", "comp_class": "company",
-                "loc_tag": "div", "loc_class": "location"
-            }
-            results = parse_job_card(page.content(), selectors, "Cutshort", "https://cutshort.io")
-            browser.close()
-        except Exception as e:
-            logger.error(f"Cutshort error: {e}")
-            raise e
-    return results
+    out = parse_cutshort(get(CUTSHORT_URL).text)
+    logger.info(f"Cutshort: {len(out)} internships on {CUTSHORT_URL}")
+    return out
