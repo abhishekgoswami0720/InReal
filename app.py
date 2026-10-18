@@ -26,7 +26,7 @@ app = Flask(__name__)
 # request is never mistaken for a local one.
 PROXY_HEADERS = ("Cf-Connecting-Ip", "Cf-Ray", "X-Forwarded-For", "X-Forwarded-Host", "Forwarded", "X-Real-Ip")
 LOOPBACK = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
-PROTECTED = {"/api/scrape", "/api/clear", "/api/alerts/dismiss"}
+PROTECTED = {"/api/scrape", "/api/clear", "/api/alerts/dismiss", "/api/session/new"}
 
 
 def is_local_request() -> bool:
@@ -103,6 +103,10 @@ def trigger_scrape():
         # A new search gets a new tag and the dashboard shows only its results;
         # "Search more" sends the tag of the search on screen to keep adding to it.
         from datetime import datetime as _dt
+        if not config.get("run_tag"):
+            # A NEW search starts from an empty list; "Search more" sends the tag and keeps it
+            from output_handler import clear_all
+            clear_all()
         run_tag = str(config.get("run_tag") or _dt.now().strftime("%Y%m%d-%H%M%S"))
         config["run_tag"] = run_tag
 
@@ -200,6 +204,17 @@ def moderation_load_more():
     tag = str(data.get("run_tag") or "")
     left = sum(1 for r in read_all_rows() if r.get("moderation_status") == "held" and (not tag or r.get("last_run") == tag))
     return jsonify({"released": released, "held_left": left})
+
+
+@app.route("/api/session/new", methods=["POST"])
+def new_session():
+    """Each page load (refresh) is a new session: internships.csv starts empty.
+    Skipped while a search is running, so a refresh mid-search doesn't lose it."""
+    if scraper_t and scraper_t.is_alive():
+        return jsonify({"status": "busy"})
+    from output_handler import clear_all
+    clear_all()
+    return jsonify({"status": "cleared"})
 
 
 @app.route("/api/scrape/status")

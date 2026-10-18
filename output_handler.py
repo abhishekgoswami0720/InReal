@@ -182,6 +182,16 @@ def _is_pending(r: dict, now: datetime) -> bool:
     return False
 
 
+def clear_all():
+    """New session or new search: empty internships.csv and forget the seen IDs."""
+    with _CSV_LOCK:
+        _write_rows([])
+        log = load_log()
+        log["seen_ids"] = []
+        log["total_scraped"] = 0
+        save_log(log)
+
+
 def round_robin(rows: list, limit: int) -> list:
     """[a1, a2, a3, b1, c1, c2] -> [a1, b1, c1, a2, c2, a3], cut to limit. Keeps each site's own order."""
     queues = {}
