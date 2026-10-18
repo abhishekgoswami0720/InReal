@@ -489,3 +489,39 @@ def test_approval_is_held_back_when_the_check_is_weak(store):
     assert rows["b"]["moderation_status"] == "review" and "too little to check" in rows["b"]["moderation_reasons"]
     assert rows["c"]["moderation_status"] == "review" and "scam-wording check did not run" in rows["c"]["moderation_reasons"]
     assert rows["d"]["moderation_status"] == "approved"
+
+
+SNIPPET = "Software Development Intern (Angular /.Months (Full-time conversion based on performance)..."
+
+
+def test_load_more_reads_the_full_talent_post_first(store, monkeypatch):
+    import app as app_mod
+    from sites import details
+    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    opened = []
+    monkeypatch.setitem(details.FETCHERS, "Talent.com", lambda link: opened.append(link) or LONG_DESC)
+    rows = [_row("t1", "SDE Intern", desc=SNIPPET, source_platform="Talent.com"),
+            _row("n1", "SDE Intern", source_platform="Naukri")]
+    oh.sync_listings(rows, [], hold=True)
+    r = app_mod.app.test_client().post("/api/moderation/load-more", json={"count": 5}).get_json()
+    assert r["released"] == 2
+    sent = {p["id"]: p for p in oh.pending_moderation(limit=50)}
+    assert sent["t1"]["description"] == LONG_DESC                 # the scam check gets the whole post
+    assert opened == ["https://example.com/t1"]                    # only the short one was opened
+    # the next search finds the same post with its snippet again: the full text stays, no re-check
+    oh.save_verdict("t1", "approved", 0.1, ["LLM: genuine"])
+    oh.sync_listings([_row("t1", "SDE Intern", desc=SNIPPET, source_platform="Talent.com")], [], hold=True)
+    row = next(x for x in oh.read_all_rows() if x["id"] == "t1")
+    assert row["description"] == LONG_DESC and row["moderation_status"] == "approved"
+
+
+def test_a_failed_detail_page_keeps_the_snippet(store, monkeypatch):
+    from sites import details
+
+    def broken(link):
+        raise RuntimeError("timeout")
+    monkeypatch.setitem(details.FETCHERS, "Talent.com", broken)
+    oh.sync_listings([_row("t2", "SDE Intern", desc=SNIPPET, source_platform="Talent.com")], [], hold=True)
+    assert oh.release_held(5) == 1
+    sent = oh.pending_moderation(limit=50)
+    assert [p["description"] for p in sent] == [SNIPPET]          # still checked; short-text rule applies

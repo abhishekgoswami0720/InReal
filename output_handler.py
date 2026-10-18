@@ -28,6 +28,8 @@ MODERATION_FIELDS = ["moderation_status", "scam_risk", "moderation_reasons", "mo
 CONTENT_FIELDS = ["company_name", "role_title", "stipend", "apply_link", "description"]
 MODERATION_STATUSES = {"approved", "review", "blocked", "expired"}   # "checking" is set only by a claim
 DESCRIPTION_LIMIT = 3000
+# Sites whose search page gives only a snippet; the full text comes from the post page (sites/details.py)
+SNIPPET_SOURCES = {"Talent.com", "SimplyHired", "Careerjet"}
 
 # The scraper thread and the n8n verdict calls both write internships.csv
 _CSV_LOCK = threading.RLock()
@@ -114,6 +116,11 @@ def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool
                 if run_tag:
                     old["last_run"] = run_tag   # found again: shows in this search, verdict kept
                 # includes a description arriving for a row saved before descriptions were stored
+                # a search page's short snippet must not replace the full text read from the post's page
+                # (only for these sites: elsewhere a shorter text can be a real edit, e.g. "pay a deposit")
+                if (rec.get("source_platform") in SNIPPET_SOURCES
+                        and len(str(rec.get("description") or "")) < len(str(old.get("description") or ""))):
+                    rec["description"] = old.get("description")
                 content_changed = any(str(old.get(k, "") or "") != str(rec.get(k, "") or "") for k in CONTENT_FIELDS)
                 for k, v in rec.items():
                     if k in keep_as_is:
@@ -236,10 +243,32 @@ def release_held(n: int, run_tag: str = "") -> int:
         held = [r for r in rows if (r.get("moderation_status") or "").strip() == "held"
                 and (not run_tag or r.get("last_run") == run_tag)]
         picked = round_robin(held, n)
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for r in picked:
-            r["moderation_status"] = ""
+            # "checking" while the full posts are read, so a second click can't take them too
+            # (and if this stops halfway, the claim timeout puts them back in the queue)
+            r["moderation_status"] = "checking"
+            r["moderated_at"] = now
         if picked:
             _write_rows(rows)
+    if not picked:
+        return 0
+
+    # Sites that show only a snippet in search: read the post's own page first (sites/details.py),
+    # outside the lock so the scraper can keep saving meanwhile.
+    from sites.details import fill_details
+    copies = [dict(r) for r in picked]
+    fill_details(copies, MIN_TEXT_TO_CHECK)
+    full = {c["id"]: c.get("description", "") for c in copies}
+    with _CSV_LOCK:
+        rows = _read_rows()
+        for r in rows:
+            if r.get("id") in full and r.get("moderation_status") == "checking":
+                if len(full[r["id"]]) > len(r.get("description") or ""):
+                    r["description"] = " ".join(full[r["id"]].split())[:DESCRIPTION_LIMIT]
+                r["moderation_status"] = ""
+                r["moderated_at"] = ""
+        _write_rows(rows)
     return len(picked)
 
 
