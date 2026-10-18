@@ -1,180 +1,97 @@
-import feedparser
-import hashlib
-from datetime import datetime
+"""
+Remote job boards: Remotive (public JSON API) and We Work Remotely (RSS feed).
+
+Checked in a real browser on 18 Oct 2026:
+  - Remotive: https://remotive.com/api/remote-jobs returns every live job as JSON
+    (title, company_name, job_type, candidate_required_location, salary, tags, description, url).
+    Its terms: link back to the Remotive URL, name Remotive as the source, and call the API at
+    most about 4 times a day. So we cache the answer for 6 hours and keep the Remotive link.
+    Its "search=intern" returned 12 jobs and none of them was an internship, so we read the
+    whole list and keep the internships ourselves. Most days there are very few.
+  - We Work Remotely: https://weworkremotely.com/remote-jobs.rss lists about 90 current jobs
+    ("Company: Role" titles, region, type, description). On 18 Oct it had 1 internship.
+The old versions only looked at AI/ML feeds; the field filter (filters.py) now decides.
+"""
+import json
+import time
+from pathlib import Path
+
+from bs4 import BeautifulSoup
 from loguru import logger
-from filters import calculate_match_score, is_valid_internship
-from tenacity import retry, wait_exponential, stop_after_attempt
 
-AI_KEYWORDS = [
-    "machine learning", "artificial intelligence", "deep learning", "nlp",
-    "data science", "computer vision", "ai", " ml ", "mlops", "generative",
-    "llm", "neural", "research intern", "ai intern", "ml intern"
-]
+from sites._common import dedupe, get, html_to_text, looks_like_internship, record
 
-def _matches_ai_ml(text: str) -> bool:
-    text_lower = text.lower()
-    return any(kw in text_lower for kw in AI_KEYWORDS)
+REMOTIVE_API = "https://remotive.com/api/remote-jobs"
+REMOTIVE_CACHE = Path(__file__).resolve().parent.parent / ".cache" / "remotive.json"
+REMOTIVE_MAX_AGE = 6 * 3600
+WWR_FEED = "https://weworkremotely.com/remote-jobs.rss"
 
 
-@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
-def scrape_linkedin():
-    """
-    Scrapes Remotive.com RSS feed for AI/ML remote internships.
-    (Replaces deprecated LinkedIn RSS - LinkedIn removed public RSS in 2023)
-    """
-    all_internships = []
-    
-    feeds_to_try = [
-        "https://remotive.com/remote-jobs/feed?category=software-dev&keywords=machine+learning",
-        "https://remotive.com/remote-jobs/feed?category=data&keywords=machine+learning",
-        "https://remotive.com/remote-jobs/feed?category=software-dev&keywords=artificial+intelligence",
-    ]
-    
-    for url in feeds_to_try:
-        try:
-            logger.info(f"Scraping Remotive RSS (AI/ML remote jobs): {url} ...")
-            feed = feedparser.parse(url)
-            
-            for entry in feed.entries:
-                try:
-                    raw_title = entry.get("title", "")
-                    description = entry.get("summary", "")
-                    tags = [t.get("term", "") for t in entry.get("tags", [])]
-                    
-                    # Filter to internships only
-                    combined = (raw_title + " " + description).lower()
-                    if not ("intern" in combined or "fellowship" in combined):
-                        continue
-                    
-                    if not _matches_ai_ml(raw_title + " " + description):
-                        continue
-                    
-                    role_title = raw_title[:90] if len(raw_title) > 90 else raw_title
-                    company_name = entry.get("author", "Unknown")
-                    
-                    apply_link = entry.get("link", "")
-                    source_platform = "Remotive (Remote)"
-                    location = "Remote"
-                    location_type = "Remote"
-                    
-                    org_type = "Company"
-                    role_type = "Research" if "research" in raw_title.lower() else "Applied"
-                    match_score = calculate_match_score(raw_title, tags, org_type, 0.0)
-                    
-                    id_hash = hashlib.md5(f"{company_name}-{role_title}-{apply_link}".encode()).hexdigest()
-                    
-                    record = {
-                        "id": id_hash,
-                        "company_name": company_name,
-                        "role_title": role_title,
-                        "location": location,
-                        "location_type": location_type,
-                        "duration": "",
-                        "stipend": "Discover on Site",
-                        "stipend_numeric": 1000.0,  # Remote, international - passes filter
-                        "stipend_currency": "USD",
-                        "required_skills": ", ".join(tags) if tags else "AI/ML",
-                        "application_deadline": "",
-                        "apply_link": apply_link,
-                        "source_platform": source_platform,
-                        "date_scraped": datetime.now().strftime("%Y-%m-%d"),
-                        "org_type": org_type,
-                        "role_type": role_type,
-                        "match_score": match_score
-                    }
-                    
-                    all_internships.append(record)
-                    
-                except Exception as e:
-                    logger.error(f"Error parsing Remotive entry: {e}")
-                    
-        except Exception as e:
-            logger.error(f"Failed to load Remotive RSS feed {url}: {e}")
-    
-    logger.info(f"Remotive: Found {len(all_internships)} AI/ML internship listings.")
-    return all_internships
+def _remotive_jobs():
+    try:
+        if REMOTIVE_CACHE.exists() and time.time() - REMOTIVE_CACHE.stat().st_mtime < REMOTIVE_MAX_AGE:
+            return json.loads(REMOTIVE_CACHE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    jobs = get(REMOTIVE_API).json().get("jobs", [])
+    try:
+        REMOTIVE_CACHE.parent.mkdir(exist_ok=True)
+        REMOTIVE_CACHE.write_text(json.dumps(jobs), encoding="utf-8")
+    except OSError:
+        pass
+    return jobs
 
 
-@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
-def scrape_indeed():
-    """
-    Scrapes WeWorkRemotely RSS feed for AI/ML internships.
-    (Replaces deprecated Indeed RSS - Indeed removed public RSS feeds for India)
-    """
-    all_internships = []
-    
-    feeds_to_try = [
-        "https://weworkremotely.com/categories/remote-programming-jobs.rss",
-        "https://weworkremotely.com/categories/remote-data-science-and-analytics-jobs.rss",
-    ]
-    
-    for url in feeds_to_try:
-        try:
-            logger.info(f"Scraping WeWorkRemotely RSS (AI/ML remote jobs): {url} ...")
-            feed = feedparser.parse(url)
-            
-            for entry in feed.entries:
-                try:
-                    raw_title = entry.get("title", "")
-                    description = entry.get("summary", "")
-                    
-                    # Filter for AI/ML
-                    if not _matches_ai_ml(raw_title + " " + description):
-                        continue
-                    
-                    # Filter for internship roles
-                    combined = (raw_title + " " + description).lower()
-                    if not ("intern" in combined or "fellowship" in combined or "trainee" in combined or "entry" in combined):
-                        continue
-                    
-                    # WWR title format: "Company: Role"
-                    parts = raw_title.split(": ", 1)
-                    if len(parts) == 2:
-                        company_name = parts[0].strip()
-                        role_title = parts[1].strip()
-                    else:
-                        company_name = "Unknown"
-                        role_title = raw_title
-                    
-                    role_title = role_title[:90] if len(role_title) > 90 else role_title
-                    apply_link = entry.get("link", "")
-                    source_platform = "WeWorkRemotely (Remote)"
-                    location = "Remote / International"
-                    location_type = "Remote"
-                    
-                    org_type = "Company"
-                    role_type = "Research" if "research" in role_title.lower() else "Applied"
-                    match_score = calculate_match_score(role_title, ["AI/ML"], org_type, 0.0)
-                    
-                    id_hash = hashlib.md5(f"{company_name}-{role_title}-{apply_link}".encode()).hexdigest()
-                    
-                    record = {
-                        "id": id_hash,
-                        "company_name": company_name,
-                        "role_title": role_title,
-                        "location": location,
-                        "location_type": location_type,
-                        "duration": "",
-                        "stipend": "Discover on Site",
-                        "stipend_numeric": 1000.0,  # Remote, international - passes filter
-                        "stipend_currency": "USD",
-                        "required_skills": "AI/ML",
-                        "application_deadline": "",
-                        "apply_link": apply_link,
-                        "source_platform": source_platform,
-                        "date_scraped": datetime.now().strftime("%Y-%m-%d"),
-                        "org_type": org_type,
-                        "role_type": role_type,
-                        "match_score": match_score
-                    }
-                    
-                    all_internships.append(record)
-                    
-                except Exception as e:
-                    logger.error(f"Error parsing WeWorkRemotely entry: {e}")
-                    
-        except Exception as e:
-            logger.error(f"Failed to load WeWorkRemotely RSS feed {url}: {e}")
-    
-    logger.info(f"WeWorkRemotely: Found {len(all_internships)} AI/ML internship listings.")
-    return all_internships
+def parse_remotive(jobs):
+    out = []
+    for j in jobs:
+        title, jtype = j.get("title", ""), j.get("job_type", "")
+        if not looks_like_internship(title, jtype):
+            continue
+        out.append(record(
+            "Remotive", title, j.get("company_name"),
+            f"Remote ({j.get('candidate_required_location') or 'Worldwide'})",
+            j.get("url", ""), job_id=j.get("id", ""),
+            stipend=j.get("salary") or "", skills=j.get("tags") or [],
+            description=html_to_text(j.get("description")), posted=(j.get("publication_date") or "")[:10],
+            labelled_internship="intern" in jtype.lower()))
+    return dedupe(out)
+
+
+def scrape_remotive():
+    jobs = _remotive_jobs()
+    out = parse_remotive(jobs)
+    logger.info(f"Remotive: {len(jobs)} live jobs, {len(out)} internships")
+    return out
+
+
+def parse_wwr(xml_text):
+    soup = BeautifulSoup(xml_text, "xml")
+    out = []
+    for item in soup.find_all("item"):
+        raw = (item.find("title").text if item.find("title") else "").strip()
+        jtype = item.find("type").text if item.find("type") else ""
+        desc = html_to_text(item.find("description").text if item.find("description") else "")
+        if not looks_like_internship(raw, jtype):
+            continue
+        company, _, title = raw.partition(": ")
+        if not title:
+            company, title = "", raw
+        region = item.find("region").text if item.find("region") else ""
+        link = item.find("link").text.strip() if item.find("link") else ""
+        skills = [s.strip() for s in (item.find("skills").text if item.find("skills") else "").split(",")]
+        out.append(record("We Work Remotely", title, company, f"Remote ({region or 'Anywhere'})", link,
+                          job_id=link, skills=skills, description=desc,
+                          posted=(item.find("pubDate").text if item.find("pubDate") else "")[:16]))
+    return dedupe(out)
+
+
+def scrape_weworkremotely():
+    out = parse_wwr(get(WWR_FEED).text)
+    logger.info(f"We Work Remotely: {len(out)} internships in the feed")
+    return out
+
+
+# Old names, kept so nothing that imports them breaks
+scrape_linkedin = scrape_remotive
+scrape_indeed = scrape_weworkremotely

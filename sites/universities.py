@@ -247,8 +247,19 @@ def scrape_universities():
     try:
         ddgs = DDGS()
 
-        for i, (query, category, def_org, def_role, location, loc_type) in enumerate(QUERIES):
-            logger.info(f"[Universities] Query {i+1}/{len(QUERIES)}: {category}")
+        queries = QUERIES
+        import fields
+        if fields.current() != fields.DEFAULT:   # the bank above is AI/ML only; other fields get their own
+            queries = []
+            for term in fields.search_terms()[:2]:
+                queries += [
+                    (f"{term} research internship {YEAR} university apply", "Global University",
+                     "Institution", "Research", "Global", "International"),
+                    (f"{term} internship {YEAR} IIT IISc NIT AIIMS apply", "Indian University",
+                     "Institution", "Research", "India", "India"),
+                ]
+        for i, (query, category, def_org, def_role, location, loc_type) in enumerate(queries):
+            logger.info(f"[Universities] Query {i+1}/{len(queries)}: {category}")
             try:
                 results = list(ddgs.text(query, max_results=15))
                 found_this = 0

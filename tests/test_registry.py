@@ -25,10 +25,10 @@ def test_live_sites_point_at_real_scrapers_and_planned_ones_at_none():
             assert s["runs"] in registry.SCRAPER_LABELS, s["key"]
 
 
-def test_shared_scraper_runs_once_and_planned_sites_are_skipped():
-    run, skipped = registry.scrapers_for(["aijobs", "mlops", "internshala", "usajobs", "nonsense"])
-    assert run == ["niche", "internshala"]
-    assert skipped == ["usajobs", "nonsense"]
+def test_each_scraper_runs_once_and_planned_sites_are_skipped():
+    run, skipped = registry.scrapers_for(["internshala", "internshala", "usajobs", "aijobs", "nonsense"])
+    assert run == ["internshala"]
+    assert skipped == ["usajobs", "aijobs", "nonsense"]
 
 
 def test_old_saved_scraper_names_still_work():

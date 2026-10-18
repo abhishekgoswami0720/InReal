@@ -1,3 +1,4 @@
+import re
 import hashlib
 from datetime import datetime
 from loguru import logger
@@ -97,6 +98,15 @@ def scrape_search_engine(config=None):
         }
     ]
     
+    # Other fields (fields.py): swap the AI/ML words in every query for the field's own words
+    import fields
+    if fields.current() != fields.DEFAULT:
+        term = fields.search_terms()[0]
+        ai_words = re.compile(r'"machine learning intern" OR "AI intern"|"artificial intelligence" OR "machine learning"'
+                              r'|"machine learning" OR "artificial intelligence"|"machine learning" OR "ai"', re.I)
+        for q in queries:
+            q["q"] = ai_words.sub(f'"{term}"', q["q"])
+
     active_queries = []
     for q in queries:
         lt = q["loc_type"].lower()

@@ -18,10 +18,11 @@ from sites.apna import scrape_apna
 from sites.foundit import scrape_foundit
 from sites.shine import scrape_shine
 from sites.international import scrape_international
-from sites.rss_feeds import scrape_linkedin as scrape_remotive, scrape_indeed as scrape_weworkremotely
+from sites.rss_feeds import scrape_remotive, scrape_weworkremotely
 from sites.linkedin import scrape_linkedin  # NEW: direct LinkedIn Jobs page scraper
-from sites.bigtech import scrape_bigtech
-from sites.niche import scrape_niche_boards, scrape_aggregators
+from sites.bigtech import (scrape_bigtech, scrape_microsoft, scrape_google, scrape_apple, scrape_meta,
+                           scrape_amazon, scrape_nvidia, scrape_intel, scrape_adobe, scrape_salesforce)
+from sites.niche import scrape_niche_boards, scrape_aggregators, scrape_talent, scrape_simplyhired, scrape_careerjet
 from sites.universities import scrape_universities
 from sites.search_engine import scrape_search_engine
 
@@ -44,6 +45,18 @@ ALL_SCRAPERS = {
     "niche": scrape_niche_boards,
     "aggregators": scrape_aggregators,
     "search": scrape_search_engine,
+    "talent": scrape_talent,
+    "simplyhired": scrape_simplyhired,
+    "careerjet": scrape_careerjet,
+    "microsoft": scrape_microsoft,
+    "google": scrape_google,
+    "apple": scrape_apple,
+    "meta": scrape_meta,
+    "amazon": scrape_amazon,
+    "nvidia": scrape_nvidia,
+    "intel": scrape_intel,
+    "adobe": scrape_adobe,
+    "salesforce": scrape_salesforce,
     "government": scrape_government,
     "universities": scrape_universities,
 }
