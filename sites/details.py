@@ -76,7 +76,7 @@ def text_under_heading(html, heading="Job description"):
 # "Stipend: 6,000 – 10,000 per month", "Stipend: Performance-based" (no amount: left empty).
 _AMOUNT = r"(?:₹|rs\.?|inr)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k|lpa|lakhs?)?"
 STIPEND_RE = re.compile(
-    r"\bstipend\b[^\n.]{0,25}?" + _AMOUNT + r"(?:\s*(?:-|–|—|to)\s*" + _AMOUNT + r")?"
+    r"\bstipend\b[^\n.]{0,40}?" + _AMOUNT + r"(?:\s*(?:-|–|—|to)\s*" + _AMOUNT + r")?"
     r"(?:\s*(?:/|per|a|an)?\s*(month|mo|week|year|annum|day))?", re.I)
 UNPAID_STIPEND_RE = re.compile(r"\bstipend\b\s*[:\-–]?\s*(?:unpaid|none|nil|not\s+provided|no\s+stipend)\b"
                                r"|\bunpaid\s+internship\b|\bno\s+stipend\b", re.I)
@@ -108,8 +108,9 @@ def stipend_from_text(text):
         monthly = low / 12 if per_year else low * 4.33 if period == "week" else low * 22 if period == "day" else low
         up_to = re.search(r"\b(up\s*to|upto|max(imum)?)\b", m.group(0), re.I)
         amount = ("Up to " if up_to else "") + f"₹{low:,.0f}" + (f" – ₹{high:,.0f}" if high != low else "")
+        variable = re.search(r"performance", text[max(0, m.start() - 25):m.end() + 25], re.I)
         unit = " a year" if per_year else " a week" if period == "week" else " a day" if period == "day" else " a month"
-        return amount + unit, round(monthly)
+        return amount + unit + (" (performance-based)" if variable else ""), round(monthly)
     return "", 0.0
 
 

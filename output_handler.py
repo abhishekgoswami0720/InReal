@@ -261,8 +261,12 @@ def release_held(n: int, run_tag: str = "") -> int:
     # Sites that show only a snippet in search: read the post's own page first (sites/details.py),
     # outside the lock so the scraper can keep saving meanwhile.
     from sites.details import fill_details
+    from sites.details import add_stipend
     copies = [dict(r) for r in picked]
     fill_details(copies, MIN_TEXT_TO_CHECK)
+    for c in copies:
+        if c.get("source_platform") in SNIPPET_SOURCES:
+            add_stipend(c)   # also for posts whose full text was read on an earlier "Load more"
     full = {c["id"]: c for c in copies}
     with _CSV_LOCK:
         rows = _read_rows()
@@ -271,9 +275,9 @@ def release_held(n: int, run_tag: str = "") -> int:
                 c = full[r["id"]]
                 if len(c.get("description") or "") > len(r.get("description") or ""):
                     r["description"] = " ".join(c["description"].split())[:DESCRIPTION_LIMIT]
-                    if c.get("stipend") and not r.get("stipend"):   # the stipend the full post states
-                        for k in ("stipend", "stipend_numeric", "stipend_currency", "trust_flags"):
-                            r[k] = c.get(k, "")
+                if c.get("stipend") and not r.get("stipend"):   # the stipend the full post states
+                    for k in ("stipend", "stipend_numeric", "stipend_currency", "trust_flags"):
+                        r[k] = c.get(k, "")
                 r["moderation_status"] = ""
                 r["moderated_at"] = ""
         _write_rows(rows)
