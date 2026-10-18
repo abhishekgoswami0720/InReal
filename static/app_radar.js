@@ -323,6 +323,18 @@ function renderListings(items) {
         : 'Internships appear here as each site finishes. Then click "Load 5 more" to scam-check them.';
       return;
     }
+    // Say so when posts were checked but the Scam check filter (Verified only) is hiding them
+    const inScope = (viewRun && !showAllSaved) ? allInternships.filter(r => r.last_run === viewRun) : allInternships;
+    const inReview = inScope.filter(r => r.moderation_status === 'review').length;
+    if (activeModeration === 'verified' && inReview && !fieldEmpty) {
+      const waiting = inScope.filter(r => r.moderation_status === 'held').length;
+      if (h) h.textContent = 'None verified yet: the checked posts need a second look';
+      if (t) t.textContent = `${inReview} post${inReview === 1 ? ' was' : 's were'} checked and put in Review, so the Verified-only filter hides ${inReview === 1 ? 'it' : 'them'}. `
+        + `To see ${inReview === 1 ? 'it' : 'them'}, open Filters and set Scam check to "Verified + needs a look". The reason is in each post's View Details.`
+        + (waiting ? ` ${waiting} more are waiting for "Load 5 more".` : '');
+      if (emptyState) { emptyState.classList.remove('hidden'); emptyState.classList.add('flex'); }
+      return;
+    }
     if (h) h.textContent = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'No Matching Opportunities Found';
     if (t) t.textContent = fieldEmpty ? 'Search the sites for your field with "Search Internships". New ones appear as each site finishes.'
                                       : 'Try broadening your search keywords or resetting region and stipend filters.';
