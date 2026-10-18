@@ -5,7 +5,7 @@ judge a post, so every one of them went to Review (18 Oct 2026: 20 of 20 Talent.
 
 Checked in a real browser on 19 Oct 2026, each post's own page has the whole text:
   - Talent.com /view?id=...  : a JobPosting in <script type="application/ld+json"> (about 2,600
-    characters). Plain requests work, so this runs at "Load 5 more" time, only for the 5 posts
+    characters), or on some posts only the text under the "Job description" heading. Plain requests work, so this runs at "Load 5 more" time, only for the 5 posts
     being checked (fill_details below), not for every post found.
   - SimplyHired /job/<key>   : pageProps.jobDescriptionHtml in __NEXT_DATA__ (about 3,300).
   - Careerjet /jobad/<id>    : a JobPosting in ld+json (about 4,200).
@@ -56,9 +56,25 @@ def ld_json_scripts(html):
     return [s.string or s.get_text() for s in soup.find_all("script", type="application/ld+json")]
 
 
+def text_under_heading(html, heading="Job description"):
+    """The text of the block right after a heading such as "Job description" (for pages without
+    a JobPosting; their class names are generated, so the visible heading is what we can rely on)."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html or "", "lxml")
+    for tag in soup.find_all(True):
+        if tag.find(True) is None and tag.get_text(strip=True).lower() == heading.lower():
+            block = tag.find_next_sibling()
+            if block is not None:
+                return html_to_text(str(block), DETAIL_TEXT_LIMIT)
+    return ""
+
+
 # ---------- at "Load 5 more" time, with plain requests ----------
 def _talent(link):
-    return jobposting_text(ld_json_scripts(get(link).text))
+    """About 7 in 10 Talent.com posts carry a JobPosting; the rest only show the text under a
+    "Job description" heading (6 of 20 on 19 Oct 2026), so both are tried."""
+    html = get(link).text
+    return jobposting_text(ld_json_scripts(html)) or text_under_heading(html)
 
 
 FETCHERS = {"Talent.com": _talent}
@@ -68,7 +84,7 @@ def fill_details(rows, min_chars):
     """For rows from a site in FETCHERS whose text is shorter than min_chars, read the post's own
     page and put its full text in row['description']. Returns how many got longer text.
     A failed page is skipped: the row keeps its snippet (and the short-text rule sends it to Review)."""
-    filled = 0
+    filled = missed = 0
     for row in rows:
         fetch = FETCHERS.get(row.get("source_platform", ""))
         desc = str(row.get("description") or "").strip()
@@ -82,8 +98,12 @@ def fill_details(rows, min_chars):
         if len(text) > len(desc):
             row["description"] = text
             filled += 1
-    if filled:
-        logger.info(f"Read the full post for {filled} listing(s) before the scam check")
+        else:
+            missed += 1
+            logger.warning(f"{row['source_platform']}: no full text found on {row['apply_link']}")
+    if filled or missed:
+        logger.info(f"Read the full post for {filled} listing(s) before the scam check"
+                    + (f"; {missed} kept only the short snippet" if missed else ""))
     return filled
 
 
