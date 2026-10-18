@@ -704,8 +704,8 @@
   </div>
 
   <!-- Live scan: one row per site while a search runs, then the scam-check progress -->
-  <div id="scan-panel" class="hidden fixed bottom-6 left-6 z-[58] w-[340px] max-w-[calc(100%-3rem)] glass-panel shadow-2xl p-4" role="status" aria-live="polite">
-    <div class="flex items-start gap-3">
+  <div id="scan-panel" class="hidden fixed bottom-6 left-6 z-[58] w-[340px] max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] flex flex-col glass-panel shadow-2xl p-4" role="status" aria-live="polite">
+    <div class="flex items-start gap-3 shrink-0">
       <div id="scan-icon" class="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
         <i class="ph ph-radar text-xl animate-spin" style="animation-duration:2.5s"></i>
       </div>
@@ -717,9 +717,9 @@
         <i class="ph ph-x text-sm"></i>
       </button>
     </div>
-    <div class="mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden"><div id="scan-bar" class="h-full bg-orange-500 transition-all duration-500" style="width:0%"></div></div>
-    <ul id="scan-sites" class="mt-3 space-y-1.5 text-xs"></ul>
-    <div id="scan-check" class="hidden mt-3 pt-3 border-t border-slate-200 text-xs font-semibold"></div>
+    <div class="mt-3 h-1.5 shrink-0 rounded-full bg-slate-100 overflow-hidden"><div id="scan-bar" class="h-full bg-orange-500 transition-all duration-500" style="width:0%"></div></div>
+    <ul id="scan-sites" class="mt-3 space-y-1.5 text-xs min-h-0 flex-1 overflow-y-auto pr-1"></ul>
+    <div id="scan-check" class="hidden shrink-0 mt-3 pt-3 border-t border-slate-200 text-xs font-semibold"></div>
   </div>
 
   <script src="{{ url_for('static', filename='app_radar.js') }}"></script>
