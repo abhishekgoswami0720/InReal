@@ -421,3 +421,27 @@ def test_initial_release_when_switched_on(store, monkeypatch):
     scraper.process_and_save("shine", [_row(f"t{i}", "AI Intern", source_platform="Shine") for i in range(8)])
     c = oh.moderation_counts()
     assert c["pending"] == 5 and c["held"] == 11
+
+
+def test_each_search_is_tagged_and_load_more_stays_in_it(store, monkeypatch):
+    import app as app_mod
+    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    oh.sync_listings([_row("old1", "AI Intern"), _row("both", "ML Intern")], [], hold=True, run_tag="A")
+    oh.sync_listings([_row("both", "ML Intern"), _row("new1", "AI Intern")], [], hold=True, run_tag="B")
+    tags = {r["id"]: r["last_run"] for r in oh._read_rows()}
+    assert tags == {"old1": "A", "both": "B", "new1": "B"}     # found again -> belongs to the new search
+    r = app_mod.app.test_client().post("/api/moderation/load-more", json={"count": 5, "run_tag": "B"}).get_json()
+    assert r == {"released": 2, "held_left": 0}
+    assert {p["id"] for p in oh.pending_moderation(limit=10)} == {"both", "new1"}   # old1 stays held
+
+
+def test_scrape_returns_a_run_tag(monkeypatch):
+    import app as app_mod
+    monkeypatch.setattr(app_mod, "run_scrapers", lambda **kw: None)
+    app_mod.scraper_t = None
+    d = app_mod.app.test_client().post("/api/scrape", json={"sources": ["unstop"], "field": "ai_ml"}).get_json()
+    assert d["status"] == "started" and len(d["run_tag"]) == 15
+    app_mod.scraper_t.join(1)
+    d2 = app_mod.app.test_client().post("/api/scrape", json={"sources": ["unstop"], "run_tag": "X1"}).get_json()
+    assert d2["run_tag"] == "X1"
+    app_mod.scraper_t.join(1)

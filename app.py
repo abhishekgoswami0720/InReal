@@ -98,7 +98,14 @@ def trigger_scrape():
         return jsonify({"status": "running", "message": "Scraping is already in progress!"})
         
     config = request.json if request.is_json else None
-        
+    run_tag = ""
+    if config is not None:
+        # A new search gets a new tag and the dashboard shows only its results;
+        # "Search more" sends the tag of the search on screen to keep adding to it.
+        from datetime import datetime as _dt
+        run_tag = str(config.get("run_tag") or _dt.now().strftime("%Y%m%d-%H%M%S"))
+        config["run_tag"] = run_tag
+
     def scrape_job(cfg):
         # Running the full scraper
         run_scrapers(dry_run=False, config=cfg)   # calls n8n after each site (moderation/notify.py)
@@ -106,7 +113,7 @@ def trigger_scrape():
     scraper_t = threading.Thread(target=scrape_job, args=(config,))
     scraper_t.start()
     
-    return jsonify({"status": "started", "message": "Scraper started successfully. This might take a while."})
+    return jsonify({"status": "started", "run_tag": run_tag, "message": "Scraper started successfully. This might take a while."})
 
 # ---- Moderation API, called by the n8n workflow in n8n/inreal_moderation.json ----
 
@@ -185,11 +192,14 @@ def moderation_load_more():
         n = max(1, min(20, int(data.get("count") or 5)))
     except (TypeError, ValueError):
         n = 5
-    released = release_held(n)
+    released = release_held(n, str(data.get("run_tag") or ""))
     if released:
         from moderation.notify import notify_n8n
         threading.Thread(target=notify_n8n, args=("load more",), daemon=True).start()
-    return jsonify({"released": released, "held_left": moderation_counts()["held"]})
+    from output_handler import read_all_rows
+    tag = str(data.get("run_tag") or "")
+    left = sum(1 for r in read_all_rows() if r.get("moderation_status") == "held" and (not tag or r.get("last_run") == tag))
+    return jsonify({"released": released, "held_left": left})
 
 
 @app.route("/api/scrape/status")

@@ -13,6 +13,17 @@ let showBookmarkedOnly = false;
 let bookmarks = JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]');
 let activeDrawerJob = null;
 let canEdit = true;
+// The search on screen: Search Internships starts a new one and the list shows only its results
+const VIEW_KEY = 'inreal_view_run';
+let viewRun = (() => { try { return localStorage.getItem(VIEW_KEY) || ''; } catch (e) { return ''; } })();
+let showAllSaved = false;
+function startNewView(tag) {
+  if (!tag) return;
+  viewRun = tag; showAllSaved = false;
+  try { localStorage.setItem(VIEW_KEY, tag); } catch (e) { /* private window */ }
+  displayOrder.clear(); verifiedSeen = null;
+  applyFiltersAndRender(); updateViewNote();
+}
 const displayOrder = new Map();   // id -> position the card was first shown at
 let verifiedSeen = null;          // ids that had passed the check at the last reload
 
@@ -228,6 +239,9 @@ function applyFiltersAndRender() {
   const matches = (item, ignoreLocation) => {
     if (showBookmarkedOnly && !bookmarks.includes(item.id)) return false;
 
+    // Only the search on screen (unless "Show all saved")
+    if (viewRun && !showAllSaved && item.last_run !== viewRun) return false;
+
     // The student's profile: only their field, and unpaid posts only for 0 years of experience
     if (profile) {
       const rowFields = String(item.field || 'ai_ml').split(';').filter(Boolean);
@@ -304,6 +318,14 @@ function renderListings(items) {
     container.innerHTML = '';
     const h = document.querySelector('#empty-state h3'), t = document.querySelector('#empty-state p');
     const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').includes(profile.field));
+    if (viewRun && !showAllSaved) {
+      const inView = allInternships.filter(r => r.last_run === viewRun);
+      if (h) h.textContent = inView.length ? 'Nothing verified from this search yet' : 'New search started';
+      if (t) t.textContent = inView.length
+        ? `${inView.filter(r => r.moderation_status === 'held').length} found and waiting. Click "Load 5 more" below to scam-check the next 5.`
+        : 'Internships appear here as each site finishes. Then click "Load 5 more" to scam-check them.';
+      return;
+    }
     if (h) h.textContent = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'No Matching Opportunities Found';
     if (t) t.textContent = fieldEmpty ? 'Search the sites for your field with "Search Internships". New ones appear as each site finishes.'
                                       : 'Try broadening your search keywords or resetting region and stipend filters.';
@@ -710,6 +732,9 @@ function bindEventHandlers() {
         body: JSON.stringify(config)
       });
       if (res.status === 403) showToast('info', 'View-only link', 'Scraping can only be started on the host laptop.');
+      const data = await res.json().catch(() => ({}));
+      if (data.status === 'running') showToast('info', 'Already searching', 'Wait for the current search to finish.');
+      else if (data.run_tag) startNewView(data.run_tag);   // the list clears and fills with this search
     } catch (err) {
       console.error(err);
     }
@@ -946,6 +971,7 @@ async function saveProfileFromForm(e) {
       body: JSON.stringify({ field: next.field, sources: next.sources, regions: next.regions, limit: FIRST_BATCH })
     });
     const data = await res.json().catch(() => ({}));
+    if (data.run_tag) startNewView(data.run_tag);
     if (data.status === 'running') showToast('info', 'Profile saved', 'A search is already running. Start yours with "Search Internships" when it ends.');
     else showToast('success', 'Profile saved, searching now', `Searching ${next.sources.length} site(s) for ${fieldLabels[next.field] || next.field} internships. They appear as each site finishes and passes the scam check.`);
   } catch (err) {
@@ -1040,11 +1066,13 @@ document.addEventListener('DOMContentLoaded', () => {
       sources: (p.sources && p.sources.length) ? p.sources : ['internshala', 'unstop', 'naukri', 'linkedin', 'shine', 'foundit', 'apna', 'government'],
       regions: (p.regions && p.regions.length) ? p.regions : ['india', 'remote'],
       limit,
+      run_tag: viewRun || undefined,   // adds to the search on screen
     };
     setSearchMoreBusy(true);
     try {
       const res = await fetch('/api/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
       const data = await res.json().catch(() => ({}));
+      if (data.run_tag && !viewRun) startNewView(data.run_tag);
       if (res.status === 403) { showToast('info', 'View-only link', 'Searching can only be started on the host laptop.'); setSearchMoreBusy(false); }
       else if (data.status === 'running') showToast('info', 'Already searching', 'Wait for the current search to finish.');
       else showToast('info', 'Searching for more', `Up to ${limit} new ${fieldLabels[config.field] || ''} internships from ${config.sources.length} site(s). A popup appears as each site finishes.`);
@@ -1153,7 +1181,9 @@ function announceNewlyVerified(rows) {
 // ==========================================
 let loadMoreBusy = false;
 function updateHeldUI(c) {
-  const held = (c && c.held) || 0;
+  const held = viewRun
+    ? allInternships.filter(r => r.moderation_status === 'held' && r.last_run === viewRun).length
+    : ((c && c.held) || 0);
   const n = document.getElementById('held-count');
   if (n) n.textContent = held;
   const btn = document.getElementById('load-more-btn');
@@ -1169,7 +1199,7 @@ function updateHeldUI(c) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('load-more-btn')?.addEventListener('click', async () => {
     try {
-      const res = await fetch('/api/moderation/load-more', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ count: 5 }) });
+      const res = await fetch('/api/moderation/load-more', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ count: 5, run_tag: viewRun }) });
       if (res.status === 403) { showToast('info', 'View-only link', 'Load more works on the host laptop.'); return; }
       const d = await res.json();
       if (!d.released) { showToast('info', 'Nothing waiting', 'Use "Search more" to scrape the sites again.'); return; }
@@ -1200,3 +1230,24 @@ function plainReason(r) {
   if (/[{}]|AxiosError|stack/.test(r)) return '';   // any other raw error text
   return r;
 }
+
+
+// ==========================================
+// 17. One search at a time: note above the list, "Show all saved" toggle
+// ==========================================
+function updateViewNote() {
+  const el = document.getElementById('view-note');
+  if (!el) return;
+  if (!viewRun) { el.classList.add('hidden'); return; }
+  const m = viewRun.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
+  const when = m ? `${m[4]}:${m[5]}` : '';
+  el.innerHTML = showAllSaved
+    ? `<span>Showing <b class="text-slate-900">all saved internships</b>.</span> <button type="button" class="text-orange-600 hover:underline font-bold" id="view-toggle">Back to my latest search</button>`
+    : `<span>Showing results of your latest search${when ? ` (started ${when})` : ''}.</span> <button type="button" class="text-orange-600 hover:underline font-bold" id="view-toggle">Show all saved</button>`;
+  el.classList.remove('hidden');
+  document.getElementById('view-toggle').onclick = () => {
+    showAllSaved = !showAllSaved; displayOrder.clear();
+    applyFiltersAndRender(); updateViewNote();
+  };
+}
+document.addEventListener('DOMContentLoaded', updateViewNote);
