@@ -372,7 +372,7 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
     import threading
     from concurrent.futures import ThreadPoolExecutor, as_completed
     visible_chrome = threading.Lock()
-    VISIBLE_CHROME_SOURCES = {"naukri", "foundit"}
+    VISIBLE_CHROME_SOURCES = {"naukri", "foundit", "simplyhired", "careerjet"}
 
     if not dry_run:   # the dashboard's live scan popup lists these
         RUN_PROGRESS.update(planned=list(scrapers_to_run), field=fields.label())

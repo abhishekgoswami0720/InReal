@@ -6,8 +6,9 @@ Checked in a real browser on 18 Oct 2026:
     (title, company_name, job_type, candidate_required_location, salary, tags, description, url).
     Its terms: link back to the Remotive URL, name Remotive as the source, and call the API at
     most about 4 times a day. So we cache the answer for 6 hours and keep the Remotive link.
-    Its "search=intern" returned 12 jobs and none of them was an internship, so we read the
-    whole list and keep the internships ourselves. Most days there are very few.
+    The free API only returns the latest 12 jobs (any search, category or limit: 12; the full
+    list is their paid API), and none of the 12 was an internship on 18 Oct. So this mostly
+    finds nothing; it is kept because it is honest and cheap.
   - We Work Remotely: https://weworkremotely.com/remote-jobs.rss lists about 90 current jobs
     ("Company: Role" titles, region, type, description). On 18 Oct it had 1 internship.
 The old versions only looked at AI/ML feeds; the field filter (filters.py) now decides.

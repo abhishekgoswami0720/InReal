@@ -11,8 +11,8 @@ only linked to the search page. These read the real result pages, checked in a b
   - SimplyHired: https://www.simplyhired.co.in/search?q=<words>&l=India carries its 20 results in
     the __NEXT_DATA__ JSON (title, company, location, salaryInfo, snippet, jobKey, requirements).
   - Careerjet: https://www.careerjet.co.in/jobs?s=<words>&l=India first shows a "Verification in
-    progress" page that a real browser passes on its own after a few seconds, so this one uses
-    Playwright. Results are <article class="job"> with h2 a, p.company, ul.location and div.desc.
+    progress" page that a real browser passes on its own after a few seconds; a headless one never
+    did (laptop test, 18 Oct), so SimplyHired (403 to scripts) and Careerjet open a visible Chrome. Results are <article class="job"> with h2 a, p.company, ul.location and div.desc.
 
 Each site is searched with the student's field words (fields.py) plus "intern".
 The old scrape_niche_boards() also only returned made-up cards; its four sites are gone
@@ -110,17 +110,36 @@ def parse_simplyhired(html):
     return out
 
 
-def scrape_simplyhired():
+def _in_chrome(source, url_tpl, wait_for, parse, settle=0):
+    """Opens each search in a visible Chrome window (these sites refuse scripts and headless
+    browsers: SimplyHired answered 403, Careerjet's check never cleared, 18 Oct 2026)."""
+    from playwright.sync_api import sync_playwright
+    from scraper_utils import save_debug
     out = []
-    for q in _queries():
+    with sync_playwright() as p:
+        browser = launch_browser(p, headless=False)
+        page = browser.new_page()
         try:
-            found = parse_simplyhired(get(SIMPLYHIRED.format(q=urllib.parse.quote_plus(q))).text)
-            logger.info(f"SimplyHired '{q}': {len(found)} results")
-            out += found
-        except Exception as e:
-            logger.warning(f"SimplyHired '{q}' failed: {e}")
-        human_delay(1.0, 2.0)
+            for q in _queries():
+                try:
+                    page.goto(url_tpl.format(q=urllib.parse.quote_plus(q)), timeout=45000, wait_until="domcontentloaded")
+                    page.wait_for_selector(wait_for, timeout=40000, state="attached")
+                    if settle:
+                        page.wait_for_timeout(settle)
+                    found = parse(page.content())
+                    logger.info(f"{source} '{q}': {len(found)} results")
+                    out += found
+                except Exception as e:
+                    logger.warning(f"{source} '{q}' failed: {e}")
+                    save_debug(page, f"{source.lower()}_failed")
+                human_delay(1.5, 3.0)
+        finally:
+            browser.close()
     return dedupe(out)
+
+
+def scrape_simplyhired():
+    return _in_chrome("SimplyHired", SIMPLYHIRED, "script#__NEXT_DATA__", parse_simplyhired)
 
 
 # ---------- Careerjet ----------
@@ -146,27 +165,8 @@ def parse_careerjet(html):
 
 
 def scrape_careerjet():
-    from playwright.sync_api import sync_playwright
-    out = []
-    with sync_playwright() as p:
-        browser = launch_browser(p, headless=True)
-        page = browser.new_page()
-        try:
-            for q in _queries():
-                try:
-                    page.goto(CAREERJET.format(q=urllib.parse.quote_plus(q)), timeout=45000,
-                              wait_until="domcontentloaded")
-                    # the "Verification in progress" page clears itself after a few seconds
-                    page.wait_for_selector("article.job, .no-results, #search-noresults", timeout=25000)
-                    found = parse_careerjet(page.content())
-                    logger.info(f"Careerjet '{q}': {len(found)} results")
-                    out += found
-                except Exception as e:
-                    logger.warning(f"Careerjet '{q}' failed: {e}")
-                human_delay(1.5, 3.0)
-        finally:
-            browser.close()
-    return dedupe(out)
+    # the "Verification in progress" page clears itself in a real window after a few seconds
+    return _in_chrome("Careerjet", CAREERJET, "article.job, .no-results, #search-noresults", parse_careerjet, settle=1000)
 
 
 def scrape_aggregators():
