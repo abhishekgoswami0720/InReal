@@ -55,3 +55,17 @@ def test_a_post_in_two_fields_keeps_both(tmp_path, monkeypatch):
     sync_listings([{**row, "field": "ai_ml"}], [])
     sync_listings([{**row, "field": "data"}], [])
     assert _read_rows()[0]["field"] == "ai_ml;data"
+
+
+def test_software_drops_non_software_development_titles():
+    import fields
+    from filters import internship_rejection_reason
+    fields.set_current("software")
+    try:
+        for t in ["Business Development Executive (Internship)", "Sales Development Representative Intern (SDR)",
+                  "Intern - Learning & Development", "Graphic Designer Intern"]:
+            assert internship_rejection_reason(t, [], "talent") is not None, t
+        for t in ["Python Developer Intern", "Software Development Engineer Intern", "Game Development Intern"]:
+            assert internship_rejection_reason(t, [], "talent") is None, t
+    finally:
+        fields.set_current(fields.DEFAULT)

@@ -99,6 +99,8 @@ def internship_rejection_reason(title: str, skills: list, source: str = "", labe
     # Other fields (medical, finance, ...): the title or skills must name the field
     import fields
     if fields.current() != fields.DEFAULT:
+        if fields.excluded_title(title_lower):
+            return f"Not a {fields.label()} role"
         return None if fields.matches(text_to_check) else f"Not a {fields.label()} role"
 
     if is_ai_ml_title(title_lower):
