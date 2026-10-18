@@ -101,3 +101,9 @@ def test_add_stipend_only_fills_an_empty_stipend_and_drops_the_flag():
     assert row["trust_flags"] == "One post listed for 6 towns"
     kept = {"stipend": "₹20,000 a month", "stipend_numeric": 20000, "description": "Stipend: 5,000/month"}
     assert details.add_stipend(kept) is False and kept["stipend"] == "₹20,000 a month"
+
+
+def test_performance_based_stipends_say_so():
+    f = details.stipend_from_text
+    assert f("Stipend: Performance-Based, up to 7,500/- FOR COLLEGE STUDENTS") == ("Up to ₹7,500 a month (performance-based)", 7500)
+    assert f("Stipend: 7,500 – 15,000 (performance-based). Equal") == ("₹7,500 – ₹15,000 a month (performance-based)", 7500)
