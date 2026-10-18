@@ -330,18 +330,17 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
     
     scrapers_to_run = {}
 
-    # Each dashboard checkbox is now one site (its --source name). The old group
-    # names still work so old saved settings don't break, but "naukri" means only
-    # Naukri now; it used to also start Shine, Foundit, Apna and Cutshort.
-    legacy_groups = {
-        "remotive": ["remotive", "weworkremotely", "international", "niche", "aggregators", "search"],
-    }
-    for name in [s.lower() for s in config.get("sources", [])]:
-        for source in legacy_groups.get(name, [name]):
-            if source in ALL_SCRAPERS:
-                scrapers_to_run[source] = ALL_SCRAPERS[source]
-            else:
-                logger.warning(f"Unknown source in dashboard settings: {source}")
+    # Each dashboard checkbox is one site (sites/registry.py); several sites can share one
+    # scraper (e.g. the four AI job boards), which then runs once.
+    from sites import registry
+    names, skipped = registry.scrapers_for([s.lower() for s in config.get("sources", [])])
+    for source in names:
+        if source in ALL_SCRAPERS:
+            scrapers_to_run[source] = ALL_SCRAPERS[source]
+        else:
+            logger.warning(f"No scraper named {source}")
+    if skipped:
+        logger.info(f"Not built yet, skipped: {', '.join(skipped)}")
 
     if specific_source:
         wanted = [x.strip().lower() for x in specific_source.split(",") if x.strip()]

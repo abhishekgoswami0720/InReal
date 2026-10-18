@@ -616,29 +616,11 @@
 
         <div>
           <div class="flex items-center justify-between mb-2">
-            <label class="font-bold text-slate-700">Upgraded &amp; tested platforms</label>
+            <label class="font-bold text-slate-700">Sites to search <span class="font-medium text-slate-500" data-site-count></span></label>
             <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="sources" checked> Select all</label>
           </div>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="internshala" checked> Internshala</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="unstop" checked> Unstop</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="naukri" checked> Naukri</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="linkedin" checked> LinkedIn</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="shine" checked> Shine</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="foundit" checked> Foundit</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="apna" checked> Apna</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="government" checked> Govt (AICTE)</label>
-          </div>
-          <p class="text-[10px] text-slate-500 mt-1.5">Naukri and Foundit open a Chrome window; if a check appears, solve it there.</p>
-        </div>
-
-        <div>
-          <label class="font-bold text-slate-700 block mb-2">Not upgraded yet</label>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="cutshort"> Cutshort</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="remotive"> Remote boards</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="sources" value="universities"> Academic search</label>
-          </div>
+          <div data-site-list="sources" data-region-name="regions" class="space-y-3 max-h-72 overflow-y-auto pr-1"></div>
+          <p class="text-[10px] text-slate-500 mt-1.5">Naukri and Foundit open a Chrome window; if a check appears, solve it there. "Soon" sites are listed but not built yet.</p>
         </div>
 
         <button type="submit" class="w-full py-2.5 glass-btn glass-btn-primary text-xs font-bold transition mt-2">
@@ -691,24 +673,6 @@
 
         <div>
           <div class="flex items-center justify-between mb-1.5">
-            <span class="font-bold text-slate-700">Sites to search</span>
-            <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="p_sources" checked> Select all</label>
-          </div>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="internshala" checked> Internshala</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="unstop" checked> Unstop</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="naukri" checked> Naukri</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="linkedin" checked> LinkedIn</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="shine" checked> Shine</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="foundit" checked> Foundit</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="apna" checked> Apna</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_sources" value="government" checked> Govt (AICTE)</label>
-          </div>
-          <p class="text-[10px] text-slate-500 mt-1.5">Naukri and Foundit open a Chrome window; if a check appears, solve it there.</p>
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between mb-1.5">
             <span class="font-bold text-slate-700">Regions</span>
             <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="p_regions" checked> Select all</label>
           </div>
@@ -719,6 +683,15 @@
             <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="remote" checked> Remote</label>
             <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="worldwide" checked> Global</label>
           </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="font-bold text-slate-700">Sites to search <span class="font-medium text-slate-500" data-site-count></span></span>
+            <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="p_sources" checked> Select all</label>
+          </div>
+          <div data-site-list="p_sources" data-region-name="p_regions" class="space-y-3 max-h-64 overflow-y-auto pr-1"></div>
+          <p class="text-[10px] text-slate-500 mt-1.5">Naukri and Foundit open a Chrome window; if a check appears, solve it there. "Soon" sites are listed but not built yet.</p>
+        </div>
         </div>
 
         <label id="profile-scrape-row" class="flex items-center gap-2 text-slate-700 cursor-pointer"><input id="profile-scrape-now" type="checkbox" checked> Search these sites for my field now</label>

@@ -874,7 +874,64 @@ function showToast(kind, title, message) {
 // ==========================================
 // 10. Sign-up profile and "Select all" checkboxes
 // ==========================================
+// The site checkboxes in both forms come from sites/registry.py (GET /api/sites)
+let SITE_REGISTRY = null;
+let DEFAULT_SOURCES = ['internshala', 'unstop', 'naukri', 'linkedin', 'shine', 'foundit', 'apna', 'government'];
+const HOW_LABELS = { api: 'Public API', rss: 'Feed', page: 'Web page', browser: 'Chrome window', search: 'Web search' };
+
+async function loadSites() {
+  try { SITE_REGISTRY = await fetch('/api/sites').then(r => r.json()); } catch (e) { return; }
+  Object.assign(SITE_NAMES, SITE_REGISTRY.scraper_labels || {});
+  DEFAULT_SOURCES = SITE_REGISTRY.sites.filter(s => s.status === 'tested').map(s => s.key);
+  document.querySelectorAll('[data-site-list]').forEach(renderSiteList);
+}
+
+function renderSiteList(box) {
+  const name = box.dataset.siteList;
+  const { regions, sites } = SITE_REGISTRY;
+  box.innerHTML = regions.map(r => {
+    const list = sites.filter(s => s.region === r.key);
+    if (!list.length) return '';
+    const live = list.filter(s => s.status !== 'planned').length;
+    const cards = list.map(s => {
+      const soon = s.status === 'planned';
+      const tag = soon ? '<span class="ml-auto shrink-0 text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Soon</span>'
+        : s.status === 'basic' ? '<span class="ml-auto shrink-0 text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Basic</span>' : '';
+      const tip = `${HOW_LABELS[s.how] || s.how}${soon ? ' · not built yet' : s.status === 'basic' ? ' · older scraper, not rebuilt yet' : ' · tested'}`;
+      return `<label class="flex items-center gap-2 p-2 border border-slate-200 rounded-lg ${soon ? 'bg-slate-50/60 text-slate-400 cursor-not-allowed' : 'bg-slate-50 hover:bg-white cursor-pointer'}" title="${escapeHtml(tip)}">
+        <input type="checkbox" name="${name}" value="${escapeHtml(s.key)}"${soon ? ' disabled' : ''}${s.status === 'tested' ? ' checked' : ''}>
+        <span class="truncate">${escapeHtml(s.name)}</span>${tag}</label>`;
+    }).join('');
+    return `<div data-site-region="${escapeHtml(r.key)}">
+      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">${escapeHtml(r.label)} · ${live} of ${list.length} live</div>
+      <div class="grid grid-cols-2 gap-2">${cards}</div></div>`;
+  }).join('');
+  const live = sites.filter(s => s.status !== 'planned').length;
+  const count = box.parentElement.querySelector('[data-site-count]');
+  if (count) count.textContent = `(${live} live, ${sites.length - live} coming soon)`;
+  applyRegionFilter(box);
+}
+
+// A site list shows only the regions ticked in the same form; sites in hidden regions are unticked
+function applyRegionFilter(box) {
+  const form = box.closest('form');
+  if (!form) return;
+  const on = new Set([...form.querySelectorAll(`input[name="${box.dataset.regionName}"]:checked`)].map(cb => cb.value));
+  box.querySelectorAll('[data-site-region]').forEach(g => {
+    const show = on.has(g.dataset.siteRegion);
+    g.classList.toggle('hidden', !show);
+    if (!show) g.querySelectorAll('input').forEach(cb => { cb.checked = false; });
+  });
+}
+
+// Checkboxes a "Select all" may touch: not disabled ("Soon") and not in a hidden region
+function selectableBoxes(root, name) {
+  return [...root.querySelectorAll(`input[name="${name}"]`)]
+    .filter(cb => !cb.disabled && !(cb.closest('[data-site-region]') || {classList: {contains: () => false}}).classList.contains('hidden'));
+}
+
 async function initProfile() {
+  await loadSites();
   try {
     const list = await fetch('/api/fields').then(r => r.json());
     fieldLabels = Object.fromEntries(list.map(f => [f.key, f.label]));
@@ -890,8 +947,8 @@ async function initProfile() {
   document.addEventListener('change', (e) => {
     const t = e.target;
     if (t.dataset && t.dataset.selectAll) {
-      t.form.querySelectorAll(`input[name="${t.dataset.selectAll}"]`).forEach(cb => { cb.checked = t.checked; });
-      t.indeterminate = false;
+      selectableBoxes(t.form, t.dataset.selectAll).forEach(cb => { cb.checked = t.checked; });
+      syncSelectAll(t.form);
     } else if (t.type === 'checkbox' && t.name && t.form) {
       syncSelectAll(t.form);
     }
@@ -907,8 +964,9 @@ function setChecked(name, values) {
 }
 
 function syncSelectAll(root) {
+  root.querySelectorAll('[data-site-list]').forEach(applyRegionFilter);
   root.querySelectorAll('[data-select-all]').forEach(all => {
-    const boxes = [...root.querySelectorAll(`input[name="${all.dataset.selectAll}"]`)];
+    const boxes = selectableBoxes(root, all.dataset.selectAll);
     const on = boxes.filter(b => b.checked).length;
     all.checked = boxes.length > 0 && on === boxes.length;
     all.indeterminate = on > 0 && on < boxes.length;
@@ -1060,7 +1118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const p = profile || {};
     const config = {
       field: p.field || 'ai_ml',
-      sources: (p.sources && p.sources.length) ? p.sources : ['internshala', 'unstop', 'naukri', 'linkedin', 'shine', 'foundit', 'apna', 'government'],
+      sources: (p.sources && p.sources.length) ? p.sources : DEFAULT_SOURCES,
       regions: (p.regions && p.regions.length) ? p.regions : ['india', 'remote'],
       limit,
       run_tag: viewRun || undefined,   // adds to the search on screen
