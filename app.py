@@ -55,6 +55,12 @@ def list_fields():
     return jsonify(fields.public_list())
 
 
+@app.route("/api/sites")
+def list_sites():
+    from sites import registry
+    return jsonify(registry.public_list())
+
+
 @app.route("/api/whoami")
 def whoami():
     return jsonify({"can_edit": is_local_request() or has_admin_token()})
