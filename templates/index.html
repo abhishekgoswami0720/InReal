@@ -391,7 +391,7 @@
     </section>
 
     <!-- Search + one Filters dropdown (all filter options live inside it) -->
-    <section class="glass-panel p-4 flex flex-col gap-3">
+    <section class="glass-panel p-4 flex flex-col gap-3 relative z-20">
       <div id="profile-summary" class="hidden flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600 pb-3 border-b border-slate-200"></div>
 
       <div class="flex flex-wrap items-center gap-2.5">
@@ -411,7 +411,7 @@
             <i class="ph ph-caret-down text-xs text-slate-500"></i>
           </button>
 
-          <div id="filter-menu" class="hidden absolute right-0 top-full mt-2 z-40 w-[300px] glass-panel p-4 shadow-2xl flex flex-col gap-3 text-xs font-semibold text-slate-700" role="group" aria-label="Filters">
+          <div id="filter-menu" class="hidden absolute right-0 top-full mt-2 z-40 w-[300px] max-h-[70vh] overflow-y-auto bg-white border border-slate-200 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-xs font-semibold text-slate-700" role="group" aria-label="Filters">
             <label class="flex flex-col gap-1.5">Scam check
               <select id="mod-filter" class="filter-select w-full">
                 <option value="verified">Verified only</option>
