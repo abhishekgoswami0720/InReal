@@ -350,16 +350,16 @@ function renderListings(items) {
       >
         <div>
           <!-- Top Row: Real Company Logo + Subtle Source Tag with colored dot + Bookmark -->
-          <div class="flex items-start justify-between mb-3.5">
-            <div class="flex items-center gap-3">
+          <div class="flex items-start justify-between gap-3 mb-3.5">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
               <!-- Genuine Square-Rounded Company Logo -->
-              <div class="company-logo-box" title="${escapeHtml(item.company_name || 'Organization')}">
+              <div class="company-logo-box shrink-0" title="${escapeHtml(item.company_name || 'Organization')}">
                 ${logoSvg}
               </div>
 
-              <div>
-                <!-- Subtle Source Badge with colored dot -->
-                <div class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+              <div class="min-w-0">
+                <!-- Subtle Source Badge with colored dot (wraps instead of running under the bookmark) -->
+                <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-semibold text-slate-500">
                   <span class="w-1.5 h-1.5 rounded-full ${dotColor(item)}"></span>
                   <span>${escapeHtml(item.source_platform || 'Direct Portal')}</span>
                   ${isNewToday(item) ? '<span class="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 rounded text-[10px] ml-1">NEW</span>' : ''}
@@ -373,7 +373,7 @@ function renderListings(items) {
 
             <button 
               type="button" 
-              class="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 transition"
+              class="w-8 h-8 shrink-0 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 transition"
               onclick="event.stopPropagation(); toggleBookmark('${escapeHtml(item.id)}')"
               title="Bookmark opportunity"
             >
