@@ -525,3 +525,21 @@ def test_a_failed_detail_page_keeps_the_snippet(store, monkeypatch):
     assert oh.release_held(5) == 1
     sent = oh.pending_moderation(limit=50)
     assert [p["description"] for p in sent] == [SNIPPET]          # still checked; short-text rule applies
+
+
+def test_load_more_takes_the_stipend_from_the_full_talent_post(store, monkeypatch):
+    from sites import details
+    full = LONG_DESC + " Stipend: 10,000/month."
+    monkeypatch.setitem(details.FETCHERS, "Talent.com", lambda link: full)
+    row = _row("t3", "SDE Intern", desc=SNIPPET, source_platform="Talent.com", stipend="", stipend_numeric=0,
+               trust_flags="Stipend amount not stated")
+    oh.sync_listings([row], [], hold=True)
+    oh.release_held(5)
+    sent = oh.pending_moderation(limit=50)[0]
+    assert sent["stipend"] == "₹10,000 a month" and float(sent["stipend_numeric"]) == 10000
+    assert "Stipend amount not stated" not in sent["trust_flags"]
+    # the next search brings the snippet with no stipend again: the stipend and the verdict stay
+    oh.save_verdict("t3", "approved", 0.1, ["LLM: genuine"])
+    oh.sync_listings([dict(row)], [], hold=True)
+    saved = next(x for x in oh.read_all_rows() if x["id"] == "t3")
+    assert saved["stipend"] == "₹10,000 a month" and saved["moderation_status"] == "approved"

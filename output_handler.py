@@ -121,6 +121,10 @@ def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool
                 if (rec.get("source_platform") in SNIPPET_SOURCES
                         and len(str(rec.get("description") or "")) < len(str(old.get("description") or ""))):
                     rec["description"] = old.get("description")
+                    if not str(rec.get("stipend") or "").strip() and str(old.get("stipend") or "").strip():
+                        # ... and so must the stipend read from that full text (with its flags)
+                        for k in ("stipend", "stipend_numeric", "stipend_currency", "trust_flags"):
+                            rec[k] = old.get(k, "")
                 content_changed = any(str(old.get(k, "") or "") != str(rec.get(k, "") or "") for k in CONTENT_FIELDS)
                 for k, v in rec.items():
                     if k in keep_as_is:
@@ -259,13 +263,17 @@ def release_held(n: int, run_tag: str = "") -> int:
     from sites.details import fill_details
     copies = [dict(r) for r in picked]
     fill_details(copies, MIN_TEXT_TO_CHECK)
-    full = {c["id"]: c.get("description", "") for c in copies}
+    full = {c["id"]: c for c in copies}
     with _CSV_LOCK:
         rows = _read_rows()
         for r in rows:
             if r.get("id") in full and r.get("moderation_status") == "checking":
-                if len(full[r["id"]]) > len(r.get("description") or ""):
-                    r["description"] = " ".join(full[r["id"]].split())[:DESCRIPTION_LIMIT]
+                c = full[r["id"]]
+                if len(c.get("description") or "") > len(r.get("description") or ""):
+                    r["description"] = " ".join(c["description"].split())[:DESCRIPTION_LIMIT]
+                    if c.get("stipend") and not r.get("stipend"):   # the stipend the full post states
+                        for k in ("stipend", "stipend_numeric", "stipend_currency", "trust_flags"):
+                            r[k] = c.get(k, "")
                 r["moderation_status"] = ""
                 r["moderated_at"] = ""
         _write_rows(rows)
