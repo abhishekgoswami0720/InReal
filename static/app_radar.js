@@ -960,9 +960,14 @@ function showToast(kind, title, message) {
   if (!box) {
     box = document.createElement('div');
     box.id = 'toast-stack';
-    box.className = 'fixed bottom-6 right-6 z-[60] flex flex-col gap-2 max-w-sm w-[calc(100%-3rem)]';
     document.body.appendChild(box);
   }
+  // with the profile form open, messages go to the top so they never cover its buttons
+  const formOpen = !document.getElementById('profile-modal')?.classList.contains('hidden');
+  box.className = formOpen
+    ? 'fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)]'
+    : 'fixed bottom-6 right-6 z-[60] flex flex-col gap-2 max-w-sm w-[calc(100%-3rem)]';
+  while (box.children.length >= 2) box.firstElementChild.remove();   // the newest two only
   const colors = { success: 'border-l-emerald-500', info: 'border-l-slate-400', error: 'border-l-rose-500' };
   const icons = { success: 'ph-check-circle text-emerald-600', info: 'ph-info text-slate-500', error: 'ph-warning-circle text-rose-600' };
   const t = document.createElement('div');
@@ -1138,6 +1143,15 @@ function sectionDone(p, n) {
 const SECTION_NAMES = ['', 'about you', 'your roles', 'at least 3 skills', 'your preferences', 'search settings'];
 // Sections 1 and 2 are required: until both are complete the form opens by itself and can't be closed
 const requiredDone = (p) => sectionDone(p, 1) && sectionDone(p, 2);
+// Sections open one after another: a section can be opened only when every section before it is complete
+const reachableUpTo = (p) => ([1, 2, 3, 4].find(k => !sectionDone(p, k)) || PROFILE_STEPS);
+const SECTION_TODO = {
+  1: ['Finish "About you"', 'Add your name and pick where you are right now.'],
+  2: ['Finish "What you want"', 'Choose your field and at least one role.'],
+  3: ['Add at least 3 skills', 'Pick from the suggestions or type your own. Or "Skip for now".'],
+  4: ['Answer all three', 'Pick a work mode, a minimum stipend and a duration ("Any" is fine). Or "Skip for now".'],
+  5: ['Pick where to search', 'Choose at least one region and one site.'],
+};
 
 function renderRoleChips(field, selected) {
   const box = document.getElementById('profile-roles');
@@ -1198,14 +1212,14 @@ function collectProfile() {
 }
 
 function showProfileStep(n) {
-  const target = Math.max(1, Math.min(PROFILE_STEPS, n));
+  const target = Math.max(1, Math.min(PROFILE_STEPS, n, reachableUpTo(collectProfile())));
   const moved = target !== profileStep;
   profileStep = target;
   const draft = collectProfile();
   document.querySelectorAll('#profile-form > section').forEach(sec => { sec.hidden = Number(sec.dataset.section) !== profileStep; });
   document.querySelectorAll('#profile-steps .pstep').forEach(btn => {
     const k = Number(btn.dataset.step);
-    btn.toggleAttribute('disabled', profileMandatory && k > 2);
+    btn.toggleAttribute('disabled', k > reachableUpTo(draft) || (profileMandatory && k > 2));
     btn.classList.toggle('done', sectionDone(draft, k));
     if (k === profileStep) btn.setAttribute('aria-current', 'step'); else btn.removeAttribute('aria-current');
     btn.querySelector('.pstep-dot').textContent = sectionDone(draft, k) ? '✓' : String(k);
@@ -1270,12 +1284,12 @@ function closeProfileModal() {
 // "Next" / "Save and next" / "Save and finish"
 async function onProfileNext() {
   const draft = collectProfile();
-  if (profileStep === 1 && !draft.name) { showToast('error', 'Add your name', 'It is shown only to you.'); document.getElementById('profile-name').focus(); return; }
-  if (profileMandatory && profileStep === 1) {
-    if (!draft.study_year) { showToast('error', 'Where are you right now?', 'Pick your year, or Graduated.'); return; }
-    showProfileStep(2);
+  if (!sectionDone(draft, profileStep)) {            // no moving on until this section is filled
+    const [title, msg] = SECTION_TODO[profileStep];
+    showToast('error', title, msg);
     return;
   }
+  if (profileMandatory && profileStep === 1) { showProfileStep(2); return; }
   if (!draft.field) { showProfileStep(2); showToast('error', 'Choose a field', 'Pick the field you want an internship in.'); return; }
   const hasRoles = ((window.PROFILE_ROLES || {})[draft.field] || []).length > 0;
   if (profileMandatory && hasRoles && !draft.roles.length) {
