@@ -740,8 +740,11 @@ function bindEventHandlers() {
     if (profile) {
       const f = document.getElementById('scrape-field');
       if (f) f.value = profile.field;
-      setChecked('sources', profile.sources);
+      // the sites, regions and field of the last search (saved below); all live sites if none yet
+      setChecked('sources', (profile.sources && profile.sources.length) ? profile.sources : DEFAULT_SOURCES);
       setChecked('regions', profile.regions);
+    } else {
+      setChecked('sources', DEFAULT_SOURCES);
     }
     syncSelectAll(modal);
     modal.classList.remove('hidden');
@@ -772,7 +775,16 @@ function bindEventHandlers() {
       if (res.status === 403) showToast('info', 'View-only link', 'Scraping can only be started on the host laptop.');
       const data = await res.json().catch(() => ({}));
       if (data.status === 'running') showToast('info', 'Already searching', 'Wait for the current search to finish.');
-      else if (data.run_tag) startNewView(data.run_tag);   // the list clears and fills with this search
+      else if (data.run_tag) {
+        startNewView(data.run_tag);   // the list clears and fills with this search
+        // Remember this search's choices: the next "Search Internships" and "Search more" start from them
+        // (19 Oct: the window kept showing only the sites picked once in the profile form)
+        if (profile) {
+          writeProfile({ ...profile, field: config.field, sources: config.sources, regions: config.regions });
+          updateProfileUI();
+          applyFiltersAndRender();   // the list shows the field just searched
+        }
+      }
     } catch (err) {
       console.error(err);
     }
