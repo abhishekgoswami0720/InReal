@@ -30,6 +30,8 @@ let showAllSaved = false;
 // (that lost verdicts still on their way from n8n, and other people's results), so the page itself
 // shows nothing until a search starts. "Show recent results" shows everything checked lately.
 let freshVisit = true;
+// The search on screen, exactly as it was asked for: "Search more" repeats it on the same sites only
+let lastSearch = null;
 function startNewView(tag) {
   if (!tag) return;
   viewRun = tag; showAllSaved = false; freshVisit = false;
@@ -791,6 +793,7 @@ function bindEventHandlers() {
       else if (data.run_tag) {
         if (data.status === 'queued') showToast('info', 'Search queued', 'The automatic update is finishing the site it is on. Your search starts right after, by itself; results appear here.');
         startNewView(data.run_tag);   // the list clears and fills with this search
+        lastSearch = { field: config.field, sources: config.sources.slice(), regions: config.regions.slice(), run_tag: data.run_tag };
         // Remember this search's choices: the next "Search Internships" and "Search more" start from them
         // (19 Oct: the window kept showing only the sites picked once in the profile form)
         if (profile) {
@@ -1251,8 +1254,6 @@ function openProfileModal(firstVisit, step) {
   setRadio('max_duration', p.max_duration);
   document.getElementById('profile-companies').value = (p.companies || []).join(', ');
   if (profile) { setChecked('p_sources', profile.sources); setChecked('p_regions', profile.regions); }
-  const scrapeNow = document.getElementById('profile-scrape-now');
-  if (scrapeNow) scrapeNow.checked = false;
   document.getElementById('close-profile-btn').classList.toggle('hidden', profileMandatory);
   syncSelectAll(modal);
   // open on the first section that still needs something, unless one was asked for
@@ -1297,8 +1298,6 @@ async function onProfileNext() {
     return;
   }
   const finishing = !profileMandatory && profileStep === PROFILE_STEPS;
-  const scrapeNow = finishing && canEdit && document.getElementById('profile-scrape-now').checked;
-  if (scrapeNow && !draft.sources.length) { showToast('error', 'Pick at least one site', 'Choose the sites to search, or untick "Search these sites".'); return; }
 
   writeProfile(draft);
   saveProfileToAccount(draft);
@@ -1315,20 +1314,8 @@ async function onProfileNext() {
   }
   if (!finishing) { showProfileStep(profileStep + 1); return; }
   document.getElementById('profile-modal').classList.add('hidden');
-  if (!scrapeNow) { showToast('success', 'Profile saved', 'Your list now follows your profile.'); return; }
-  try {
-    const res = await fetch('/api/scrape', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ field: draft.field, sources: draft.sources, regions: draft.regions, limit: FIRST_BATCH })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (data.run_tag) startNewView(data.run_tag);
-    if (data.status === 'running') showToast('info', 'Profile saved', 'A search is already running. Start yours with "Search Internships" when it ends.');
-    else if (data.status === 'queued') showToast('info', 'Profile saved, search queued', 'The automatic update is finishing the site it is on. Your search starts right after, by itself; results appear here.');
-    else showToast('success', 'Profile saved, searching now', `Searching ${draft.sources.length} site(s) for ${fieldLabels[draft.field] || draft.field} internships. They appear as each site finishes and passes the scam check.`);
-  } catch (err) {
-    showToast('error', 'Profile saved, search did not start', 'The app is not answering. Is python app.py running?');
-  }
+  // Saving the profile never starts a search: only "Search Internships" does (19 Oct)
+  showToast('success', 'Profile saved', 'Your list now follows your profile. Click "Search Internships" to look for new posts.');
 }
 
 // How complete the profile is: the five sections, 20% each. Shown as the orange ring around the avatar.
@@ -1433,13 +1420,17 @@ function setSearchMoreBusy(busy) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('search-more-btn')?.addEventListener('click', async () => {
     const limit = Number(document.getElementById('search-more-count')?.value || FIRST_BATCH);
-    const p = profile || {};
+    // Only the sites of the search on screen; never the profile's list (19 Oct: that was all 23)
+    if (!lastSearch || !viewRun || lastSearch.run_tag !== viewRun) {
+      showToast('info', 'Start a search first', 'Click "Search Internships" and pick the sites. "Search more" then looks for more on those same sites.');
+      return;
+    }
     const config = {
-      field: p.field || 'ai_ml',
-      sources: (p.sources && p.sources.length) ? p.sources : DEFAULT_SOURCES,
-      regions: (p.regions && p.regions.length) ? p.regions : ['india', 'remote'],
+      field: lastSearch.field,
+      sources: lastSearch.sources.slice(),
+      regions: lastSearch.regions.slice(),
       limit,
-      run_tag: viewRun || undefined,   // adds to the search on screen
+      run_tag: viewRun,   // adds to the search on screen
     };
     setSearchMoreBusy(true);
     try {

@@ -148,14 +148,19 @@ def get_internships():
 def trigger_scrape():
     global scraper_t
     
+    # Only the sites the person picked, never "everything": a request without a site list used
+    # to fall back to all 23 sites (scraper.run_scrapers with no config).
+    config = request.get_json(silent=True)
+    if not isinstance(config, dict) or not [s for s in (config.get("sources") or []) if str(s).strip()]:
+        return jsonify({"status": "error", "message": "Pick at least one site to search."}), 400
+    config["sources"] = [str(s).strip() for s in config["sources"] if str(s).strip()]
+
     if scraper_t and scraper_t.is_alive():
         return jsonify({"status": "running", "message": "Scraping is already in progress!"})
     import autopilot
     queued = autopilot.busy()
     if queued:
         autopilot.STATE["yield"] = True   # the round stops after its current site search
-
-    config = request.json if request.is_json else None
     run_tag = ""
     if config is not None:
         # A new search gets a new tag and the dashboard shows only its results;
@@ -447,7 +452,9 @@ def start_publish_loop():
 if __name__ == "__main__":
     _hold_old_listings()
     import autopilot
-    autopilot.start(manual_scrape_running)
+    # No automatic searching: sites are scraped only when someone presses Search Internships
+    # (19 Oct: rounds at 17:24 and 23:24 opened 23 sites nobody asked for). autopilot.py stays
+    # for a later server setup; nothing starts it here, whatever AUTO_UPDATE says.
     start_publish_loop()
     port = int(os.environ.get("PORT", 5000))
     if os.environ.get("INREAL_DEBUG") == "1":
