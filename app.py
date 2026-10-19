@@ -49,6 +49,18 @@ def guard_writes():
         return jsonify({"status": "error", "message": "This is a read-only public view. Run scrapes from the laptop."}), 403
 
 
+@app.before_request
+def same_origin_for_sign_in():
+    """Google sign-in comes back to http://localhost:<port> (the address allowed in Supabase), and the
+    session lives in that origin's browser storage. Opened as 127.0.0.1 the page would never see it,
+    so the pages move to localhost first."""
+    from flask import redirect
+    host = request.host.split(":")[0]
+    if request.method == "GET" and host in ("127.0.0.1", "[::1]") and request.path in ("/", "/app"):
+        port = request.host.split(":")[-1] if ":" in request.host.replace("[::1]", "") else ""
+        return redirect(f"http://localhost{':' + port if port else ''}{request.full_path.rstrip('?')}", code=302)
+
+
 @app.route("/api/fields")
 def list_fields():
     import fields
@@ -69,6 +81,8 @@ PATTERN_INDEX = Path(__file__).parent / "moderation" / "pattern_index.json"
 
 # Global state for scraping
 scraper_t = None
+QUEUE = {"waiting": False}   # a search is waiting for the automatic update to stop
+QUEUE_WAIT_S = 3 * 3600   # a search queued behind the automatic update is dropped after this
 
 def public_config():
     """What the browser needs to talk to Supabase. The publishable key is public by design;
@@ -137,8 +151,9 @@ def trigger_scrape():
     if scraper_t and scraper_t.is_alive():
         return jsonify({"status": "running", "message": "Scraping is already in progress!"})
     import autopilot
-    if autopilot.busy():
-        return jsonify({"status": "running", "message": "The automatic update is running. Try again when it finishes."})
+    queued = autopilot.busy()
+    if queued:
+        autopilot.STATE["yield"] = True   # the round stops after its current site search
 
     config = request.json if request.is_json else None
     run_tag = ""
@@ -147,19 +162,32 @@ def trigger_scrape():
         # "Search more" sends the tag of the search on screen to keep adding to it.
         from datetime import datetime as _dt
         if not config.get("run_tag"):
-            # A NEW search starts from an empty list; "Search more" sends the tag and keeps it
-            from output_handler import clear_all
-            clear_all()
+            # A new search no longer empties the list: the page shows only this search's tag, and
+            # posts found again keep their verdict (no second Azure check). Old ones are pruned.
+            from output_handler import prune_old
+            prune_old()
         run_tag = str(config.get("run_tag") or _dt.now().strftime("%Y%m%d-%H%M%S"))
         config["run_tag"] = run_tag
 
     def scrape_job(cfg):
-        # Running the full scraper
+        if queued:
+            deadline = time.time() + QUEUE_WAIT_S
+            QUEUE["waiting"] = True
+            try:
+                while autopilot.busy() and time.time() < deadline:
+                    time.sleep(2)
+            finally:
+                QUEUE["waiting"] = False
+            if autopilot.busy():   # never two scrapers at once: they share Chrome and the list
+                print("Queued search dropped: the automatic update did not stop in time")
+                return
         run_scrapers(dry_run=False, config=cfg)   # calls n8n after each site (moderation/notify.py)
-        
-    scraper_t = threading.Thread(target=scrape_job, args=(config,))
+
+    scraper_t = threading.Thread(target=scrape_job, args=(config,), daemon=True)
     scraper_t.start()
-    
+    if queued:
+        return jsonify({"status": "queued", "run_tag": run_tag,
+                        "message": "The automatic update is finishing the site it is on; your search starts right after."})
     return jsonify({"status": "started", "run_tag": run_tag, "message": "Scraper started successfully. This might take a while."})
 
 # ---- Moderation API, called by the n8n workflow in n8n/inreal_moderation.json ----
@@ -285,14 +313,11 @@ def moderation_load_more():
 
 @app.route("/api/session/new", methods=["POST"])
 def new_session():
-    """Each page load (refresh) is a new session: internships.csv starts empty.
-    Skipped while a search is running, so a refresh mid-search doesn't lose it."""
-    import autopilot
-    if (scraper_t and scraper_t.is_alive()) or autopilot.busy():
-        return jsonify({"status": "busy"})
-    from output_handler import clear_all
-    clear_all()
-    return jsonify({"status": "cleared"})
+    """A page load. The page starts with an empty view by itself; nothing is deleted here any more
+    (wiping internships.csv lost verdicts on their way from n8n and other people's results).
+    Only posts no search has found for a few days are removed."""
+    from output_handler import prune_old
+    return jsonify({"status": "kept", "pruned": prune_old()})
 
 
 @app.route("/api/scrape/status")
@@ -300,6 +325,8 @@ def scrape_status():
     global scraper_t
     import scraper as scraper_mod
     running = bool(scraper_t and scraper_t.is_alive())
+    if running and QUEUE["waiting"]:   # the progress on record is the automatic update's, not this search's
+        return jsonify({"status": "queued", "progress": None})
     return jsonify({"status": "running" if running else "idle", "progress": scraper_mod.RUN_PROGRESS})
 
 @app.route("/api/logs")
@@ -390,10 +417,38 @@ def _hold_old_listings():
         print(f"{n} unchecked listings moved to 'held': they go to the scam check only via Load 5 more")
 
 
+PUBLISH_EVERY_S = 15 * 60
+
+
+def start_publish_loop():
+    """Every verdict goes to Supabase at once (output_handler._share), but a send that fails (no
+    internet, Supabase down) is not retried. This re-sends every judged post now and every 15
+    minutes; an upsert, so sending one twice changes nothing."""
+    import supabase_sync
+    from output_handler import read_all_rows
+    if not supabase_sync.enabled():
+        return None
+
+    def loop():
+        while True:
+            try:
+                n = supabase_sync.publish(read_all_rows())
+                if n:
+                    print(f"Supabase: {n} judged post(s) up to date")
+            except Exception as e:   # never stop the loop
+                print(f"Supabase backfill failed: {e}")
+            time.sleep(PUBLISH_EVERY_S)
+
+    t = threading.Thread(target=loop, daemon=True, name="supabase-backfill")
+    t.start()
+    return t
+
+
 if __name__ == "__main__":
     _hold_old_listings()
     import autopilot
     autopilot.start(manual_scrape_running)
+    start_publish_loop()
     port = int(os.environ.get("PORT", 5000))
     if os.environ.get("INREAL_DEBUG") == "1":
         # Flask's debugger can run code on this machine: only for local development, never with a tunnel
@@ -405,5 +460,6 @@ if __name__ == "__main__":
             sys.exit("Install the production server first:  pip install waitress")
         # 127.0.0.1 only: the tunnel connects locally, the Wi-Fi network can't reach the app directly
         host = os.environ.get("HOST", "127.0.0.1")
-        print(f"InReal running on http://{host}:{port}  (waitress, debug off)")
+        shown = "localhost" if host in ("127.0.0.1", "0.0.0.0") else host
+        print(f"InReal running on http://{shown}:{port}  (waitress, debug off)")
         serve(app, host=host, port=port, threads=8)
