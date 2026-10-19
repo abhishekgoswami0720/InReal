@@ -46,7 +46,6 @@
       </a>
       <nav aria-label="Main" class="flex items-center gap-2">
         <a href="#how" class="hidden lg:inline-block px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900">How the check works</a>
-        <a href="#pricing" class="hidden lg:inline-block px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900">Pricing</a>
         <button type="button" data-signin class="glass-btn px-3.5 sm:px-4 py-2.5">Log in</button>
         <button type="button" data-signin class="glass-btn glass-btn-primary px-3.5 sm:px-4 py-2.5 flex items-center gap-1.5"><i class="ph ph-user-plus text-base text-orange-400"></i>Sign up free</button>
       </nav>
@@ -81,7 +80,7 @@
           <img src="{{ url_for('static', filename='hero_team.png') }}" alt="Illustration of students working together" class="w-full h-auto object-cover object-center">
           <div class="absolute bottom-2.5 left-2.5 right-2.5 p-2 bg-white/95 backdrop-blur-md rounded-lg border border-slate-900/30 flex items-center justify-between text-xs font-bold text-slate-900">
             <span class="flex items-center gap-1.5"><i class="ph ph-shield-check text-emerald-600"></i> Scam check on every post</span>
-            <span class="text-orange-600 font-extrabold">Free plan</span>
+            <span class="text-orange-600 font-extrabold">Free</span>
           </div>
         </div>
       </div>
@@ -131,7 +130,7 @@
           <div class="max-w-md w-full bg-white border border-slate-200 rounded-2xl p-6 sm:p-7 text-center flex flex-col items-center gap-3 shadow-2xl">
             <div class="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><i class="ph ph-lock-key text-2xl"></i></div>
             <div class="text-lg font-extrabold" id="locked-count">More verified internships</div>
-            <div class="text-sm text-slate-600 font-medium">Sign in to see every post in your field, why each one passed, and save the ones you like.</div>
+            <div class="text-sm text-slate-600 font-medium">Sign in to see every post in your field the moment it passes the check, why it passed, and save the ones you like.</div>
             <button type="button" data-signin class="glass-btn glass-btn-primary px-5 py-3 text-sm">Continue with Google</button>
             <div class="text-[11px] text-slate-500">Free. No password. We only get your name, email and photo from Google.</div>
           </div>
@@ -191,36 +190,6 @@
       </div>
     </section>
 
-    <!-- Pricing -->
-    <section id="pricing" aria-labelledby="price-h" class="scroll-mt-24 flex flex-col gap-4">
-      <div>
-        <h2 id="price-h" class="text-xl md:text-2xl font-extrabold tracking-tight">Pricing</h2>
-        <p class="text-sm text-slate-600 mt-1 font-medium">The scam check is free for everyone. Pro gets you new posts first: good internships fill in a day or two.</p>
-      </div>
-      <div class="grid gap-5 md:grid-cols-2 max-w-3xl">
-        <div class="glass-card p-6 flex flex-col gap-4">
-          <div class="font-bold">Free</div><div class="text-4xl font-extrabold">₹0</div>
-          <ul class="flex flex-col gap-2.5 text-sm text-slate-700 font-medium">
-            <li class="flex gap-2"><i class="ph ph-check-circle text-emerald-600 text-lg"></i>Every verified internship in your field</li>
-            <li class="flex gap-2"><i class="ph ph-check-circle text-emerald-600 text-lg"></i>The scam check and why each post passed</li>
-            <li class="flex gap-2"><i class="ph ph-check-circle text-emerald-600 text-lg"></i>New posts 24 hours after they pass</li>
-            <li class="flex gap-2"><i class="ph ph-check-circle text-emerald-600 text-lg"></i>Save up to 10 internships</li>
-          </ul>
-          <button type="button" data-signin class="mt-auto glass-btn px-5 py-3 text-sm">Continue with Google</button>
-        </div>
-        <div class="rounded-[14px] bg-slate-900 text-white p-6 flex flex-col gap-4 shadow-xl">
-          <div class="flex justify-between items-center"><span class="font-bold">Pro</span><span class="text-[11px] font-extrabold text-slate-900 bg-orange-300 rounded-full px-2.5 py-1">First to apply</span></div>
-          <div><span class="text-4xl font-extrabold">₹79</span><span class="text-slate-300"> / month</span></div>
-          <ul class="flex flex-col gap-2.5 text-sm text-slate-200 font-medium">
-            <li class="flex gap-2"><i class="ph ph-check-circle text-orange-300 text-lg"></i>New posts the moment they're verified</li>
-            <li class="flex gap-2"><i class="ph ph-check-circle text-orange-300 text-lg"></i>Email alert when a post matches your profile</li>
-            <li class="flex gap-2"><i class="ph ph-check-circle text-orange-300 text-lg"></i>"Needs a look" posts, with the full scam report</li>
-            <li class="flex gap-2"><i class="ph ph-check-circle text-orange-300 text-lg"></i>Unlimited saved internships</li>
-          </ul>
-          <button type="button" data-pro class="mt-auto px-5 py-3 rounded-[10px] bg-orange-500 text-slate-900 text-sm font-extrabold hover:bg-orange-400 transition">Get Pro · coming soon</button>
-        </div>
-      </div>
-    </section>
   </main>
 
   <!-- Sign-in dialog, styled like the dashboard's profile dialog -->
@@ -242,10 +211,10 @@
       </button>
       <p id="signin-error" class="text-xs text-rose-700 font-semibold" hidden></p>
       <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-2 text-xs text-slate-700 font-medium">
-        <div class="font-bold text-slate-900">What you get free</div>
-        <div class="flex gap-2"><i class="ph ph-check-circle text-emerald-600 text-base"></i>Every verified internship in your field</div>
+        <div class="font-bold text-slate-900">Free, all of it</div>
+        <div class="flex gap-2"><i class="ph ph-check-circle text-emerald-600 text-base"></i>Every verified internship in your field, the moment it passes</div>
         <div class="flex gap-2"><i class="ph ph-check-circle text-emerald-600 text-base"></i>Why each post passed the scam check</div>
-        <div class="flex gap-2"><i class="ph ph-check-circle text-emerald-600 text-base"></i>Save up to 10 internships</div>
+        <div class="flex gap-2"><i class="ph ph-check-circle text-emerald-600 text-base"></i>Save the ones you like</div>
       </div>
       <p class="text-[11px] leading-relaxed text-slate-500">We get only your name, email and profile photo from Google. We never post anything or read your mail.</p>
     </div>

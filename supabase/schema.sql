@@ -53,9 +53,10 @@ create table public.listings (
 create index listings_status_verified_idx on public.listings (status, verified_at desc);
 create index listings_fields_idx on public.listings using gin (fields);
 alter table public.listings enable row level security;
-create policy "signed-in users read what their plan allows" on public.listings for select to authenticated using (
-  (status = 'approved' and ((select private.is_pro()) or (verified_at <= now() - interval '24 hours' and (select private.my_field()) = any(fields))))
-  or (status = 'review' and (select private.is_pro())));
+-- No plans for now (migration everything_free_for_now): every signed-in user sees every checked post
+-- at once. Blocked posts are never readable. The page filters to the user's field.
+create policy "signed-in users read checked posts" on public.listings for select to authenticated using (
+  status in ('approved', 'review'));
 
 create or replace function public.teaser_listings() returns table (
   id text, source_platform text, company_name text, role_title text, location text, stipend text, verified_at timestamptz)
@@ -85,13 +86,13 @@ alter table public.bookmarks enable row level security;
 create policy "own bookmarks: read" on public.bookmarks for select to authenticated using ((select auth.uid()) = user_id);
 create policy "own bookmarks: add" on public.bookmarks for insert to authenticated with check (
   (select auth.uid()) = user_id
-  and ((select private.is_pro()) or (select count(*) from public.bookmarks b where b.user_id = (select auth.uid())) < 10));
+  and (select count(*) from public.bookmarks b where b.user_id = (select auth.uid())) < 500);   -- abuse cap only
 create policy "own bookmarks: remove" on public.bookmarks for delete to authenticated using ((select auth.uid()) = user_id);
 
 -- Left over from the first migration, no longer used and executable by no one:
 -- public.is_pro(), public.my_field() (the policies use the private.* copies).
 
--- verified_at = the first time a post was approved (free users' 24-hour wait counts from it).
+-- verified_at = the first time a post was approved (shown as "Verified" on each post).
 -- An upsert from the laptop can never move it or first_seen_at.
 create or replace function private.listing_timestamps() returns trigger
 language plpgsql set search_path = '' as $$

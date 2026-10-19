@@ -90,7 +90,6 @@
       <!-- Header: one main action and the profile avatar -->
       <div class="flex items-center gap-3">
         {% if user_mode %}
-        <span id="plan-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold border"></span>
         <a href="/admin" id="admin-link" class="hidden glass-btn px-3 py-2.5 text-xs items-center gap-1.5" title="Search sites and run the scam check (opens on the InReal laptop only)">
           <i class="ph ph-gear-six text-base"></i><span class="hidden sm:inline">Admin</span>
         </a>
@@ -171,7 +170,7 @@
           >
           <div class="absolute bottom-2.5 left-2.5 right-2.5 p-2 bg-white/95 backdrop-blur-md rounded-lg border border-slate-900/30 flex items-center justify-between text-xs font-bold text-slate-900">
             <span class="flex items-center gap-1.5"><i class="ph ph-heart-fill text-rose-500"></i> Open Community</span>
-            <span class="text-orange-600 font-extrabold">Free plan</span>
+            <span class="text-orange-600 font-extrabold">Free</span>
           </div>
         </div>
       </div>
@@ -270,13 +269,6 @@
 
     <!-- Search + one Filters dropdown (all filter options live inside it) -->
     <section class="glass-panel p-4 flex flex-col gap-3 relative z-20">
-      {% if user_mode %}
-      <div id="free-note" class="hidden flex flex-wrap items-center gap-2 p-3 rounded-xl bg-orange-50 border border-orange-200 text-xs font-semibold text-orange-900">
-        <i class="ph ph-clock text-base text-orange-500"></i>
-        <span>Free plan: new internships appear here 24 hours after they pass the check. Pro (₹79/month) shows them at once.</span>
-        <span class="ml-auto px-2 py-0.5 rounded-full bg-white border border-orange-200 text-[11px] font-bold">Pro · coming soon</span>
-      </div>
-      {% endif %}
       <div id="profile-summary" class="hidden flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600 pb-3 border-b border-slate-200"></div>
 
       <div class="flex flex-wrap items-center gap-2.5">

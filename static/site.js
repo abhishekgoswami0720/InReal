@@ -92,7 +92,6 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('button, a');
   if (!t) return;
   if (t.matches('[data-signin]')) openSignIn();
-  else if (t.matches('[data-pro]')) toast('Pro (₹79/month) is coming soon. Everything free stays free.');
   else if (t.matches('[data-close]')) closeSignIn();
 });
 $('google-btn').addEventListener('click', signIn);
