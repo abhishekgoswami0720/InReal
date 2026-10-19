@@ -1,6 +1,11 @@
 """
+NOT STARTED BY THE APP (20 Oct 2026): sites are scraped only when someone presses Search
+Internships, and only the sites they pick. This module is kept for a later server setup; app.py
+no longer calls start(), and the /api/autopilot/run route is gone. To bring it back is a decision,
+not a setting.
+
 Automatic update: keeps the shared list (Supabase) fresh without anyone clicking "Search" or
-"Load 5 more". Runs inside the app (app.py starts it) when AUTO_UPDATE=on in .env:
+"Load 5 more". Was run inside the app when AUTO_UPDATE=on in .env:
 
     AUTO_UPDATE=on
     AUTO_EVERY_HOURS=6              # how often a full round runs

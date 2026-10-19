@@ -750,14 +750,15 @@ function bindEventHandlers() {
   // Opportunity Modal (Triggered by "Search Internships")
   const modal = document.getElementById('scrape-config-modal');
   document.getElementById('trigger-scrape-btn')?.addEventListener('click', () => {
+    // Ticked: only the sites of your last search. None the first time: you pick every site yourself
+    // (19 Oct: the dialog opened with all 23 sites ticked, one click searched them all)
     if (profile) {
       const f = document.getElementById('scrape-field');
       if (f) f.value = profile.field;
-      // the sites, regions and field of the last search (saved below); all live sites if none yet
-      setChecked('sources', (profile.sources && profile.sources.length) ? profile.sources : DEFAULT_SOURCES);
+      setChecked('sources', profile.sources || []);
       setChecked('regions', profile.regions);
     } else {
-      setChecked('sources', DEFAULT_SOURCES);
+      setChecked('sources', []);
     }
     syncSelectAll(modal);
     modal.classList.remove('hidden');
@@ -1139,7 +1140,7 @@ function sectionDone(p, n) {
     case 2: return !!(p.field && (p.roles || []).length);
     case 3: return (p.skills || []).length >= 3;
     case 4: return !!(p.work_mode && p.min_stipend != null && p.min_stipend !== '' && p.max_duration);
-    case 5: return !!((p.sources || []).length && (p.regions || []).length);
+    case 5: return (p.regions || []).length > 0;
     default: return false;
   }
 }
@@ -1153,7 +1154,7 @@ const SECTION_TODO = {
   2: ['Finish "What you want"', 'Choose your field and at least one role.'],
   3: ['Add at least 3 skills', 'Pick from the suggestions or type your own. Or "Skip for now".'],
   4: ['Answer all three', 'Pick a work mode, a minimum stipend and a duration ("Any" is fine). Or "Skip for now".'],
-  5: ['Pick where to search', 'Choose at least one region and one site.'],
+  5: ['Pick your regions', 'Choose at least one region.'],
 };
 
 function renderRoleChips(field, selected) {
@@ -1209,7 +1210,7 @@ function collectProfile() {
     min_stipend: minStipend == null ? null : Number(minStipend),
     max_duration: radio('max_duration'),
     companies: document.getElementById('profile-companies').value.split(',').map(c => c.trim()).filter(Boolean),
-    sources: checked('p_sources'),
+    sources: (profile && profile.sources) || [],   // set by Search Internships, never by this form
     regions: checked('p_regions'),
   };
 }
@@ -1253,7 +1254,7 @@ function openProfileModal(firstVisit, step) {
   setRadio('min_stipend', p.min_stipend);
   setRadio('max_duration', p.max_duration);
   document.getElementById('profile-companies').value = (p.companies || []).join(', ');
-  if (profile) { setChecked('p_sources', profile.sources); setChecked('p_regions', profile.regions); }
+  if (profile) setChecked('p_regions', profile.regions);
   document.getElementById('close-profile-btn').classList.toggle('hidden', profileMandatory);
   syncSelectAll(modal);
   // open on the first section that still needs something, unless one was asked for
