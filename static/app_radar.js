@@ -263,8 +263,7 @@ function renderListings(items) {
     }
     if (h) h.textContent = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'No Matching Opportunities Found';
     const waitText = !USER_MODE ? 'Search the sites for your field with "Search Internships". New ones appear as each site finishes.'
-      : isProUser() ? 'They appear here after the next automatic update, every few hours.'
-      : 'They appear here 24 hours after they pass the scam check. The list updates every few hours.';
+      : 'New posts are added automatically every few hours, as soon as they pass the scam check. Check back soon, or pick a nearby field in Edit profile.';
     if (t) t.textContent = fieldEmpty ? waitText : 'Try broadening your search keywords or resetting region and stipend filters.';
     if (emptyState) {
       emptyState.classList.remove('hidden');
@@ -1357,15 +1356,13 @@ async function startSession() {
 // ==========================================
 // 19. User mode (/app): the signed-in student's view of the shared list in Supabase
 // ==========================================
-// The database decides what each account may read (supabase/schema.sql, row-level security):
-// free accounts see approved posts of their field once they are 24 hours old; Pro and admin see
-// everything approved plus "needs a look". This page only asks and shows what comes back.
+// The database decides what may be read (supabase/schema.sql, row-level security): for now every
+// signed-in user gets every checked post at once (verified and "needs a look", never blocked).
+// This page shows the user's field, verified only unless Filters say otherwise.
 const LISTING_COLUMNS = 'id,source_platform,company_name,role_title,location,location_type,duration,stipend,'
   + 'stipend_numeric,required_skills,apply_link,description,fields,org_type,trust_flags,status,scam_risk,'
   + 'moderation_reasons,verified_at';
 const USER_REFRESH_MS = 5 * 60 * 1000;
-
-function isProUser() { return !!(sbAccount && (sbAccount.plan === 'pro' || sbAccount.is_admin)); }
 
 function toDashboardRow(j) {
   // a Supabase listing in the shape the cards and the drawer were written for (internships.csv)
@@ -1391,9 +1388,13 @@ async function startUserApp() {
   sb.auth.onAuthStateChange((event, session) => { if (!session) location.replace('/'); });
 
   fieldLabels = Object.fromEntries((CFG.fields || []).map(f => [f.key, f.label]));
+  // only the fields the automatic update searches can be picked: any other would always be empty
+  const live = new Set(CFG.liveFields || []);
   const sel = document.getElementById('profile-field');
   if (sel) sel.innerHTML = '<option value="">Choose a field</option>'
-    + (CFG.fields || []).map(f => `<option value="${escapeHtml(f.key)}">${escapeHtml(f.label)}</option>`).join('');
+    + (CFG.fields || []).map(f => live.has(f.key)
+      ? `<option value="${escapeHtml(f.key)}">${escapeHtml(f.label)}</option>`
+      : `<option value="${escapeHtml(f.key)}" disabled>${escapeHtml(f.label)} (coming soon)</option>`).join('');
   document.getElementById('edit-profile-btn')?.addEventListener('click', () => openProfileModal(false));
   document.getElementById('close-profile-btn')?.addEventListener('click', closeProfileModal);
   document.getElementById('profile-form')?.addEventListener('submit', saveProfileFromForm);
@@ -1424,15 +1425,8 @@ async function startUserApp() {
 }
 
 function showAccount(meta) {
-  const pro = isProUser();
-  const badge = document.getElementById('plan-badge');
-  if (badge) {
-    badge.textContent = sbAccount.is_admin ? 'Admin' : pro ? 'Pro' : 'Free plan';
-    badge.className = `hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${pro ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}`;
-  }
   const admin = document.getElementById('admin-link');
   if (admin) { admin.classList.toggle('hidden', !sbAccount.is_admin); admin.classList.toggle('inline-flex', !!sbAccount.is_admin); }
-  document.getElementById('free-note')?.classList.toggle('hidden', pro);
   const photo = sbAccount.avatar_url || meta.avatar_url;
   const avatar = document.getElementById('profile-avatar');
   if (avatar && photo && /^https:\/\//.test(photo)) {
@@ -1473,7 +1467,7 @@ async function toggleUserBookmark(id) {
   } else {
     const { error } = await sb.from('bookmarks').insert({ user_id: sbUser.id, listing_id: id });
     if (error) {
-      if (/row-level security/i.test(error.message)) showToast('info', 'Saved list is full', 'The free plan saves up to 10 internships. Remove one first. Pro (unlimited) is coming soon.');
+      if (/row-level security/i.test(error.message)) showToast('info', 'Saved list is full', 'You have saved 500 internships. Remove one first.');
       else showToast('error', 'Could not save it', error.message);
       return;
     }
