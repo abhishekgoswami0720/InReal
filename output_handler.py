@@ -252,6 +252,24 @@ def hold_unreleased() -> int:
     return moved
 
 
+def mark_known(verdicts: dict, run_tag: str = "") -> int:
+    """Held posts that the shared list already judged in an earlier automatic round take that
+    verdict here and are not sent to the scam check again. Returns how many."""
+    marked = 0
+    with _CSV_LOCK:
+        rows = _read_rows()
+        for r in rows:
+            v = verdicts.get(r.get("id"))
+            if v in MODERATION_STATUSES and r.get("moderation_status") == "held" and (not run_tag or r.get("last_run") == run_tag):
+                r["moderation_status"] = v
+                r["moderation_reasons"] = "Judged in an earlier automatic round"
+                r["moderated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                marked += 1
+        if marked:
+            _write_rows(rows)
+    return marked
+
+
 def release_held(n: int, run_tag: str = "") -> int:
     """'Load more': moves up to n held listings (round-robin across sites) into the scam-check queue.
     run_tag: only listings of that search (the one on screen)."""
@@ -391,7 +409,17 @@ def save_verdict(listing_id: str, status: str, scam_risk, reasons) -> bool:
                     "moderation_reasons": str(reasons or "")[:1500],
                     "moderated_at": datetime.now().strftime("%Y-%m-%d %H:%M")})
         _write_rows(rows)
+    _share(row)
     return True
+
+
+def _share(row: dict):
+    """Puts a judged post on the shared list the website reads (Supabase), in the background."""
+    try:
+        from supabase_sync import publish_later
+        publish_later([dict(row)])
+    except Exception as e:   # the local app must keep working without Supabase
+        print(f"Supabase publish skipped: {e}")
 
 
 def unblock(listing_id: str) -> bool:
@@ -407,6 +435,7 @@ def unblock(listing_id: str) -> bool:
             f"Moved out of 'likely scam' by hand on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             row.get("moderation_reasons", "")]))[:1500]
         _write_rows(rows)
+    _share(row)
     return True
 
 

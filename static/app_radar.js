@@ -719,7 +719,7 @@ function bindEventHandlers() {
   // Logo = home. Already on the home page: back to the top with panels closed, WITHOUT a reload
   // (a page load starts a new session and would empty the list of the current search).
   document.getElementById('brand-home')?.addEventListener('click', (e) => {
-    if (location.pathname !== '/' || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    if (location.pathname !== '/admin' || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
     closeDetailDrawer();
     document.getElementById('filter-menu')?.classList.add('hidden');

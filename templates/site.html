@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InReal · Internships checked for scams</title>
+  <meta name="description" content="Internships from many job sites in one place, each post checked for fees, task scams and document requests before you see it.">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="alternate icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+  <script>window.INREAL = {{ config | tojson }};</script>
+  <script>
+    // separate from the config above: if the style CDN is slow or blocked, the page still works
+    if (window.tailwind) tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'] } } } };
+  </script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: #f8fafc; color: #0f172a; }
+    .job { transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+    .job:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -12px rgba(15,23,42,.25); border-color: #fdba74; }
+    .job:focus-visible, .btn:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+    .blurred { filter: blur(5px); pointer-events: none; user-select: none; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============ Header (both views) ============ -->
+<header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+    <a href="/" id="brand-home" aria-label="InReal home" class="flex items-center gap-3 rounded-xl">
+      <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="40" height="40" class="w-10 h-10 rounded-xl">
+      <span class="text-xl font-extrabold tracking-tight">In<span class="text-orange-600">Real</span></span>
+    </a>
+    <nav id="nav-public" aria-label="Main" class="flex items-center gap-1 sm:gap-2">
+      <a href="#how" class="hidden md:inline-block px-3 py-2.5 text-sm font-semibold text-slate-700 hover:text-slate-900">How the check works</a>
+      <a href="#pricing" class="hidden md:inline-block px-3 py-2.5 text-sm font-semibold text-slate-700 hover:text-slate-900">Pricing</a>
+      <button type="button" data-signin class="px-3 sm:px-4 py-2.5 text-sm font-bold rounded-xl border border-slate-300 bg-white hover:bg-slate-50">Log in</button>
+      <button type="button" data-signin class="px-3 sm:px-4 py-2.5 text-sm font-bold rounded-xl bg-slate-900 text-white hover:bg-slate-800">Sign up free</button>
+    </nav>
+    <div id="nav-app" class="flex items-center gap-2" hidden>
+      <span id="plan-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-full text-xs font-bold border"></span>
+      <button type="button" id="account-btn" aria-haspopup="menu" aria-expanded="false" class="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border border-slate-200 bg-white hover:bg-slate-50">
+        <img id="account-avatar" alt="" class="w-8 h-8 rounded-full bg-orange-100 object-cover" referrerpolicy="no-referrer">
+        <span id="account-name" class="text-sm font-bold max-w-[10rem] truncate"></span>
+      </button>
+      <div id="account-menu" role="menu" class="hidden absolute right-4 sm:right-6 top-16 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 text-sm">
+        <div id="account-email" class="px-3 py-2 text-xs text-slate-500 truncate"></div>
+        <button type="button" role="menuitem" id="edit-profile" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-100 font-semibold">Field &amp; experience</button>
+        <button type="button" role="menuitem" data-pro class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-100 font-semibold">Get Pro <span class="text-xs text-slate-500">(coming soon)</span></button>
+        <button type="button" role="menuitem" id="sign-out" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-100 font-semibold text-rose-700">Sign out</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ Logged-out landing ============ -->
+<main id="view-public">
+  <section class="max-w-6xl mx-auto px-4 sm:px-6 pt-14 pb-8 grid gap-10 lg:grid-cols-2 items-center">
+    <div class="flex flex-col gap-5">
+      <span class="self-start inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200 text-orange-800 text-sm font-bold">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 20 6v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6Z"/><path d="m9 12 2 2 4-4"/></svg>
+        Every post checked for scams before you see it
+      </span>
+      <h1 class="text-4xl sm:text-5xl font-extrabold leading-[1.05] tracking-tight">Internships you can trust, from <span data-sites>many</span> sites in one place.</h1>
+      <p class="text-lg leading-relaxed text-slate-600 max-w-xl">InReal collects internships from Internshala, Unstop, Naukri, LinkedIn, company career pages and more. Then it checks each post for registration fees, paid "training", task-for-money schemes and requests for your Aadhaar or bank details, and hides the ones that fail.</p>
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button" data-signin class="btn inline-flex items-center gap-2.5 px-5 py-3.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800">
+          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+          Continue with Google, it's free
+        </button>
+        <a href="#how" class="px-4 py-3.5 font-bold text-slate-900">How the check works →</a>
+      </div>
+      <dl class="flex flex-wrap gap-7 pt-1">
+        <div><dt class="sr-only">Verified this week</dt><dd class="text-2xl font-extrabold" data-stat="verified_week">–</dd><div class="text-sm text-slate-600">verified this week</div></div>
+        <div><dt class="sr-only">Hidden as likely scams</dt><dd class="text-2xl font-extrabold" data-stat="hidden_scams">–</dd><div class="text-sm text-slate-600">posts hidden as likely scams</div></div>
+        <div><dt class="sr-only">Sites searched</dt><dd class="text-2xl font-extrabold" data-sites>–</dd><div class="text-sm text-slate-600">sites searched</div></div>
+      </dl>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col gap-3.5 shadow-[0_20px_40px_-24px_rgba(15,23,42,.35)]">
+      <div class="text-xs font-extrabold tracking-widest text-slate-600">WHAT THE CHECK CATCHES</div>
+      <div class="border border-rose-200 bg-rose-50 rounded-xl p-3.5 flex flex-col gap-2">
+        <div class="flex justify-between gap-2 items-center"><strong>Python Developer Intern</strong><span class="text-xs font-extrabold text-rose-700 bg-white border border-rose-200 rounded-full px-2.5 py-0.5">Hidden: likely scam</span></div>
+        <div class="text-sm text-slate-700">“…certificate issued after you <mark class="bg-amber-200 px-0.5">register for the program (registration ₹999)</mark>”</div>
+        <div class="text-sm text-rose-900">The post sells a certificate. Real internships don't charge you.</div>
+      </div>
+      <div class="border border-green-200 bg-green-50 rounded-xl p-3.5 flex flex-col gap-1.5">
+        <div class="flex justify-between gap-2 items-center"><strong>SDET Intern</strong><span class="text-xs font-extrabold text-green-800 bg-white border border-green-200 rounded-full px-2.5 py-0.5">Verified</span></div>
+        <div class="text-sm text-green-900">Clear work, a stated stipend, no fee or document request.</div>
+      </div>
+      <div class="text-xs text-slate-600">Examples of what the check looks for. The AI reviewer must quote the exact line it objects to; quotes that aren't in the post are thrown out.</div>
+    </div>
+  </section>
+
+  <section aria-labelledby="latest-h" class="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+    <div class="flex flex-wrap justify-between items-end gap-3 mb-4">
+      <div>
+        <h2 id="latest-h" class="text-3xl font-extrabold tracking-tight">Verified recently</h2>
+        <p class="text-slate-600 mt-1.5">Real posts that passed the check. Sign in to open them and see every field.</p>
+      </div>
+      <span id="updated-at" class="text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-full px-3.5 py-2" hidden></span>
+    </div>
+    <div id="teaser-grid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+    <p id="teaser-empty" class="text-slate-600 bg-white border border-slate-200 rounded-2xl p-6" hidden>The first verified internships appear here after the next automatic update.</p>
+    <div class="relative mt-4">
+      <div class="blurred grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+        <div class="h-44 rounded-2xl bg-white border border-slate-200"></div><div class="h-44 rounded-2xl bg-white border border-slate-200"></div><div class="h-44 rounded-2xl bg-white border border-slate-200"></div>
+        <div class="h-44 rounded-2xl bg-white border border-slate-200"></div><div class="h-44 rounded-2xl bg-white border border-slate-200"></div><div class="h-44 rounded-2xl bg-white border border-slate-200"></div>
+      </div>
+      <div class="absolute inset-0 flex items-center justify-center p-4 bg-gradient-to-b from-slate-50/30 to-slate-50/95">
+        <div class="max-w-md w-full bg-white border border-slate-200 rounded-2xl p-7 text-center flex flex-col items-center gap-3.5 shadow-xl">
+          <div class="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <div class="text-xl font-extrabold" id="locked-count">More verified internships</div>
+          <div class="text-slate-600">Sign in to see every post in your field, the reason each one passed, and save the ones you like.</div>
+          <button type="button" data-signin class="btn px-5 py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800">Continue with Google</button>
+          <div class="text-xs text-slate-500">Free. No password. We only get your name, email and photo from Google.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" aria-labelledby="how-h" class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 scroll-mt-20">
+    <h2 id="how-h" class="text-3xl font-extrabold tracking-tight">How the check works</h2>
+    <p class="text-slate-600 mt-2 mb-6 max-w-2xl">Three checks look at every post. A post is hidden only when the evidence is in the post itself.</p>
+    <div class="grid gap-4 md:grid-cols-3">
+      <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col gap-2"><div class="text-sm font-extrabold text-orange-700">1 · COLLECT</div><div class="text-lg font-extrabold">We read the full post</div><div class="text-sm text-slate-600 leading-relaxed">From <span data-sites>many</span> job sites and company career pages: the whole description, not the two-line preview.</div></div>
+      <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col gap-2"><div class="text-sm font-extrabold text-orange-700">2 · CHECK</div><div class="text-lg font-extrabold">Three checks, one verdict</div><div class="text-sm text-slate-600 leading-relaxed">Wording compared with known scams, rules for links and contacts, and an AI reviewer that must quote the line it objects to.</div></div>
+      <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col gap-2"><div class="text-sm font-extrabold text-orange-700">3 · APPLY</div><div class="text-lg font-extrabold">You apply on the original site</div><div class="text-sm text-slate-600 leading-relaxed">We never ask you for money or documents. Every card links to the employer's own post.</div></div>
+    </div>
+  </section>
+
+  <section id="pricing" aria-labelledby="price-h" class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 scroll-mt-20">
+    <h2 id="price-h" class="text-3xl font-extrabold tracking-tight">Pricing</h2>
+    <p class="text-slate-600 mt-2 mb-6 max-w-2xl">The scam check is free for everyone. Pro gets you new posts first: good internships fill in a day or two.</p>
+    <div class="grid gap-4 md:grid-cols-2 max-w-3xl">
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col gap-4">
+        <div class="font-extrabold">Free</div><div class="text-4xl font-extrabold">₹0</div>
+        <ul class="flex flex-col gap-2.5 text-sm text-slate-700"><li>✓ Every verified internship in your field</li><li>✓ The scam check and why each post passed</li><li>✓ New posts 24 hours after we find them</li><li>✓ Save up to 10 internships</li></ul>
+        <button type="button" data-signin class="mt-auto px-5 py-3 rounded-xl border border-slate-300 font-bold hover:bg-slate-50">Continue with Google</button>
+      </div>
+      <div class="bg-slate-900 text-white rounded-2xl p-6 flex flex-col gap-4">
+        <div class="flex justify-between items-center"><span class="font-extrabold">Pro</span><span class="text-xs font-extrabold text-slate-900 bg-orange-300 rounded-full px-2.5 py-1">First to apply</span></div>
+        <div><span class="text-4xl font-extrabold">₹79</span><span class="text-slate-300"> / month</span></div>
+        <ul class="flex flex-col gap-2.5 text-sm text-slate-200"><li>✓ New posts the moment they're verified</li><li>✓ Email alert when a post matches your profile</li><li>✓ All fields, not just yours</li><li>✓ "Needs a look" posts, with the full scam report</li><li>✓ Unlimited saved internships</li></ul>
+        <button type="button" data-pro class="mt-auto px-5 py-3 rounded-xl bg-orange-500 text-slate-900 font-extrabold hover:bg-orange-400">Get Pro · coming soon</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ Signed-in app ============ -->
+<main id="view-app" class="max-w-6xl mx-auto px-4 sm:px-6 py-8" hidden>
+  <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+    <div>
+      <h1 class="text-3xl font-extrabold tracking-tight" id="app-title">Verified internships</h1>
+      <p class="text-slate-600 mt-1" id="app-sub"></p>
+    </div>
+    <button type="button" id="change-field" class="text-sm font-bold text-orange-700 hover:text-orange-800">Change field</button>
+  </div>
+  <div id="free-note" class="mb-4 p-3.5 rounded-xl bg-orange-50 border border-orange-200 text-sm text-orange-900" hidden>
+    Free plan: new internships show here 24 hours after they're verified. <button type="button" data-pro class="font-bold underline">Pro (₹79)</button> shows them at once. Coming soon.
+  </div>
+  <div class="flex flex-wrap gap-2 mb-5" role="group" aria-label="Filters">
+    <label class="sr-only" for="q">Search</label>
+    <input id="q" type="search" placeholder="Search role, company or skill" class="flex-1 min-w-[14rem] px-4 py-3 rounded-xl border border-slate-300 bg-white">
+    <label class="sr-only" for="loc">Location</label>
+    <select id="loc" class="px-3 py-3 rounded-xl border border-slate-300 bg-white font-semibold text-sm">
+      <option value="all">Anywhere</option><option value="India">India</option><option value="Remote">Remote</option><option value="International">Outside India</option>
+    </select>
+    <label class="flex items-center gap-2 px-3 py-3 rounded-xl border border-slate-300 bg-white text-sm font-semibold"><input type="checkbox" id="paid"> Paid only</label>
+    <label class="flex items-center gap-2 px-3 py-3 rounded-xl border border-slate-300 bg-white text-sm font-semibold"><input type="checkbox" id="saved-only"> Saved</label>
+  </div>
+  <div id="list" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite"></div>
+  <p id="list-empty" class="text-slate-600 bg-white border border-slate-200 rounded-2xl p-6" hidden></p>
+</main>
+
+<!-- ============ Sign-in dialog ============ -->
+<div id="signin-modal" class="fixed inset-0 z-50 bg-slate-900/55 flex items-center justify-center p-4" hidden>
+  <div role="dialog" aria-modal="true" aria-labelledby="signin-title" class="w-full max-w-md bg-white rounded-2xl p-7 flex flex-col gap-5 shadow-2xl">
+    <div class="flex justify-between items-start">
+      <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="48" height="48" class="w-12 h-12 rounded-xl">
+      <button type="button" data-close aria-label="Close" class="w-11 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div><h2 id="signin-title" class="text-2xl font-extrabold tracking-tight">See every verified internship</h2><p class="text-slate-600 mt-2">One click with your Google account. No password to remember.</p></div>
+    <button type="button" id="google-btn" class="btn flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl border border-slate-300 bg-white font-bold hover:bg-slate-50">
+      <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+      Continue with Google
+    </button>
+    <p id="signin-error" class="text-sm text-rose-700" hidden></p>
+    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-2 text-sm text-slate-700"><div class="font-extrabold text-slate-900">What you get free</div><div>✓ Every verified internship in your field</div><div>✓ Why each post passed the scam check</div><div>✓ Save up to 10 internships</div></div>
+    <p class="text-xs leading-relaxed text-slate-500">We get only your name, email and profile photo from Google. We never post anything or read your mail.</p>
+  </div>
+</div>
+
+<!-- ============ Field & experience (first sign-in, or "Change field") ============ -->
+<div id="profile-modal" class="fixed inset-0 z-50 bg-slate-900/55 flex items-center justify-center p-4" hidden>
+  <form id="profile-form" role="dialog" aria-modal="true" aria-labelledby="profile-title" class="w-full max-w-md bg-white rounded-2xl p-7 flex flex-col gap-5 shadow-2xl">
+    <div><h2 id="profile-title" class="text-2xl font-extrabold tracking-tight">What are you looking for?</h2><p class="text-slate-600 mt-2">We show the internships of this field. You can change it any time.</p></div>
+    <label class="flex flex-col gap-1.5 font-bold text-sm">Field
+      <select id="profile-field" required class="px-3 py-3 rounded-xl border border-slate-300 bg-white font-semibold"></select>
+    </label>
+    <fieldset class="flex flex-col gap-2"><legend class="font-bold text-sm mb-1.5">Experience</legend>
+      <label class="flex items-center gap-2 text-sm"><input type="radio" name="exp" value="0" checked> None yet (unpaid internships shown too)</label>
+      <label class="flex items-center gap-2 text-sm"><input type="radio" name="exp" value="1-2"> 1–2 years (paid only)</label>
+      <label class="flex items-center gap-2 text-sm"><input type="radio" name="exp" value="3+"> 3+ years (paid only)</label>
+    </fieldset>
+    <button type="submit" class="btn px-5 py-3.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800">Show my internships</button>
+  </form>
+</div>
+
+<!-- ============ Post details ============ -->
+<div id="drawer-overlay" class="fixed inset-0 z-40 bg-slate-900/40" hidden>
+  <aside id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" class="absolute right-0 top-0 bottom-0 w-full max-w-lg bg-white p-6 overflow-y-auto flex flex-col gap-5 shadow-2xl">
+    <div class="flex justify-between items-start gap-3">
+      <div class="flex flex-wrap gap-2 items-center"><span id="d-source" class="text-xs font-bold text-slate-600"></span><span id="d-status"></span></div>
+      <button type="button" data-close aria-label="Close" class="w-11 h-11 shrink-0 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div><h2 id="d-title" class="text-2xl font-extrabold leading-snug tracking-tight"></h2><div id="d-company" class="font-bold text-slate-700 mt-1"></div><div id="d-meta" class="text-sm text-slate-600 mt-2"></div></div>
+    <div class="p-4 rounded-xl border border-slate-200 bg-slate-50"><div class="text-xs font-bold tracking-wide text-slate-500">STIPEND</div><div id="d-stipend" class="text-lg font-extrabold"></div></div>
+    <div id="d-check" class="p-4 rounded-xl border text-sm"></div>
+    <div id="d-desc-box"><h3 class="text-xs font-extrabold tracking-wide text-slate-700 mb-2">ABOUT THE INTERNSHIP</h3><div id="d-desc" class="text-sm text-slate-700 leading-relaxed space-y-1.5"></div></div>
+    <div class="flex gap-2 mt-auto pt-2">
+      <a id="d-apply" target="_blank" rel="noopener noreferrer" class="flex-1 text-center px-5 py-3.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800">Apply on the original site ↗</a>
+      <button type="button" id="d-save" class="px-4 py-3.5 rounded-xl border border-slate-300 font-bold hover:bg-slate-50">Save</button>
+    </div>
+  </aside>
+</div>
+
+<div id="toast" role="status" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] max-w-md w-[calc(100%-2rem)] bg-slate-900 text-white rounded-xl px-4 py-3 text-sm shadow-xl" hidden></div>
+
+<footer class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-10 flex flex-wrap justify-between gap-3 text-sm text-slate-600">
+  <span>InReal by Team Chiranjeevi</span>
+  <span>We link to the original posts on each site. Always apply on the employer's own page.</span>
+</footer>
+
+<script src="{{ url_for('static', filename='site.js') }}"></script>
+</body>
+</html>
