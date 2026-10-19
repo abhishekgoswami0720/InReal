@@ -6,7 +6,7 @@
 [![Playwright](https://img.shields.io/badge/playwright-stealth-blueviolet.svg)](https://playwright.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **InReal** (CodeX 3.0, PIET Panipat, Oct 2026): we took the open-source *AI/ML Internship Radar* (MIT licence), updated its scrapers to the portals' current page structure, and added a genuine-only check that removes listings asking for money, task-for-money schemes and mass "internship" programmes. The first commit in this repo is the original code, unchanged; every later commit is our work.
+> **InReal** by Team Chiranjeevi (CodeX 3.0, PIET Panipat, Oct 2026): we took the open-source *AI/ML Internship Radar* (MIT licence), updated its scrapers to the portals' current page structure, and added a genuine-only check that removes listings asking for money, task-for-money schemes and mass "internship" programmes. The first commit in this repo is the original code, unchanged; every later commit is our work.
 
 ---
 
