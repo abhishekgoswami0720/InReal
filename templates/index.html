@@ -49,7 +49,6 @@
   <canvas id="topo-radar-canvas" class="fixed inset-0 pointer-events-none z-0 opacity-45"></canvas>
 
   <!-- Translucent Notification Banner -->
-  {% if not user_mode %}
   <div id="action-banner" class="hidden fixed top-6 right-6 z-50 max-w-sm w-full glass-panel p-4 shadow-xl border-l-4 border-l-orange-500">
     <div class="flex items-start gap-3">
       <div class="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-sm shrink-0">
@@ -65,7 +64,6 @@
     </div>
   </div>
 
-  {% endif %}
 
   <!-- Corporate Header with Clear Value Proposition & Actions -->
   <header class="sticky top-0 z-30 w-full bg-white/85 backdrop-blur-xl border-b border-slate-200/80 shadow-xs">
@@ -93,12 +91,11 @@
         <a href="/admin" id="admin-link" class="hidden glass-btn px-3 py-2.5 text-xs items-center gap-1.5" title="Search sites and run the scam check (opens on the InReal laptop only)">
           <i class="ph ph-gear-six text-base"></i><span class="hidden sm:inline">Admin</span>
         </a>
-        {% else %}
+        {% endif %}
         <button id="trigger-scrape-btn" aria-label="Search Internships" class="glass-btn glass-btn-primary px-3 sm:px-4 py-2.5 flex items-center gap-2 whitespace-nowrap">
           <i class="ph ph-magnifying-glass text-base text-orange-400"></i>
           <span class="hidden sm:inline">Search Internships</span>
         </button>
-        {% endif %}
 
         <!-- Profile avatar: initials of the name, opens the profile -->
         <button id="edit-profile-btn" type="button" title="Set up profile" aria-label="Set up profile"
@@ -155,7 +152,7 @@
           </div>
           <div>
             <div class="text-xs font-bold text-slate-900">{{ sites_text }} sites searched</div>
-            <div class="text-[11px] text-slate-500 font-medium">The list updates automatically every few hours</div>
+            <div class="text-[11px] text-slate-500 font-medium">Search them all from one button</div>
           </div>
         </div>
       </div>
@@ -293,11 +290,9 @@
               <select id="mod-filter" class="filter-select w-full">
                 <option value="verified">Verified only</option>
                 <option value="verified_review">Verified + needs a look</option>
-                {% if not user_mode %}
                 <option value="hide_blocked">All except likely scams</option>
                 <option value="blocked">Only likely scams</option>
                 <option value="all">Everything</option>
-                {% endif %}
               </select>
             </label>
             <label class="flex flex-col gap-1.5">Location
@@ -367,7 +362,6 @@
         <button id="empty-reset-btn" class="mt-4 glass-btn px-4 py-2 text-xs text-slate-800">Clear All Filters</button>
       </div>
     
-      {% if not user_mode %}
       <!-- Load more: scraped internships wait here; each click sends 5 to the scam check -->
       <div id="search-more-bar" class="mt-6 glass-panel p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div class="text-xs text-slate-600 font-medium text-center sm:text-left">
@@ -384,7 +378,6 @@
           <select id="search-more-count" class="hidden" aria-hidden="true"><option value="120" selected>120</option></select>
         </div>
       </div>
-      {% endif %}
     </section>
   </main>
 
@@ -449,7 +442,7 @@
 
         <div class="text-xs text-slate-500 border-t border-slate-200 pt-4 space-y-1 font-medium">
           <div>Source Platform: <span id="drawer-source" class="font-bold text-slate-700">Portal</span></div>
-          <div>{{ 'Verified' if user_mode else 'Scraped' }}: <span id="drawer-date" class="font-bold text-slate-700">-</span></div>
+          <div>Scraped: <span id="drawer-date" class="font-bold text-slate-700">-</span></div>
         </div>
       </div>
 
@@ -465,7 +458,6 @@
     </div>
   </div>
 
-  {% if not user_mode %}
   <!-- Search Internships dialog: field, sites and regions for one search -->
   <div id="scrape-config-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
     <div class="glass-panel max-w-md w-full p-6 shadow-2xl">
@@ -513,7 +505,6 @@
       </form>
     </div>
   </div>
-  {% endif %}
 
   <!-- Sign-up / profile: asked before the first visit, editable from the header -->
   <div id="profile-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[55] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="profile-title">
@@ -555,7 +546,6 @@
           <p class="text-[10px] text-slate-500 mt-1">Separate with commas. Their internships are shown first.</p>
         </div>
 
-        {% if not user_mode %}
         <div>
           <div class="flex items-center justify-between mb-1.5">
             <span class="font-bold text-slate-700">Regions</span>
@@ -580,7 +570,6 @@
         </div>
 
         <label id="profile-scrape-row" class="flex items-center gap-2 text-slate-700 cursor-pointer"><input id="profile-scrape-now" type="checkbox" checked> Search these sites for my field now</label>
-        {% endif %}
 
         <button type="submit" class="w-full py-2.5 glass-btn glass-btn-primary text-xs font-bold transition">
           Save and find internships
@@ -589,7 +578,6 @@
     </div>
   </div>
 
-  {% if not user_mode %}
   <!-- Live scan: one row per site while a search runs, then the scam-check progress -->
   <div id="scan-panel" class="hidden fixed bottom-6 left-6 z-[58] w-[340px] max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] flex flex-col glass-panel shadow-2xl p-4" role="status" aria-live="polite">
     <div class="flex items-start gap-3 shrink-0">
@@ -608,7 +596,6 @@
     <ul id="scan-sites" class="mt-3 space-y-1.5 text-xs min-h-0 flex-1 overflow-y-auto pr-1"></ul>
     <div id="scan-check" class="hidden shrink-0 mt-3 pt-3 border-t border-slate-200 text-xs font-semibold"></div>
   </div>
-  {% endif %}
 
   <script src="{{ url_for('static', filename='background.js') }}"></script>
   <script src="{{ url_for('static', filename='app_radar.js') }}"></script>

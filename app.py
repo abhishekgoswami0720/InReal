@@ -73,7 +73,6 @@ scraper_t = None
 def public_config():
     """What the browser needs to talk to Supabase. The publishable key is public by design;
     the secret key never leaves this laptop (supabase_sync.py)."""
-    import autopilot
     import fields
     from moderation.env import load_env
     from sites import registry
@@ -83,8 +82,6 @@ def public_config():
         "supabaseKey": os.environ.get("SUPABASE_PUBLISHABLE_KEY", "").strip(),
         "liveSites": sum(1 for s in registry.SITES if s["status"] == "tested"),
         "fields": fields.public_list(),
-        # the fields the automatic update searches; the others can't be picked yet (empty list otherwise)
-        "liveFields": autopilot.settings()["fields"],
     }
 
 
@@ -96,9 +93,8 @@ def site():
 
 @app.route("/app")
 def user_app():
-    """The internship dashboard for signed-in users, filled from Supabase (static/app_radar.js in
-    user mode). Signed out, the page sends the visitor back to /. Who sees which listing is decided
-    by Supabase's row-level security, not here."""
+    """The dashboard (search, Load 5 more, scam check) behind Google sign-in. Signed out, the page
+    sends the visitor back to /. The data and the searches are this laptop's, as on /admin."""
     config = dict(public_config(), mode="user")
     return render_template("index.html", user_mode=True, config=config,
                            sites_text=str(config["liveSites"] or "many"))
