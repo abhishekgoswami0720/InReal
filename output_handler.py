@@ -264,9 +264,12 @@ def release_held(n: int, run_tag: str = "") -> int:
     from sites.details import add_stipend
     copies = [dict(r) for r in picked]
     fill_details(copies, MIN_TEXT_TO_CHECK)
-    for c in copies:
-        if c.get("source_platform") in SNIPPET_SOURCES:
-            add_stipend(c)   # also for posts whose full text was read on an earlier "Load more"
+    added = sum(1 for c in copies
+                if c.get("source_platform") in SNIPPET_SOURCES and add_stipend(c))   # also for posts read earlier
+    stated = sum(1 for c in copies if c.get("source_platform") in SNIPPET_SOURCES and c.get("stipend"))
+    if any(c.get("source_platform") in SNIPPET_SOURCES for c in copies):
+        from loguru import logger
+        logger.info(f"Stipend from the post text: {stated} of {len(copies)} state one ({added} filled now)")
     full = {c["id"]: c for c in copies}
     with _CSV_LOCK:
         rows = _read_rows()
