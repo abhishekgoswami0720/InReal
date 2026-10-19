@@ -148,6 +148,7 @@ async function showApp() {
   badge.textContent = state.profile.is_admin ? 'Admin' : pro ? 'Pro' : 'Free plan';
   badge.className = `hidden sm:inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${pro ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}`;
   $('free-note').hidden = pro;
+  $('admin-link').hidden = !state.profile.is_admin;   // the dashboard itself opens only on the laptop
   if (!state.profile.field) { openProfile(true); return; }
   await loadListings();
 }
