@@ -23,6 +23,46 @@
   <style>
     .blurred { filter: blur(5px); pointer-events: none; user-select: none; }
     .teaser { cursor: default; }
+    html, body { overflow-x: clip; }   /* the stamp and step animations start outside their boxes */
+
+    /* "Verified recently": one row running right to left like a news ticker; stops under the mouse */
+    .marquee { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
+    .marquee-track { display: flex; width: max-content; animation: marquee var(--marquee-s, 50s) linear infinite; }
+    .marquee-track > article { width: 310px; flex: none; margin-right: 20px; }   /* margin, not gap: keeps the loop seamless */
+    .marquee:hover .marquee-track, .marquee:focus-within .marquee-track { animation-play-state: paused; }
+    @keyframes marquee { to { transform: translateX(-50%); } }
+
+    /* How the check works: each step slides in as it scrolls into view */
+    .step { opacity: 0; transform: translateY(70px) scale(.96) rotate(-1.5deg); transition: opacity .7s ease, transform .8s cubic-bezier(.16, 1, .3, 1); }
+    .step.in { opacity: 1; transform: none; }
+    .step-dot { transition: background-color .4s, color .4s, transform .4s; }
+    .step-dot.on { background: #F97316; color: #fff; transform: scale(1.12); }
+    .chip { opacity: 0; transform: translateX(-24px); transition: opacity .45s ease, transform .55s cubic-bezier(.34, 1.56, .64, 1); transition-delay: calc(var(--i) * 110ms + 200ms); }
+    .step.in .chip { opacity: 1; transform: none; }
+    .scan-line { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #F97316, transparent); box-shadow: 0 0 12px #F97316; top: 0; opacity: 0; }
+    .step.in .scan-line { animation: scan 2.4s ease-in-out .3s infinite; }
+    @keyframes scan { 0% { top: 4%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 94%; opacity: 0; } }
+    .flag { background-size: 0% 100%; background-repeat: no-repeat; background-image: linear-gradient(#FECACA, #FECACA); transition: background-size .6s ease 1.1s; }
+    .step.in .flag { background-size: 100% 100%; }
+    .pop { opacity: 0; transform: scale(.6); transition: opacity .4s ease, transform .5s cubic-bezier(.34, 1.56, .64, 1); }
+    .step.in .pop { opacity: 1; transform: none; transition-delay: var(--d, 1.6s); }
+    .stamp { opacity: 0; transform: scale(2.2) rotate(-14deg); transition: opacity .3s ease .5s, transform .5s cubic-bezier(.34, 1.56, .64, 1) .5s; }
+    .step.in .stamp { opacity: 1; transform: rotate(-8deg); }
+
+    /* Spot the scam */
+    .spot-card { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+    .spot-card:not([disabled]):hover { transform: translateY(-4px); border-color: #FDBA74; box-shadow: 0 16px 32px -12px rgba(15, 23, 42, .18); }
+    .spot-card mark { background: #FECACA; color: #7F1D1D; border-radius: 4px; padding: 0 3px; }
+    @keyframes shake { 0%, 100% { transform: none; } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+    .shake { animation: shake .35s ease 2; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .marquee-track { animation: none; }
+      .marquee { overflow-x: auto; }
+      .step, .chip, .pop, .stamp, .flag { opacity: 1 !important; transform: none !important; transition: none !important; }
+      .flag { background-size: 100% 100%; }
+      .step.in .scan-line, .shake { animation: none; }
+    }
     a:focus-visible, button:focus-visible { outline: 2px solid #F97316; outline-offset: 2px; }
     [hidden] { display: none !important; }
   </style>
@@ -36,16 +76,11 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
       <a href="/" id="brand-home" aria-label="InReal home" class="group flex items-center gap-3.5 rounded-xl">
         <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="40" height="40" class="w-10 h-10 rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-105">
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="text-xl font-extrabold tracking-tight text-slate-900">In<span class="text-orange-500">Real</span></span>
-            <span class="hidden sm:inline-flex px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[11px] font-bold">Scam-checked</span>
-          </div>
-          <div class="text-[12px] text-slate-500 font-medium hidden md:block">Internships from many sites, each post checked for scams before you see it.</div>
-        </div>
+        <span class="text-2xl font-extrabold tracking-tight text-slate-900">In<span class="text-orange-500">Real</span></span>
       </a>
       <nav aria-label="Main" class="flex items-center gap-2">
-        <a href="#how" class="hidden lg:inline-block px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900">How the check works</a>
+        <a href="#spot" class="hidden lg:inline-block px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900">Spot the scam</a>
+        <a href="#how" class="hidden md:inline-block px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900">How the check works</a>
         <button type="button" data-signin class="glass-btn px-3.5 sm:px-4 py-2.5">Log in</button>
         <button type="button" data-signin class="glass-btn glass-btn-primary px-3.5 sm:px-4 py-2.5 flex items-center gap-1.5"><i class="ph ph-user-plus text-base text-orange-400"></i>Sign up free</button>
       </nav>
@@ -55,7 +90,7 @@
   <main class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full flex flex-col gap-6">
 
     <!-- Hero: the dashboard's hero, with the sign-in button -->
-    <section class="glass-panel p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden bg-gradient-to-r from-amber-50/80 via-white/90 to-orange-50/80 border border-slate-200/80">
+    <section data-hero class="glass-panel p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden bg-gradient-to-r from-amber-50/80 via-white/90 to-orange-50/80 border border-slate-200/80">
       <div class="flex-1 z-10">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-100 border border-orange-200 text-orange-800 text-xs font-bold mb-3.5">
           <span class="w-2 h-2 rounded-full bg-orange-600 animate-pulse"></span>
@@ -72,7 +107,6 @@
             <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
             Continue with Google, it's free
           </button>
-          <a href="#how" class="px-3 py-3 text-sm font-bold text-slate-800 hover:text-orange-600">How the check works →</a>
         </div>
       </div>
       <div class="shrink-0 z-10 w-full md:w-80 lg:w-96">
@@ -110,83 +144,118 @@
       </div>
     </section>
 
-    <!-- 6 demo cards (hover only), the rest blurred and locked -->
-    <section aria-labelledby="latest-h" class="glass-panel p-5 sm:p-6 flex flex-col gap-5">
-      <div class="flex flex-wrap justify-between items-end gap-3">
+    <!-- Verified recently: one moving row (hover-only demo cards), then the lock -->
+    <section aria-labelledby="latest-h" class="glass-panel py-5 sm:py-6 flex flex-col gap-5 overflow-hidden">
+      <div class="px-5 sm:px-6 flex flex-wrap justify-between items-end gap-3">
         <div>
-          <h2 id="latest-h" class="text-xl md:text-2xl font-extrabold tracking-tight">Verified recently</h2>
-          <p class="text-xs md:text-sm text-slate-600 mt-1 font-medium">Real posts that passed the check. Sign in to open them, see the full post and apply.</p>
+          <h2 id="latest-h" class="text-xl md:text-2xl font-extrabold tracking-tight flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>Verified recently</h2>
+          <p class="text-xs md:text-sm text-slate-600 mt-1 font-medium">Real posts that just passed the check. Sign in to open them, see the full post and apply.</p>
         </div>
         <span id="updated-at" class="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-full px-3 py-1.5 flex items-center gap-1.5" hidden></span>
       </div>
-      <div id="teaser-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
-      <p id="teaser-empty" class="text-sm text-slate-600 bg-white border border-slate-200 rounded-xl p-5" hidden>The first verified internships appear here after the next automatic update.</p>
-      <div class="relative">
-        <div class="blurred grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" aria-hidden="true">
-          <div class="glass-card h-48"></div><div class="glass-card h-48"></div><div class="glass-card h-48"></div>
-          <div class="glass-card h-48"></div><div class="glass-card h-48"></div><div class="glass-card h-48"></div>
-        </div>
-        <div class="absolute inset-0 flex items-center justify-center p-4 bg-gradient-to-b from-white/10 to-white/80 rounded-2xl">
-          <div class="max-w-md w-full bg-white border border-slate-200 rounded-2xl p-6 sm:p-7 text-center flex flex-col items-center gap-3 shadow-2xl">
-            <div class="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><i class="ph ph-lock-key text-2xl"></i></div>
-            <div class="text-lg font-extrabold" id="locked-count">More verified internships</div>
-            <div class="text-sm text-slate-600 font-medium">Sign in to see every post in your field the moment it passes the check, why it passed, and save the ones you like.</div>
-            <button type="button" data-signin class="glass-btn glass-btn-primary px-5 py-3 text-sm">Continue with Google</button>
-            <div class="text-[11px] text-slate-500">Free. No password. We only get your name, email and photo from Google.</div>
+      <div class="marquee" id="teaser-marquee" aria-label="Recently verified internships"><div id="teaser-grid" class="marquee-track py-2"></div></div>
+      <p id="teaser-empty" class="mx-5 sm:mx-6 text-sm text-slate-600 bg-white border border-slate-200 rounded-xl p-5" hidden>The first verified internships appear here after the next search.</p>
+      <div class="px-5 sm:px-6">
+        <div class="relative">
+          <div class="blurred hidden sm:grid grid-cols-1 md:grid-cols-3 gap-5" aria-hidden="true">
+            <div class="glass-card h-44"></div><div class="glass-card h-44 hidden md:block"></div><div class="glass-card h-44 hidden md:block"></div>
+          </div>
+          <div class="relative sm:absolute sm:inset-0 flex items-center justify-center sm:p-3 sm:bg-gradient-to-b from-white/10 to-white/70 rounded-2xl">
+            <div class="max-w-xl w-full bg-white border border-slate-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center gap-4 shadow-2xl text-center sm:text-left">
+              <div class="w-12 h-12 shrink-0 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><i class="ph ph-lock-key text-2xl"></i></div>
+              <div class="flex-1">
+                <div class="text-base font-extrabold" id="locked-count">More verified internships</div>
+                <div class="text-xs text-slate-600 font-medium mt-0.5">Sign in to see every post in your field, why it passed, and save the ones you like. Free, no password.</div>
+              </div>
+              <button type="button" data-signin class="glass-btn glass-btn-primary px-5 py-3 text-sm shrink-0">Continue with Google</button>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- The dashboard's two feature cards -->
-    <section class="grid grid-cols-1 md:grid-cols-2 gap-5">
-      <div class="glass-card p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-5 bg-white">
-        <div class="w-full sm:w-44 shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-1">
-          <img src="{{ url_for('static', filename='illustration_interview.svg') }}" alt="" class="w-full h-auto object-contain">
+    <!-- Spot the scam: a 30-second game with made-up posts -->
+    <section id="spot" aria-labelledby="spot-h" class="glass-panel p-5 sm:p-7 scroll-mt-24 flex flex-col gap-5 bg-gradient-to-br from-white/90 via-white/90 to-rose-50/60">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 text-[11px] font-bold border border-rose-200 mb-2"><i class="ph ph-game-controller"></i> 30-second game</div>
+          <h2 id="spot-h" class="text-xl md:text-2xl font-extrabold tracking-tight">Can you spot the scam?</h2>
+          <p class="text-sm text-slate-600 mt-1 font-medium">One of these two posts is a scam. Tap the one you think it is. (Both are made up, built from patterns the check catches.)</p>
         </div>
-        <div class="flex-1">
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200 mb-2"><i class="ph ph-shield-check text-emerald-600"></i> Scam check</div>
-          <h3 class="text-base font-bold text-slate-900 leading-snug">The proof must be in the post</h3>
-          <p class="text-xs text-slate-600 mt-1.5 font-medium leading-relaxed">The AI reviewer must quote the exact line it objects to. Quotes that aren't in the post are thrown out, so a post is never hidden on a guess.</p>
-        </div>
+        <div class="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-full px-3 py-1.5" id="spot-score" aria-live="polite">Your score: 0 / 0</div>
       </div>
-      <div class="glass-card p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-5 bg-white">
-        <div class="w-full sm:w-44 shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-1">
-          <img src="{{ url_for('static', filename='illustration_remote.svg') }}" alt="" class="w-full h-auto object-contain">
-        </div>
-        <div class="flex-1">
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200 mb-2"><i class="ph ph-globe text-blue-600"></i> India, remote &amp; abroad</div>
-          <h3 class="text-base font-bold text-slate-900 leading-snug">One list, your field</h3>
-          <p class="text-xs text-slate-600 mt-1.5 font-medium leading-relaxed">Pick your field once. Filter by location and stipend, save the posts you like, and apply on the employer's own page.</p>
-        </div>
+      <div id="spot-cards" class="grid md:grid-cols-2 gap-5"></div>
+      <div id="spot-result" class="hidden rounded-2xl border p-4 text-sm" aria-live="polite"></div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button" id="spot-next" class="glass-btn px-4 py-2.5 text-sm hidden"><i class="ph ph-arrows-clockwise"></i> Try another pair</button>
+        <span class="text-xs text-slate-500 font-medium">On InReal, posts like the scam ones never reach your list.</span>
       </div>
     </section>
 
-    <!-- How the check works -->
-    <section id="how" aria-labelledby="how-h" class="scroll-mt-24 flex flex-col gap-4">
-      <div>
-        <h2 id="how-h" class="text-xl md:text-2xl font-extrabold tracking-tight">How the check works</h2>
-        <p class="text-sm text-slate-600 mt-1 font-medium">Three checks look at every post. A post is hidden only when the evidence is in the post itself.</p>
+    <!-- How the check works: the steps come in one by one as you scroll -->
+    <section id="how" aria-labelledby="how-h" class="scroll-mt-24 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-8 lg:gap-12 py-4">
+      <div class="lg:sticky lg:top-28 self-start flex flex-col gap-4">
+        <div class="inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 text-[11px] font-bold border border-orange-200"><i class="ph ph-shield-check"></i> Behind every card</div>
+        <h2 id="how-h" class="text-2xl md:text-4xl font-extrabold tracking-tight leading-tight">How the check works</h2>
+        <p class="text-sm md:text-base text-slate-600 font-medium leading-relaxed">From a job site to your list in three steps. A post is hidden only when the evidence is in the post itself.</p>
+        <ol class="hidden lg:flex flex-col gap-3 mt-2" aria-hidden="true">
+          <li class="flex items-center gap-3 text-sm font-bold text-slate-700"><span class="step-dot w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center" data-dot="1">1</span>Collect</li>
+          <li class="flex items-center gap-3 text-sm font-bold text-slate-700"><span class="step-dot w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center" data-dot="2">2</span>Check</li>
+          <li class="flex items-center gap-3 text-sm font-bold text-slate-700"><span class="step-dot w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center" data-dot="3">3</span>Apply</li>
+        </ol>
       </div>
-      <div class="grid gap-5 md:grid-cols-3">
-        <div class="glass-card p-5 flex flex-col gap-2">
-          <div class="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><i class="ph ph-files text-xl"></i></div>
-          <div class="text-[11px] font-extrabold tracking-wider text-orange-700">1 · COLLECT</div>
-          <div class="text-base font-bold">We read the full post</div>
-          <div class="text-xs text-slate-600 font-medium leading-relaxed">From <span data-sites>many</span> job sites and company career pages: the whole description, not the two-line preview.</div>
-        </div>
-        <div class="glass-card p-5 flex flex-col gap-2">
-          <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center"><i class="ph ph-shield-check text-xl"></i></div>
-          <div class="text-[11px] font-extrabold tracking-wider text-orange-700">2 · CHECK</div>
-          <div class="text-base font-bold">Three checks, one verdict</div>
-          <div class="text-xs text-slate-600 font-medium leading-relaxed">Wording compared with known scams, rules for links and contacts, and an AI reviewer that must quote the line it objects to.</div>
-        </div>
-        <div class="glass-card p-5 flex flex-col gap-2">
-          <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center"><i class="ph ph-arrow-square-out text-xl"></i></div>
-          <div class="text-[11px] font-extrabold tracking-wider text-orange-700">3 · APPLY</div>
-          <div class="text-base font-bold">You apply on the original site</div>
-          <div class="text-xs text-slate-600 font-medium leading-relaxed">We never ask you for money or documents. Every card links to the employer's own post.</div>
-        </div>
+
+      <div class="flex flex-col gap-10 lg:gap-28 lg:py-10">
+        <!-- 1 · Collect -->
+        <article class="step glass-card p-6 sm:p-7 grid sm:grid-cols-2 gap-6 items-center" data-step="1">
+          <div class="flex flex-col gap-2">
+            <div class="text-[11px] font-extrabold tracking-wider text-orange-700">1 · COLLECT</div>
+            <h3 class="text-lg font-extrabold">We read the full post</h3>
+            <p class="text-sm text-slate-600 font-medium leading-relaxed">From <span data-sites>many</span> job sites and company career pages: the whole description, not the two-line preview a list page shows.</p>
+          </div>
+          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 flex flex-col gap-2" aria-hidden="true">
+            <span class="chip self-start px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold shadow-sm" style="--i:0">Internshala</span>
+            <span class="chip self-start ml-6 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold shadow-sm" style="--i:1">Unstop</span>
+            <span class="chip self-start ml-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold shadow-sm" style="--i:2">Naukri</span>
+            <span class="chip self-start ml-10 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold shadow-sm" style="--i:3">LinkedIn</span>
+            <span class="chip self-start ml-4 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold shadow-sm" style="--i:4">Company career pages</span>
+            <span class="chip self-start px-3 py-1.5 rounded-lg bg-orange-500 text-white text-xs font-bold shadow-sm" style="--i:5">+ more, <span data-sites>many</span> in all</span>
+          </div>
+        </article>
+
+        <!-- 2 · Check -->
+        <article class="step glass-card p-6 sm:p-7 grid sm:grid-cols-2 gap-6 items-center" data-step="2">
+          <div class="flex flex-col gap-2">
+            <div class="text-[11px] font-extrabold tracking-wider text-orange-700">2 · CHECK</div>
+            <h3 class="text-lg font-extrabold">Three checks, one verdict</h3>
+            <p class="text-sm text-slate-600 font-medium leading-relaxed">Wording compared with known scams, rules for links and contacts, and an AI reviewer that must quote the exact line it objects to. A quote that isn't in the post is thrown out.</p>
+          </div>
+          <div class="relative rounded-2xl bg-white border border-slate-200 p-4 text-xs leading-relaxed text-slate-600 font-medium overflow-hidden" aria-hidden="true">
+            <div class="scan-line"></div>
+            <div class="font-bold text-slate-900 text-sm mb-1.5">Python Developer Intern</div>
+            <p>Work on real projects with our team for 3 months.</p>
+            <p class="mt-1">Certificate after completion.</p>
+            <p class="mt-1"><span class="flag rounded px-0.5 text-rose-900">Pay a one-time ₹999 registration fee</span> to confirm your seat.</p>
+            <div class="pop mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-600 text-white text-[11px] font-bold" style="--d:1.7s"><i class="ph ph-quotes"></i> Quote found: asks for money</div>
+            <div class="pop mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[11px] font-bold" style="--d:2.1s"><i class="ph ph-eye-slash"></i> Hidden from your list</div>
+          </div>
+        </article>
+
+        <!-- 3 · Apply -->
+        <article class="step glass-card p-6 sm:p-7 grid sm:grid-cols-2 gap-6 items-center" data-step="3">
+          <div class="flex flex-col gap-2">
+            <div class="text-[11px] font-extrabold tracking-wider text-orange-700">3 · APPLY</div>
+            <h3 class="text-lg font-extrabold">You apply on the original site</h3>
+            <p class="text-sm text-slate-600 font-medium leading-relaxed">What passes reaches your list with the reason it passed. We never ask you for money or documents; every card links to the employer's own post.</p>
+          </div>
+          <div class="relative rounded-2xl bg-white border border-slate-200 p-4 flex flex-col gap-2" aria-hidden="true">
+            <div class="stamp absolute top-3 right-3 px-2.5 py-1 rounded-lg border-2 border-emerald-600 text-emerald-700 text-xs font-extrabold tracking-wider bg-white">✓ VERIFIED</div>
+            <div class="text-[11px] font-semibold text-slate-500">Example card</div>
+            <div class="font-bold text-slate-900 text-sm pr-24">Web Development Intern</div>
+            <div class="text-xs text-slate-500 font-medium">Bengaluru · ₹15,000 / month</div>
+            <div class="pop mt-2 self-start px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold flex items-center gap-1.5" style="--d:1s">Apply on the original site <i class="ph ph-arrow-square-out"></i></div>
+          </div>
+        </article>
       </div>
     </section>
 

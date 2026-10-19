@@ -1,5 +1,6 @@
-// Slow floating shapes behind the page (three.js). Shared by the landing page and the dashboard;
-// does nothing when three.js did not load or there is no #topo-radar-canvas.
+// Shared by the landing page and the dashboard: the slow floating shapes behind the page (three.js;
+// nothing happens when three.js did not load or there is no #topo-radar-canvas) and the logo's
+// "back to home" animation.
 function initGlassTranslucentBackground() {
   const canvas = document.getElementById('topo-radar-canvas');
   if (!canvas || typeof THREE === 'undefined') return;
@@ -83,4 +84,22 @@ function initGlassTranslucentBackground() {
   }
 
   animate();
+}
+
+// Logo click: the mark spins, the page glides to the top, and the hero ([data-hero]) settles back in.
+// Used instead of reloading the page (a reload on the dashboard would start a new, empty visit).
+function goHome() {
+  const logo = document.querySelector('#brand-home img');
+  const hero = document.querySelector('[data-hero]');
+  const replay = (el, cls) => {
+    if (!el) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;            // restart the animation on every click
+    el.classList.add(cls);
+    el.addEventListener('animationend', () => el.classList.remove(cls), { once: true });
+  };
+  replay(logo, 'logo-home-anim');
+  const far = window.scrollY > 40;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  setTimeout(() => replay(hero, 'hero-return'), far ? Math.min(650, 250 + window.scrollY / 6) : 0);
 }

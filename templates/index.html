@@ -74,15 +74,7 @@
          class="group flex items-center gap-3.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2">
         <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="40" height="40"
              class="w-10 h-10 rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-105">
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="text-xl font-extrabold tracking-tight text-slate-900">In<span class="text-orange-500">Real</span></span>
-            <span class="hidden sm:inline-flex px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[11px] font-bold">{{ 'Scam-checked' if user_mode else 'Admin' }}</span>
-          </div>
-          <div class="text-[12px] text-slate-500 font-medium hidden sm:block">
-            Internships from many sites, each post checked for scams before you see it.
-          </div>
-        </div>
+        <span class="text-2xl font-extrabold tracking-tight text-slate-900">In<span class="text-orange-500">Real</span></span>
       </a>
 
       <!-- Header: one main action and the profile avatar -->
@@ -119,7 +111,7 @@
   <main class="relative z-10 max-w-7xl mx-auto px-6 py-6 flex-1 w-full flex flex-col gap-6">
 
     <!-- Hero Section: Flat Illustration of People & Community Mission -->
-    <section class="glass-panel p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden bg-gradient-to-r from-amber-50/80 via-white/90 to-orange-50/80 border border-slate-200/80">
+    <section data-hero class="glass-panel p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden bg-gradient-to-r from-amber-50/80 via-white/90 to-orange-50/80 border border-slate-200/80">
       
       <!-- Left: Headline & Community Story -->
       <div class="flex-1 z-10">

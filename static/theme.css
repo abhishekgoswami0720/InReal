@@ -141,3 +141,20 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.6); }
+
+/* Logo = home: the mark spins once and the hero settles back in (static/background.js: goHome) */
+@keyframes logo-home {
+  0%   { transform: rotate(0) scale(1); }
+  30%  { transform: rotate(-20deg) scale(.82); }
+  75%  { transform: rotate(360deg) scale(1.16); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.logo-home-anim { animation: logo-home .75s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes hero-return {
+  from { opacity: .3; transform: translateY(18px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+.hero-return { animation: hero-return .65s cubic-bezier(.16, 1, .3, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .logo-home-anim, .hero-return { animation: none; }
+}
