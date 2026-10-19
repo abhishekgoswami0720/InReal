@@ -10,7 +10,15 @@ let activeSource = 'all';
 let activeRoleType = 'all';
 let activeModeration = 'verified';   // n8n scam check: show only listings it passed
 let showBookmarkedOnly = false;
-let bookmarks = JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]');
+// Two modes, one page. /admin (this laptop): the CSV list, searching and the scam check.
+// /app (signed-in users): the shared list from Supabase; nothing here can start a search.
+const CFG = window.INREAL || {};
+const USER_MODE = CFG.mode === 'user';
+const sb = (USER_MODE && window.supabase && CFG.supabaseUrl && CFG.supabaseKey)
+  ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey) : null;
+let sbUser = null;      // the Google account signed in
+let sbAccount = null;   // its row in public.profiles (plan, is_admin)
+let bookmarks = USER_MODE ? [] : JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]');
 let activeDrawerJob = null;
 let canEdit = true;
 // The search on screen: Search Internships starts a new one and the list shows only its results
@@ -70,6 +78,7 @@ function getCompanyLogoSvg(companyName) {
 document.addEventListener('DOMContentLoaded', () => {
   initGlassTranslucentBackground();
   bindEventHandlers();
+  if (USER_MODE) { startUserApp(); return; }
   initProfile();
   try { localStorage.removeItem('inreal_view_run'); } catch (e) {}
   viewRun = '';
@@ -83,95 +92,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 // 1. Subtle Translucent 3D Ambient Mesh
 // ==========================================
-function initGlassTranslucentBackground() {
-  const canvas = document.getElementById('topo-radar-canvas');
-  if (!canvas || typeof THREE === 'undefined') return;
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 0, 40);
-
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-  const group = new THREE.Group();
-  scene.add(group);
-
-  const materials = [
-    new THREE.MeshBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.12 }),
-    new THREE.MeshBasicMaterial({ color: 0x3B82F6, transparent: true, opacity: 0.10 }),
-    new THREE.MeshBasicMaterial({ color: 0x10B981, transparent: true, opacity: 0.10 }),
-  ];
-
-  const meshes = [];
-
-  for (let i = 0; i < 16; i++) {
-    const geo = (i % 2 === 0) 
-      ? new THREE.IcosahedronGeometry(Math.random() * 2.2 + 1.2, 0)
-      : new THREE.TorusGeometry(Math.random() * 2 + 1.2, 0.4, 12, 24);
-
-    const mat = materials[i % materials.length];
-    const mesh = new THREE.Mesh(geo, mat);
-
-    mesh.position.set(
-      (Math.random() - 0.5) * 60,
-      (Math.random() - 0.5) * 45,
-      (Math.random() - 0.5) * 15
-    );
-
-    mesh.userData = {
-      rotX: (Math.random() - 0.5) * 0.006,
-      rotY: (Math.random() - 0.5) * 0.006,
-      floatSpeed: Math.random() * 0.4 + 0.3,
-      startY: mesh.position.y
-    };
-
-    group.add(mesh);
-    meshes.push(mesh);
-  }
-
-  let targetMouseX = 0, targetMouseY = 0, curMouseX = 0, curMouseY = 0;
-
-  window.addEventListener('mousemove', (e) => {
-    targetMouseX = (e.clientX / window.innerWidth - 0.5) * 2;
-    targetMouseY = -(e.clientY / window.innerHeight - 0.5) * 2;
-  }, { passive: true });
-
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
-
-  let clock = new THREE.Clock();
-
-  function animate() {
-    requestAnimationFrame(animate);
-    const elapsed = clock.getElapsedTime();
-
-    curMouseX += (targetMouseX - curMouseX) * 0.04;
-    curMouseY += (targetMouseY - curMouseY) * 0.04;
-
-    group.rotation.y = curMouseX * 0.12;
-    group.rotation.x = -curMouseY * 0.12;
-
-    meshes.forEach((m) => {
-      m.rotation.x += m.userData.rotX;
-      m.rotation.y += m.userData.rotY;
-      m.position.y = m.userData.startY + Math.sin(elapsed * m.userData.floatSpeed) * 1.2;
-    });
-
-    renderer.render(scene, camera);
-  }
-
-  animate();
-}
-
 // ==========================================
 // 2. Data Fetching & Overview Metrics
 // ==========================================
 async function loadData() {
+  if (USER_MODE) return loadUserListings();
   try {
     const res = await fetch('/api/internships');
     const data = await res.json();
@@ -244,6 +169,7 @@ function applyFiltersAndRender() {
     // The student's profile: only their field, and unpaid posts only for 0 years of experience
     if (profile) {
       if (profile.experience !== '0' && isUnpaid(item)) return false;
+      if (USER_MODE && !String(item.field || '').split(';').includes(profile.field)) return false;
     }
 
     // Scam check verdict (n8n). Default: only what n8n checked and passed.
@@ -336,8 +262,10 @@ function renderListings(items) {
       return;
     }
     if (h) h.textContent = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'No Matching Opportunities Found';
-    if (t) t.textContent = fieldEmpty ? 'Search the sites for your field with "Search Internships". New ones appear as each site finishes.'
-                                      : 'Try broadening your search keywords or resetting region and stipend filters.';
+    const waitText = !USER_MODE ? 'Search the sites for your field with "Search Internships". New ones appear as each site finishes.'
+      : isProUser() ? 'They appear here after the next automatic update, every few hours.'
+      : 'They appear here 24 hours after they pass the scam check. The list updates every few hours.';
+    if (t) t.textContent = fieldEmpty ? waitText : 'Try broadening your search keywords or resetting region and stipend filters.';
     if (emptyState) {
       emptyState.classList.remove('hidden');
       emptyState.classList.add('flex');
@@ -528,6 +456,7 @@ function updateDrawerBookmarkIcon() {
 // 5. Bookmarks & Local Storage
 // ==========================================
 function toggleBookmark(id) {
+  if (USER_MODE) return toggleUserBookmark(id);
   if (bookmarks.includes(id)) {
     bookmarks = bookmarks.filter(b => b !== id);
   } else {
@@ -793,7 +722,7 @@ function bindEventHandlers() {
   });
 
   // Public (tunnel) visitors get a read-only dashboard: hide the scrape button for them
-  fetch('/api/whoami').then(r => r.json()).then(w => {
+  if (!USER_MODE) fetch('/api/whoami').then(r => r.json()).then(w => {
     canEdit = !!w.can_edit;
     if (!w.can_edit) {
       document.getElementById('trigger-scrape-btn')?.classList.add('hidden');
@@ -817,7 +746,7 @@ function bindEventHandlers() {
     }
     if (e.key === 'Escape') {
       closeDetailDrawer();
-      modal.classList.add('hidden');
+      modal?.classList.add('hidden');
       closeProfileModal();
     }
   });
@@ -1079,7 +1008,8 @@ function openProfileModal(firstVisit) {
     setChecked('p_sources', profile.sources);
     setChecked('p_regions', profile.regions);
   }
-  document.getElementById('profile-scrape-now').checked = firstVisit;
+  const scrapeNow = document.getElementById('profile-scrape-now');
+  if (scrapeNow) scrapeNow.checked = firstVisit;
   document.getElementById('close-profile-btn').classList.toggle('hidden', firstVisit);
   syncSelectAll(modal);
   modal.classList.remove('hidden');
@@ -1105,6 +1035,7 @@ function closeProfileModal() {
 
 async function saveProfileFromForm(e) {
   e.preventDefault();
+  if (USER_MODE) return saveUserProfile(e.target);
   const form = e.target;
   const checked = name => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(cb => cb.value);
   const next = {
@@ -1153,7 +1084,7 @@ function updateProfileUI() {
   const avatar = document.getElementById('profile-avatar');
   const btn = document.getElementById('edit-profile-btn');
   const initials = (profile.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
-  if (avatar) avatar.innerHTML = initials ? escapeHtml(initials) : '<i class="ph ph-user text-lg"></i>';
+  if (avatar && !avatar.dataset.photo) avatar.innerHTML = initials ? escapeHtml(initials) : '<i class="ph ph-user text-lg"></i>';
   if (btn) {
     const tip = `${profile.name ? profile.name + ' · ' : ''}${field} · Edit profile`;
     btn.title = tip;
@@ -1420,4 +1351,157 @@ document.addEventListener('DOMContentLoaded', updateViewNote);
 async function startSession() {
   try { await fetch('/api/session/new', { method: 'POST' }); } catch (e) { /* public link: 403, keep data */ }
   loadData();
+}
+
+
+// ==========================================
+// 19. User mode (/app): the signed-in student's view of the shared list in Supabase
+// ==========================================
+// The database decides what each account may read (supabase/schema.sql, row-level security):
+// free accounts see approved posts of their field once they are 24 hours old; Pro and admin see
+// everything approved plus "needs a look". This page only asks and shows what comes back.
+const LISTING_COLUMNS = 'id,source_platform,company_name,role_title,location,location_type,duration,stipend,'
+  + 'stipend_numeric,required_skills,apply_link,description,fields,org_type,trust_flags,status,scam_risk,'
+  + 'moderation_reasons,verified_at';
+const USER_REFRESH_MS = 5 * 60 * 1000;
+
+function isProUser() { return !!(sbAccount && (sbAccount.plan === 'pro' || sbAccount.is_admin)); }
+
+function toDashboardRow(j) {
+  // a Supabase listing in the shape the cards and the drawer were written for (internships.csv)
+  const when = j.verified_at ? new Date(j.verified_at) : null;
+  const local = when ? new Date(when.getTime() - when.getTimezoneOffset() * 60000).toISOString() : '';
+  return {
+    ...j,
+    moderation_status: j.status,
+    field: (j.fields || []).join(';'),
+    date_scraped: local ? local.slice(0, 16).replace('T', ' ') : '',
+    is_new: when && (Date.now() - when.getTime()) < 36 * 3600 * 1000 ? 'true' : '',
+  };
+}
+
+async function startUserApp() {
+  if (!sb) {
+    showToast('error', 'Sign-in is not set up', 'SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing in .env.');
+    return;
+  }
+  const { data } = await sb.auth.getSession();
+  if (!data.session) { location.replace('/'); return; }
+  sbUser = data.session.user;
+  sb.auth.onAuthStateChange((event, session) => { if (!session) location.replace('/'); });
+
+  fieldLabels = Object.fromEntries((CFG.fields || []).map(f => [f.key, f.label]));
+  const sel = document.getElementById('profile-field');
+  if (sel) sel.innerHTML = '<option value="">Choose a field</option>'
+    + (CFG.fields || []).map(f => `<option value="${escapeHtml(f.key)}">${escapeHtml(f.label)}</option>`).join('');
+  document.getElementById('edit-profile-btn')?.addEventListener('click', () => openProfileModal(false));
+  document.getElementById('close-profile-btn')?.addEventListener('click', closeProfileModal);
+  document.getElementById('profile-form')?.addEventListener('submit', saveProfileFromForm);
+  document.getElementById('sign-out-btn')?.addEventListener('click', async () => {
+    await sb.auth.signOut();
+    location.replace('/');
+  });
+
+  const { data: row, error } = await sb.from('profiles').select('*').eq('id', sbUser.id).maybeSingle();
+  if (error) { showToast('error', 'Could not load your profile', error.message); return; }
+  sbAccount = row || { plan: 'free', is_admin: false };
+  const meta = sbUser.user_metadata || {};
+  profile = sbAccount.field ? {
+    name: sbAccount.name || meta.full_name || '',
+    field: sbAccount.field,
+    experience: sbAccount.experience || '0',
+    companies: sbAccount.companies || [],
+  } : null;
+  showAccount(meta);
+  updateProfileUI();
+  if (!profile) {
+    document.getElementById('profile-name').value = sbAccount.name || meta.full_name || '';
+    openProfileModal(true);
+    return;
+  }
+  await loadUserListings();
+  setInterval(loadUserListings, USER_REFRESH_MS);   // the automatic update adds posts every few hours
+}
+
+function showAccount(meta) {
+  const pro = isProUser();
+  const badge = document.getElementById('plan-badge');
+  if (badge) {
+    badge.textContent = sbAccount.is_admin ? 'Admin' : pro ? 'Pro' : 'Free plan';
+    badge.className = `hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${pro ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}`;
+  }
+  const admin = document.getElementById('admin-link');
+  if (admin) { admin.classList.toggle('hidden', !sbAccount.is_admin); admin.classList.toggle('inline-flex', !!sbAccount.is_admin); }
+  document.getElementById('free-note')?.classList.toggle('hidden', pro);
+  const photo = sbAccount.avatar_url || meta.avatar_url;
+  const avatar = document.getElementById('profile-avatar');
+  if (avatar && photo && /^https:\/\//.test(photo)) {
+    avatar.innerHTML = `<img src="${escapeHtml(photo)}" alt="" referrerpolicy="no-referrer" class="w-full h-full rounded-full object-cover">`;
+    avatar.dataset.photo = '1';
+  }
+  const btn = document.getElementById('sign-out-btn');
+  if (btn && sbUser.email) btn.title = `Sign out (${sbUser.email})`;
+}
+
+let userLoading = false;
+async function loadUserListings() {
+  if (!sb || !profile || userLoading) return;
+  userLoading = true;
+  try {
+    const [lst, bm] = await Promise.all([
+      sb.from('listings').select(LISTING_COLUMNS).order('verified_at', { ascending: false, nullsFirst: false }).limit(1000),
+      sb.from('bookmarks').select('listing_id'),
+    ]);
+    if (lst.error) { showToast('error', 'Could not load internships', lst.error.message); return; }
+    allInternships = (lst.data || []).map(toDashboardRow);
+    bookmarks = (bm.data || []).map(b => b.listing_id);
+    announceNewlyVerified(allInternships);
+    populateSourceFilter(allInternships);
+    applyFiltersAndRender();
+    updateBookmarkCounter();
+  } finally {
+    userLoading = false;
+  }
+}
+
+async function toggleUserBookmark(id) {
+  if (!sb || !sbUser) return;
+  if (bookmarks.includes(id)) {
+    const { error } = await sb.from('bookmarks').delete().eq('user_id', sbUser.id).eq('listing_id', id);
+    if (error) { showToast('error', 'Could not remove it', error.message); return; }
+    bookmarks = bookmarks.filter(b => b !== id);
+  } else {
+    const { error } = await sb.from('bookmarks').insert({ user_id: sbUser.id, listing_id: id });
+    if (error) {
+      if (/row-level security/i.test(error.message)) showToast('info', 'Saved list is full', 'The free plan saves up to 10 internships. Remove one first. Pro (unlimited) is coming soon.');
+      else showToast('error', 'Could not save it', error.message);
+      return;
+    }
+    bookmarks.push(id);
+  }
+  updateBookmarkCounter();
+  applyFiltersAndRender();
+  if (activeDrawerJob && activeDrawerJob.id === id) updateDrawerBookmarkIcon();
+}
+
+async function saveUserProfile(form) {
+  const next = {
+    name: document.getElementById('profile-name').value.trim(),
+    field: document.getElementById('profile-field').value,
+    experience: (form.querySelector('input[name="experience"]:checked') || {}).value || '0',
+    companies: document.getElementById('profile-companies').value.split(',').map(c => c.trim()).filter(Boolean),
+  };
+  if (!next.field) { showToast('error', 'Choose a field', 'Pick the field you want internships in.'); return; }
+  const { error } = await sb.from('profiles').update(next).eq('id', sbUser.id);
+  if (error) { showToast('error', 'Could not save your profile', error.message); return; }
+  const first = !profile;
+  profile = next;
+  Object.assign(sbAccount, next);
+  document.getElementById('profile-modal').classList.add('hidden');
+  updateProfileUI();
+  showAccount(sbUser.user_metadata || {});
+  displayOrder.clear();
+  if (first) { await loadUserListings(); setInterval(loadUserListings, USER_REFRESH_MS); }
+  else await loadUserListings();
+  showToast('success', 'Profile saved', `Showing ${fieldLabels[next.field] || next.field} internships.`);
 }

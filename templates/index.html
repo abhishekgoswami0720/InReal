@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>InReal // Robotics & AI Opportunity Radar</title>
+  <title>InReal · Internships checked for scams</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="alternate icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,9 +12,13 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  {% if user_mode %}
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+  <script>window.INREAL = {{ config | tojson }};</script>
+  {% endif %}
 
   <script>
-    tailwind.config = {
+    if (window.tailwind) tailwind.config = {
       theme: {
         extend: {
           fontFamily: {
@@ -36,158 +40,16 @@
     }
   </script>
 
-  <style>
-    /* Warm Vibrant Yellow & Translucent Frosted Glass Palette */
-    :root {
-      --bg-amber-warmth: radial-gradient(circle at 10% 10%, rgba(251, 191, 36, 0.16) 0%, transparent 45%),
-                         radial-gradient(circle at 90% 15%, rgba(249, 115, 22, 0.12) 0%, transparent 40%),
-                         radial-gradient(circle at 50% 85%, rgba(13, 148, 136, 0.10) 0%, transparent 50%),
-                         #FFFDF7;
-    }
-
-    body {
-      background: var(--bg-amber-warmth);
-      background-attachment: fixed;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      color: #0F172A;
-    }
-
-    /* Glassmorphism Frosted Panels with Crisp 14px / 16px Corners */
-    .glass-panel {
-      background: rgba(255, 255, 255, 0.85);
-      backdrop-filter: blur(24px) saturate(180%);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
-      border: 1px solid rgba(226, 232, 240, 0.9);
-      box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 2px 6px -2px rgba(15, 23, 42, 0.02);
-      border-radius: 16px;
-    }
-
-    /* Modern Professional Job Cards (14px radius, clean shadow) */
-    .glass-card {
-      background: #FFFFFF;
-      border: 1px solid #E2E8F0;
-      box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.04), 0 2px 4px -1px rgba(15, 23, 42, 0.02);
-      border-radius: 14px;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .glass-card:hover {
-      transform: translateY(-3px);
-      border-color: #CBD5E1;
-      box-shadow: 0 16px 32px -8px rgba(15, 23, 42, 0.08), 0 4px 8px -2px rgba(15, 23, 42, 0.03);
-    }
-
-    /* Flat Avatar Graphic Box (Corporate logo wrapper) */
-    .company-logo-box {
-      width: 44px;
-      height: 44px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid #E2E8F0;
-      background: #FFFFFF;
-      box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
-      flex-shrink: 0;
-    }
-
-    /* Translucent Interactive Buttons */
-    .glass-btn {
-      background: #FFFFFF;
-      border: 1px solid #CBD5E1;
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #334155;
-      box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-      transition: all 0.16s ease;
-    }
-    .glass-btn:hover {
-      background: #F8FAFC;
-      border-color: #94A3B8;
-      color: #0F172A;
-    }
-    .glass-btn:active {
-      background: #F1F5F9;
-    }
-
-    .glass-btn-primary {
-      background: #0F172A;
-      color: #FFFFFF;
-      border: 1px solid #0F172A;
-      box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.25);
-    }
-    .glass-btn-primary:hover {
-      background: #1E293B;
-      color: #FFFFFF;
-      border-color: #1E293B;
-    }
-
-    /* Filter Select Dropdowns */
-    .filter-select {
-      background: #FFFFFF;
-      border: 1px solid #E2E8F0;
-      border-radius: 9px;
-      padding: 7px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #334155;
-      cursor: pointer;
-      outline: none;
-      transition: all 0.15s ease;
-    }
-    .filter-select:hover {
-      border-color: #CBD5E1;
-      background: #F8FAFC;
-    }
-    .filter-select:focus {
-      border-color: #F97316;
-      box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
-    }
-
-    /* Segmented Control Pill Group (Apple iOS style) */
-    .pill-segmented-group {
-      background: #F1F5F9;
-      padding: 3px;
-      border-radius: 10px;
-      display: inline-flex;
-      gap: 2px;
-      border: 1px solid #E2E8F0;
-    }
-
-    .pill-segmented-item {
-      padding: 5px 12px;
-      border-radius: 8px;
-      font-size: 11px;
-      font-weight: 600;
-      color: #64748B;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      white-space: nowrap;
-    }
-    .pill-segmented-item:hover {
-      color: #0F172A;
-    }
-    .pill-segmented-item.active {
-      background: #FFFFFF;
-      color: #0F172A;
-      box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
-    }
-
-    /* Custom scrollbars */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 9999px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.6); }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
 </head>
 
-<body class="min-h-screen text-[#0F172A] flex flex-col relative antialiased selection:bg-orange-500 selection:text-white">
+<body class="{{ 'user-mode' if user_mode else 'admin-mode' }} min-h-screen text-[#0F172A] flex flex-col relative antialiased selection:bg-orange-500 selection:text-white">
 
   <!-- Interactive 3D Flat Geometric Mesh Background Canvas -->
   <canvas id="topo-radar-canvas" class="fixed inset-0 pointer-events-none z-0 opacity-45"></canvas>
 
   <!-- Translucent Notification Banner -->
+  {% if not user_mode %}
   <div id="action-banner" class="hidden fixed top-6 right-6 z-50 max-w-sm w-full glass-panel p-4 shadow-xl border-l-4 border-l-orange-500">
     <div class="flex items-start gap-3">
       <div class="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-sm shrink-0">
@@ -203,32 +65,41 @@
     </div>
   </div>
 
+  {% endif %}
+
   <!-- Corporate Header with Clear Value Proposition & Actions -->
   <header class="sticky top-0 z-30 w-full bg-white/85 backdrop-blur-xl border-b border-slate-200/80 shadow-xs">
     <div class="max-w-7xl mx-auto px-6 h-18 py-3.5 flex items-center justify-between gap-4">
       
       <!-- Brand & Sharp Corporate Subline -->
-      <a href="/admin" id="brand-home" aria-label="InReal admin home" title="InReal admin home"
+      <a href="{{ '/app' if user_mode else '/admin' }}" id="brand-home" aria-label="InReal home" title="InReal home"
          class="group flex items-center gap-3.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2">
         <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="40" height="40"
              class="w-10 h-10 rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-105">
         <div>
           <div class="flex items-center gap-2">
             <span class="text-xl font-extrabold tracking-tight text-slate-900">In<span class="text-orange-500">Real</span></span>
-            <span class="hidden sm:inline-flex px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[11px] font-bold">Talent Radar</span>
+            <span class="hidden sm:inline-flex px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[11px] font-bold">{{ 'Scam-checked' if user_mode else 'Admin' }}</span>
           </div>
           <div class="text-[12px] text-slate-500 font-medium hidden sm:block">
-            Direct endpoints and lab-verified fellowships for students entering frontier tech.
+            Internships from many sites, each post checked for scams before you see it.
           </div>
         </div>
       </a>
 
       <!-- Header: one main action and the profile avatar -->
       <div class="flex items-center gap-3">
+        {% if user_mode %}
+        <span id="plan-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold border"></span>
+        <a href="/admin" id="admin-link" class="hidden glass-btn px-3 py-2.5 text-xs items-center gap-1.5" title="Search sites and run the scam check (opens on the InReal laptop only)">
+          <i class="ph ph-gear-six text-base"></i><span class="hidden sm:inline">Admin</span>
+        </a>
+        {% else %}
         <button id="trigger-scrape-btn" aria-label="Search Internships" class="glass-btn glass-btn-primary px-3 sm:px-4 py-2.5 flex items-center gap-2 whitespace-nowrap">
           <i class="ph ph-magnifying-glass text-base text-orange-400"></i>
           <span class="hidden sm:inline">Search Internships</span>
         </button>
+        {% endif %}
 
         <!-- Profile avatar: initials of the name, opens the profile -->
         <button id="edit-profile-btn" type="button" title="Set up profile" aria-label="Set up profile"
@@ -238,6 +109,12 @@
           </span>
           <span id="profile-btn-label" class="sr-only">Set up profile</span>
         </button>
+        {% if user_mode %}
+        <button id="sign-out-btn" type="button" title="Sign out" aria-label="Sign out"
+          class="w-11 h-11 rounded-full bg-white border border-slate-200 hover:border-rose-300 hover:text-rose-600 text-slate-500 flex items-center justify-center transition shrink-0">
+          <i class="ph ph-sign-out text-lg"></i>
+        </button>
+        {% endif %}
       </div>
     </div>
   </header>
@@ -252,13 +129,13 @@
       <div class="flex-1 z-10">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-100 border border-orange-200 text-orange-800 text-xs font-bold mb-3.5">
           <span class="w-2 h-2 rounded-full bg-orange-600 animate-pulse"></span>
-          Lab-Verified Fellowships & Residencies
+          Every post checked for scams before you see it
         </div>
         <h1 class="text-2xl md:text-3xl lg:text-4xl font-extrabold text-slate-900 leading-tight tracking-tight">
           Where Next-Gen Builders Find Their Breakthrough.
         </h1>
         <p class="text-sm md:text-base text-slate-600 mt-2.5 max-w-xl font-medium leading-relaxed">
-          Aggregating top internships across Google DeepMind, Anthropic, Figure AI, Tesla Autopilot, and leading robotics institutes with transparent stipends and direct application links.
+          Internships from {{ sites_text }} job sites and company career pages in one list. Posts that ask for a fee, sell "training" or want your Aadhaar or bank details are hidden. Every card links to the original post.
         </p>
 
         <!-- People Flat Avatars & Social Proof Block -->
@@ -278,8 +155,8 @@
             </div>
           </div>
           <div>
-            <div class="text-xs font-bold text-slate-900">4,800+ Students & Engineers</div>
-            <div class="text-[11px] text-slate-500 font-medium">Tracking verified lab openings weekly</div>
+            <div class="text-xs font-bold text-slate-900">{{ sites_text }} sites searched</div>
+            <div class="text-[11px] text-slate-500 font-medium">The list updates automatically every few hours</div>
           </div>
         </div>
       </div>
@@ -294,7 +171,7 @@
           >
           <div class="absolute bottom-2.5 left-2.5 right-2.5 p-2 bg-white/95 backdrop-blur-md rounded-lg border border-slate-900/30 flex items-center justify-between text-xs font-bold text-slate-900">
             <span class="flex items-center gap-1.5"><i class="ph ph-heart-fill text-rose-500"></i> Open Community</span>
-            <span class="text-orange-600 font-extrabold">100% Free</span>
+            <span class="text-orange-600 font-extrabold">Free plan</span>
           </div>
         </div>
       </div>
@@ -314,11 +191,11 @@
         </div>
         <div class="flex-1">
           <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200 mb-2">
-            <i class="ph ph-shield-check text-emerald-600"></i> Direct Verification
+            <i class="ph ph-shield-check text-emerald-600"></i> Scam check
           </div>
-          <h3 class="text-base font-bold text-slate-900 leading-snug">Vetted by Engineers & Lab Mentors</h3>
+          <h3 class="text-base font-bold text-slate-900 leading-snug">Three checks on every post</h3>
           <p class="text-xs text-slate-600 mt-1.5 font-medium leading-relaxed">
-            Every posted opportunity is parsed directly from career endpoints and official job boards with exact compensation and deadline dates.
+            Wording compared with known scams, rules for links and contacts, and an AI reviewer that must quote the exact line it objects to. A post is hidden only when the evidence is in the post.
           </p>
         </div>
       </div>
@@ -334,11 +211,11 @@
         </div>
         <div class="flex-1">
           <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200 mb-2">
-            <i class="ph ph-globe text-blue-600"></i> Distributed & Global
+            <i class="ph ph-globe text-blue-600"></i> India, remote &amp; abroad
           </div>
           <h3 class="text-base font-bold text-slate-900 leading-snug">Global & Remote Friendly</h3>
           <p class="text-xs text-slate-600 mt-1.5 font-medium leading-relaxed">
-            Filter easily for remote research fellowships, high-stipend internships, and international visa sponsorship options.
+            Filter by location and stipend, save the posts you like, and apply on the employer's own page.
           </p>
         </div>
       </div>
@@ -348,51 +225,58 @@
     <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div class="glass-card p-5 flex flex-col justify-between">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Positions</span>
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Shown</span>
           <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
             <i class="ph ph-database text-lg"></i>
           </div>
         </div>
         <div class="text-3xl font-extrabold text-slate-900 tracking-tight" id="stat-total-jobs">0</div>
-        <div class="text-xs text-slate-500 mt-1 font-medium">Active indexed openings</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">Internships matching your filters</div>
       </div>
 
       <div class="glass-card p-5 flex flex-col justify-between">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">New This Cycle</span>
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">New Today</span>
           <div class="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center font-bold">
             <i class="ph ph-sparkle text-lg"></i>
           </div>
         </div>
         <div class="text-3xl font-extrabold text-orange-600 tracking-tight" id="stat-new-jobs">0</div>
-        <div class="text-xs text-slate-500 mt-1 font-medium">Fresh telemetry sweeps</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">Added in the last day</div>
       </div>
 
       <div class="glass-card p-5 flex flex-col justify-between">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Funded Roles</span>
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Paid</span>
           <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
             <i class="ph ph-currency-circle-dollar text-lg"></i>
           </div>
         </div>
         <div class="text-3xl font-extrabold text-emerald-600 tracking-tight" id="stat-paid-jobs">0</div>
-        <div class="text-xs text-slate-500 mt-1 font-medium">Verified competitive stipend</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">State a stipend</div>
       </div>
 
       <div class="glass-card p-5 flex flex-col justify-between">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tracked Sources</span>
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Sites Searched</span>
           <div class="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
             <i class="ph ph-rss text-lg"></i>
           </div>
         </div>
-        <div class="text-3xl font-extrabold text-slate-900 tracking-tight">16+</div>
-        <div class="text-xs text-slate-500 mt-1 font-medium">Global AI & robotics portals</div>
+        <div class="text-3xl font-extrabold text-slate-900 tracking-tight">{{ sites_text }}</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">Job boards and career pages</div>
       </div>
     </section>
 
     <!-- Search + one Filters dropdown (all filter options live inside it) -->
     <section class="glass-panel p-4 flex flex-col gap-3 relative z-20">
+      {% if user_mode %}
+      <div id="free-note" class="hidden flex flex-wrap items-center gap-2 p-3 rounded-xl bg-orange-50 border border-orange-200 text-xs font-semibold text-orange-900">
+        <i class="ph ph-clock text-base text-orange-500"></i>
+        <span>Free plan: new internships appear here 24 hours after they pass the check. Pro (₹79/month) shows them at once.</span>
+        <span class="ml-auto px-2 py-0.5 rounded-full bg-white border border-orange-200 text-[11px] font-bold">Pro · coming soon</span>
+      </div>
+      {% endif %}
       <div id="profile-summary" class="hidden flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600 pb-3 border-b border-slate-200"></div>
 
       <div class="flex flex-wrap items-center gap-2.5">
@@ -417,9 +301,11 @@
               <select id="mod-filter" class="filter-select w-full">
                 <option value="verified">Verified only</option>
                 <option value="verified_review">Verified + needs a look</option>
+                {% if not user_mode %}
                 <option value="hide_blocked">All except likely scams</option>
                 <option value="blocked">Only likely scams</option>
                 <option value="all">Everything</option>
+                {% endif %}
               </select>
             </label>
             <label class="flex flex-col gap-1.5">Location
@@ -489,6 +375,7 @@
         <button id="empty-reset-btn" class="mt-4 glass-btn px-4 py-2 text-xs text-slate-800">Clear All Filters</button>
       </div>
     
+      {% if not user_mode %}
       <!-- Load more: scraped internships wait here; each click sends 5 to the scam check -->
       <div id="search-more-bar" class="mt-6 glass-panel p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div class="text-xs text-slate-600 font-medium text-center sm:text-left">
@@ -505,6 +392,7 @@
           <select id="search-more-count" class="hidden" aria-hidden="true"><option value="120" selected>120</option></select>
         </div>
       </div>
+      {% endif %}
     </section>
   </main>
 
@@ -569,7 +457,7 @@
 
         <div class="text-xs text-slate-500 border-t border-slate-200 pt-4 space-y-1 font-medium">
           <div>Source Platform: <span id="drawer-source" class="font-bold text-slate-700">Portal</span></div>
-          <div>Scraped: <span id="drawer-date" class="font-bold text-slate-700">-</span></div>
+          <div>{{ 'Verified' if user_mode else 'Scraped' }}: <span id="drawer-date" class="font-bold text-slate-700">-</span></div>
         </div>
       </div>
 
@@ -585,6 +473,7 @@
     </div>
   </div>
 
+  {% if not user_mode %}
   <!-- Search Internships dialog: field, sites and regions for one search -->
   <div id="scrape-config-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
     <div class="glass-panel max-w-md w-full p-6 shadow-2xl">
@@ -632,7 +521,7 @@
       </form>
     </div>
   </div>
-
+  {% endif %}
 
   <!-- Sign-up / profile: asked before the first visit, editable from the header -->
   <div id="profile-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[55] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="profile-title">
@@ -674,6 +563,7 @@
           <p class="text-[10px] text-slate-500 mt-1">Separate with commas. Their internships are shown first.</p>
         </div>
 
+        {% if not user_mode %}
         <div>
           <div class="flex items-center justify-between mb-1.5">
             <span class="font-bold text-slate-700">Regions</span>
@@ -698,6 +588,7 @@
         </div>
 
         <label id="profile-scrape-row" class="flex items-center gap-2 text-slate-700 cursor-pointer"><input id="profile-scrape-now" type="checkbox" checked> Search these sites for my field now</label>
+        {% endif %}
 
         <button type="submit" class="w-full py-2.5 glass-btn glass-btn-primary text-xs font-bold transition">
           Save and find internships
@@ -706,6 +597,7 @@
     </div>
   </div>
 
+  {% if not user_mode %}
   <!-- Live scan: one row per site while a search runs, then the scam-check progress -->
   <div id="scan-panel" class="hidden fixed bottom-6 left-6 z-[58] w-[340px] max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] flex flex-col glass-panel shadow-2xl p-4" role="status" aria-live="polite">
     <div class="flex items-start gap-3 shrink-0">
@@ -724,7 +616,9 @@
     <ul id="scan-sites" class="mt-3 space-y-1.5 text-xs min-h-0 flex-1 overflow-y-auto pr-1"></ul>
     <div id="scan-check" class="hidden shrink-0 mt-3 pt-3 border-t border-slate-200 text-xs font-semibold"></div>
   </div>
+  {% endif %}
 
+  <script src="{{ url_for('static', filename='background.js') }}"></script>
   <script src="{{ url_for('static', filename='app_radar.js') }}"></script>
 </body>
 </html>
