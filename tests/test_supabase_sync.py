@@ -75,3 +75,24 @@ def test_a_verdict_is_shared(monkeypatch, tmp_path):
     oh.save_verdict("v1", "blocked", 0.9, ["fee"])
     assert oh.unblock("v1") is True
     assert [r["moderation_status"] for r in shared] == ["approved", "blocked", "review"]
+
+
+def test_the_backfill_loop_resends_judged_posts(monkeypatch):
+    import app as app_mod
+    import supabase_sync
+    sent = []
+    monkeypatch.setattr(supabase_sync, "enabled", lambda: True)
+    monkeypatch.setattr(supabase_sync, "publish", lambda rows: sent.append(len(rows)) or len(rows))
+    monkeypatch.setattr("output_handler.read_all_rows", lambda: [{"id": "a"}, {"id": "b"}])
+    monkeypatch.setattr(app_mod, "PUBLISH_EVERY_S", 3600)
+    t = app_mod.start_publish_loop()
+    t.join(0.5)
+    assert sent == [2]
+
+
+def test_pages_move_from_127_0_0_1_to_localhost():
+    import app as app_mod
+    c = app_mod.app.test_client()
+    r = c.get("/app", base_url="http://127.0.0.1:5000")
+    assert r.status_code == 302 and r.headers["Location"] == "http://localhost:5000/app"
+    assert c.get("/api/fields", base_url="http://127.0.0.1:5000").status_code == 200   # the API is not moved

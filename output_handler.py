@@ -219,6 +219,45 @@ def clear_all():
         save_log(log)
 
 
+KEEP_DAYS = 3   # finished posts stay this long for "Show recent results"; the shared list (Supabase) keeps them
+
+
+def _run_date(row: dict):
+    """When the latest search that found this post ran: from its tag ("20261019-165500",
+    "auto-20261019-1655-software"), else the day it was first saved."""
+    m = re.search(r"(\d{8})-\d{4}", str(row.get("last_run") or ""))
+    for text, fmt in ((m.group(1) if m else "", "%Y%m%d"), (str(row.get("date_scraped") or "")[:10], "%Y-%m-%d")):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def prune_old(days: int = KEEP_DAYS, now: datetime = None) -> int:
+    """Removes posts no search has found for `days` days, unless they are still with the scam
+    check (pending or checking: their verdict would have nowhere to land). Replaces the old
+    wipe-on-refresh, which lost verdicts in flight and other people's results."""
+    now = now or datetime.now()
+    with _CSV_LOCK:
+        rows = _read_rows()
+        keep, gone = [], set()
+        for r in rows:
+            when = _run_date(r)
+            in_flight = (r.get("moderation_status") or "") in ("", "checking")
+            if when is not None and (now - when).days >= days and not in_flight:
+                gone.add(r.get("id"))
+            else:
+                keep.append(r)
+        if gone:
+            _write_rows(keep)
+            log = load_log()
+            log["seen_ids"] = sorted(set(log.get("seen_ids", [])) - gone)
+            log["total_scraped"] = len(log["seen_ids"])
+            save_log(log)
+    return len(gone)
+
+
 def round_robin(rows: list, limit: int) -> list:
     """[a1, a2, a3, b1, c1, c2] -> [a1, b1, c1, a2, c2, a3], cut to limit. Keeps each site's own order."""
     queues = {}

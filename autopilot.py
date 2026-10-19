@@ -13,7 +13,9 @@ to the scam check, and keep waking n8n until all are judged. Every verdict is pu
 Supabase by output_handler.save_verdict. Sites that open a Chrome window (Naukri, Foundit,
 SimplyHired, Careerjet, Meta) open it on this laptop during a round.
 
-A manual search waits while a round runs, and a round waits while a manual search runs.
+A person's search comes first: started during a round, it is queued, the round stops after the
+site search it is in (the posts already found keep going through the scam check), and the search
+starts. A round waits while a manual search runs.
 """
 import os
 import threading
@@ -23,7 +25,7 @@ from datetime import datetime
 from loguru import logger
 
 STATE = {"enabled": False, "busy": False, "checking": False, "field": "", "last_round": "",
-         "next_round": "", "last_result": {}, "error": ""}
+         "next_round": "", "last_result": {}, "error": "", "yield": False}
 _lock = threading.Lock()
 JUDGE_TIMEOUT_S = 90 * 60
 
@@ -67,6 +69,8 @@ def _wait_for_verdicts(run_tag: str):
         notify_n8n("automatic update")
         start, last_kick = time.time(), time.time()
         while time.time() - start < JUDGE_TIMEOUT_S:
+            if STATE["yield"]:      # someone is waiting to search; n8n's own schedule finishes these
+                return
             rows = [r for r in oh.read_all_rows() if r.get("last_run") == run_tag]
             waiting = sum(1 for r in rows if (r.get("moderation_status") or "") in ("", "checking"))
             if not waiting:
@@ -95,6 +99,9 @@ def run_round(manual_scrape_running=lambda: False):
     result = {}
     try:
         for field in cfg["fields"]:
+            if STATE["yield"]:
+                logger.info("Automatic update: stopped early, a search is waiting")
+                break
             STATE["field"] = field
             run_tag = f"auto-{datetime.now().strftime('%Y%m%d-%H%M')}-{field}"
             logger.info(f"Automatic update: searching {field} on {len(live_sources())} sites ({run_tag})")
@@ -117,6 +124,7 @@ def run_round(manual_scrape_running=lambda: False):
         return result
     finally:
         STATE["busy"] = False
+        STATE["yield"] = False
         STATE["field"] = ""
         STATE["last_round"] = datetime.now().strftime("%Y-%m-%d %H:%M")
 

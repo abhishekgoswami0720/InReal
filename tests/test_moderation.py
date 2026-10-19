@@ -457,15 +457,33 @@ def test_scrape_returns_a_run_tag(store, monkeypatch):
     app_mod.scraper_t.join(1)
 
 
-def test_page_load_starts_a_new_session(store, monkeypatch):
+def test_page_load_keeps_the_list_and_prunes_old_posts(store, monkeypatch):
     import app as app_mod
-    oh.sync_listings([_row("a", "AI Intern")], [], hold=True)
+    from datetime import datetime
+    oh.sync_listings([_row("a", "AI Intern")], [], hold=True, run_tag="20261001-100000")
+    oh.sync_listings([_row("b", "ML Intern")], [], run_tag="20261001-100000")          # pending: in flight
+    oh.sync_listings([_row("c", "Data Intern")], [], hold=True, run_tag="auto-20261019-1655-software")
     app_mod.scraper_t = None
     c = app_mod.app.test_client()
-    assert c.post("/api/session/new", headers={"Cf-Connecting-Ip": "1.2.3.4"}).status_code == 403   # public link can't wipe
-    assert c.post("/api/session/new").get_json() == {"status": "cleared"}
-    assert oh._read_rows() == [] and oh.load_log()["seen_ids"] == []
-    assert oh.sync_listings([_row("a", "AI Intern")], [])["added"] == 1      # same post is new again
+    assert c.post("/api/session/new", headers={"Cf-Connecting-Ip": "1.2.3.4"}).status_code == 403   # public link can't touch it
+    monkeypatch.setattr(oh, "KEEP_DAYS", 3)
+    assert oh.prune_old(now=datetime(2026, 10, 19, 17, 0)) == 1                         # only the old held one
+    assert {r["id"] for r in oh._read_rows()} == {"b", "c"}
+    assert "a" not in oh.load_log()["seen_ids"]
+    assert oh.sync_listings([_row("a", "AI Intern")], [])["added"] == 1                  # can come back later
+    assert c.post("/api/session/new").get_json()["status"] == "kept"
+
+
+def test_a_new_search_does_not_wipe_posts_still_being_checked(store, monkeypatch):
+    import app as app_mod
+    monkeypatch.setattr(app_mod, "run_scrapers", lambda **kw: None)
+    oh.sync_listings([_row("x", "AI Intern")], [], run_tag="A")
+    oh.release_held(5) if hasattr(oh, "release_held") else None
+    app_mod.scraper_t = None
+    app_mod.app.test_client().post("/api/scrape", json={"sources": ["unstop"], "field": "ai_ml"})
+    app_mod.scraper_t.join(1)
+    assert [r["id"] for r in oh._read_rows()] == ["x"]
+    assert oh.save_verdict("x", "approved", 0.1, ["fine"])                               # its verdict still lands
 
 
 def test_new_search_empties_the_list_search_more_keeps_it(store, monkeypatch):

@@ -23,9 +23,13 @@ let canEdit = true;
 const VIEW_KEY = 'inreal_view_run';
 let viewRun = (() => { try { return localStorage.getItem(VIEW_KEY) || ''; } catch (e) { return ''; } })();
 let showAllSaved = false;
+// Each visit starts with an empty list: the shared list on the laptop is no longer wiped on refresh
+// (that lost verdicts still on their way from n8n, and other people's results), so the page itself
+// shows nothing until a search starts. "Show recent results" shows everything checked lately.
+let freshVisit = true;
 function startNewView(tag) {
   if (!tag) return;
-  viewRun = tag; showAllSaved = false;
+  viewRun = tag; showAllSaved = false; freshVisit = false;
   try { localStorage.setItem(VIEW_KEY, tag); } catch (e) { /* private window */ }
   displayOrder.clear(); verifiedSeen = null;
   applyFiltersAndRender(); updateViewNote();
@@ -165,6 +169,11 @@ function applyFiltersAndRender() {
   const searchQuery = (searchInput ? searchInput.value : '').toLowerCase().trim();
 
   const matches = (item, ignoreLocation) => {
+    // only this visit's search (saved posts are always reachable through "Saved")
+    if (!showAllSaved && !showBookmarkedOnly) {
+      if (freshVisit) return false;
+      if (viewRun && item.last_run !== viewRun) return false;
+    }
     if (showBookmarkedOnly && !bookmarks.includes(item.id)) return false;
 
     // The student's profile: only their field, and unpaid posts only for 0 years of experience
@@ -240,6 +249,12 @@ function renderListings(items) {
   if (items.length === 0) {
     container.innerHTML = '';
     const h = document.querySelector('#empty-state h3'), t = document.querySelector('#empty-state p');
+    if (freshVisit && !showAllSaved && !showBookmarkedOnly) {
+      if (h) h.textContent = 'Start a search';
+      if (t) t.textContent = 'Click "Search Internships" to search the sites for your field. Results appear as each site finishes. To see what was already checked in the last few days, click "Show recent results" above the list.';
+      if (emptyState) { emptyState.classList.remove('hidden'); emptyState.classList.add('flex'); }
+      return;
+    }
     const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').includes(profile.field));
     if (false) {
       const inView = allInternships.filter(r => r.last_run === viewRun);
@@ -480,7 +495,7 @@ async function pollScraperStatus() {
   try {
     const res = await fetch('/api/scrape/status');
     const data = await res.json();
-    const isRunning = data.status === 'running';
+    const isRunning = data.status === 'running' || data.status === 'queued';
     handleScrapeProgress(data.progress, isRunning);
 
     const dot = document.getElementById('ping-dot');
@@ -489,7 +504,7 @@ async function pollScraperStatus() {
     setSearchMoreBusy(isRunning);
     if (isRunning) {
       if (dot) dot.className = 'w-2 h-2 rounded-full bg-orange-500 animate-pulse';
-      if (text) text.innerText = 'Scanning...';
+      if (text) text.innerText = data.status === 'queued' ? 'Queued...' : 'Scanning...';
     } else {
       if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
       if (text) text.innerText = 'System Ready';
@@ -704,6 +719,7 @@ function bindEventHandlers() {
       const data = await res.json().catch(() => ({}));
       if (data.status === 'running') showToast('info', 'Already searching', 'Wait for the current search to finish.');
       else if (data.run_tag) {
+        if (data.status === 'queued') showToast('info', 'Search queued', 'The automatic update is finishing the site it is on. Your search starts right after, by itself; results appear here.');
         startNewView(data.run_tag);   // the list clears and fills with this search
         // Remember this search's choices: the next "Search Internships" and "Search more" start from them
         // (19 Oct: the window kept showing only the sites picked once in the profile form)
@@ -1061,6 +1077,7 @@ async function saveProfileFromForm(e) {
     const data = await res.json().catch(() => ({}));
     if (data.run_tag) startNewView(data.run_tag);
     if (data.status === 'running') showToast('info', 'Profile saved', 'A search is already running. Start yours with "Search Internships" when it ends.');
+    else if (data.status === 'queued') showToast('info', 'Profile saved, search queued', 'The automatic update is finishing the site it is on. Your search starts right after, by itself; results appear here.');
     else showToast('success', 'Profile saved, searching now', `Searching ${next.sources.length} site(s) for ${fieldLabels[next.field] || next.field} internships. They appear as each site finishes and passes the scam check.`);
   } catch (err) {
     showToast('error', 'Profile saved, search did not start', 'The app is not answering. Is python app.py running?');
@@ -1163,6 +1180,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.run_tag && !viewRun) startNewView(data.run_tag);
       if (res.status === 403) { showToast('info', 'View-only link', 'Searching can only be started on the host laptop.'); setSearchMoreBusy(false); }
       else if (data.status === 'running') showToast('info', 'Already searching', 'Wait for the current search to finish.');
+      else if (data.status === 'queued') showToast('info', 'Search queued', 'The automatic update is finishing the site it is on. Your search starts right after, by itself; results appear here.');
       else showToast('info', 'Searching for more', `Up to ${limit} new ${fieldLabels[config.field] || ''} internships from ${config.sources.length} site(s). A popup appears as each site finishes.`);
     } catch (e) {
       showToast('error', 'Search did not start', 'The app is not answering. Is python app.py running?');
@@ -1252,6 +1270,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 function announceNewlyVerified(rows) {
   const mine = rows.filter(r => r.moderation_status === 'approved' &&
+    !freshVisit && (!viewRun || r.last_run === viewRun) &&
     (!profile || String(r.field || 'ai_ml').split(';').includes(profile.field)) &&
     !(profile && profile.experience !== '0' && isUnpaid(r)));
   const ids = new Set(mine.map(r => r.id));
@@ -1271,7 +1290,7 @@ let loadMoreBusy = false;
 function updateHeldUI(c) {
   const held = viewRun
     ? allInternships.filter(r => r.moderation_status === 'held' && r.last_run === viewRun).length
-    : ((c && c.held) || 0);
+    : (freshVisit ? 0 : ((c && c.held) || 0));
   const n = document.getElementById('held-count');
   if (n) n.textContent = held;
   const btn = document.getElementById('load-more-btn');
@@ -1326,12 +1345,14 @@ function plainReason(r) {
 function updateViewNote() {
   const el = document.getElementById('view-note');
   if (!el) return;
-  if (!viewRun) { el.classList.add('hidden'); return; }
+  if (!viewRun && !freshVisit) { el.classList.add('hidden'); return; }
   const m = viewRun.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
   const when = m ? `${m[4]}:${m[5]}` : '';
+  const back = freshVisit ? 'Hide them' : 'Back to my latest search';
+  const now = freshVisit ? 'Nothing searched in this visit yet.' : `Showing results of your latest search${when ? ` (started ${when})` : ''}.`;
   el.innerHTML = showAllSaved
-    ? `<span>Showing <b class="text-slate-900">all saved internships</b>.</span> <button type="button" class="text-orange-600 hover:underline font-bold" id="view-toggle">Back to my latest search</button>`
-    : `<span>Showing results of your latest search${when ? ` (started ${when})` : ''}.</span> <button type="button" class="text-orange-600 hover:underline font-bold" id="view-toggle">Show all saved</button>`;
+    ? `<span>Showing <b class="text-slate-900">every result checked in the last few days</b>, from all searches.</span> <button type="button" class="text-orange-600 hover:underline font-bold" id="view-toggle">${back}</button>`
+    : `<span>${now}</span> <button type="button" class="text-orange-600 hover:underline font-bold" id="view-toggle">Show recent results</button>`;
   el.classList.remove('hidden');
   document.getElementById('view-toggle').onclick = () => {
     showAllSaved = !showAllSaved; displayOrder.clear();

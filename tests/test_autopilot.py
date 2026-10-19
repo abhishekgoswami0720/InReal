@@ -51,9 +51,42 @@ def test_no_round_while_a_manual_search_runs(monkeypatch):
     assert autopilot.run_round(lambda: True) == {}
 
 
-def test_manual_search_and_page_reload_wait_for_a_round(monkeypatch):
+def test_a_search_during_a_round_is_queued_and_the_round_yields(tmp_path, monkeypatch):
+    import time
     import app as app_mod
+    monkeypatch.setattr(oh, "CSV_FILE", tmp_path / "internships.csv")
+    monkeypatch.setattr(oh, "LOG_FILE", tmp_path / "log.json")
+    ran = []
+    monkeypatch.setattr(app_mod, "run_scrapers", lambda **kw: ran.append(kw["config"]["field"]))
     monkeypatch.setitem(autopilot.STATE, "busy", True)
+    monkeypatch.setitem(autopilot.STATE, "yield", False)
+    app_mod.scraper_t = None
     c = app_mod.app.test_client()
-    assert c.post("/api/scrape", json={"field": "software", "sources": ["unstop"]}).get_json()["status"] == "running"
-    assert c.post("/api/session/new").get_json()["status"] == "busy"
+    d = c.post("/api/scrape", json={"field": "software", "sources": ["unstop"]}).get_json()
+    assert d["status"] == "queued" and d["run_tag"]
+    assert autopilot.STATE["yield"] is True                         # the round is asked to stop
+    time.sleep(0.3)
+    assert c.get("/api/scrape/status").get_json()["status"] == "queued" and ran == []
+    assert c.post("/api/scrape", json={"field": "data", "sources": ["unstop"]}).get_json()["status"] == "running"
+    autopilot.STATE["busy"] = False                                 # the round ends
+    app_mod.scraper_t.join(5)
+    assert ran == ["software"]
+    assert c.post("/api/session/new").get_json()["status"] == "kept"   # a reload never wipes anything
+
+
+def test_a_round_stops_before_the_next_field_when_asked(tmp_path, monkeypatch):
+    monkeypatch.setattr(oh, "CSV_FILE", tmp_path / "internships.csv")
+    monkeypatch.setattr(oh, "LOG_FILE", tmp_path / "log.json")
+    monkeypatch.setattr(autopilot, "settings", lambda: {"on": True, "every_h": 6, "fields": ["software", "data"], "limit": 50})
+    searched = []
+
+    def fake_scrape(dry_run, config):
+        searched.append(config["field"])
+        autopilot.STATE["yield"] = True                             # someone pressed Search meanwhile
+    monkeypatch.setattr("scraper.run_scrapers", fake_scrape)
+    monkeypatch.setattr("supabase_sync.known_verdicts", lambda ids: {})
+    autopilot.STATE["yield"] = False
+    autopilot.run_round(lambda: False)
+    assert searched == ["software"]
+    assert autopilot.STATE["yield"] is False and autopilot.STATE["busy"] is False
+
