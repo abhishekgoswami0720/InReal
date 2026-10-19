@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>InReal // Robotics & AI Opportunity Radar</title>
-  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="alternate icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -207,26 +208,26 @@
     <div class="max-w-7xl mx-auto px-6 h-18 py-3.5 flex items-center justify-between gap-4">
       
       <!-- Brand & Sharp Corporate Subline -->
-      <div class="flex items-center gap-3.5">
-        <div class="w-10 h-10 rounded-xl bg-slate-900 shadow-sm flex items-center justify-center text-white">
-          <i class="ph ph-cpu text-xl font-bold text-orange-400"></i>
-        </div>
+      <a href="/" id="brand-home" aria-label="InReal home" title="InReal home"
+         class="group flex items-center gap-3.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="40" height="40"
+             class="w-10 h-10 rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-105">
         <div>
           <div class="flex items-center gap-2">
-            <span class="text-xl font-extrabold tracking-tight text-slate-900">InReal</span>
-            <span class="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[11px] font-bold">Talent Radar</span>
+            <span class="text-xl font-extrabold tracking-tight text-slate-900">In<span class="text-orange-500">Real</span></span>
+            <span class="hidden sm:inline-flex px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[11px] font-bold">Talent Radar</span>
           </div>
           <div class="text-[12px] text-slate-500 font-medium hidden sm:block">
             Direct endpoints and lab-verified fellowships for students entering frontier tech.
           </div>
         </div>
-      </div>
+      </a>
 
       <!-- Header: one main action and the profile avatar -->
       <div class="flex items-center gap-3">
-        <button id="trigger-scrape-btn" class="glass-btn glass-btn-primary px-4 py-2.5 flex items-center gap-2 whitespace-nowrap">
+        <button id="trigger-scrape-btn" aria-label="Search Internships" class="glass-btn glass-btn-primary px-3 sm:px-4 py-2.5 flex items-center gap-2 whitespace-nowrap">
           <i class="ph ph-magnifying-glass text-base text-orange-400"></i>
-          <span>Search Internships</span>
+          <span class="hidden sm:inline">Search Internships</span>
         </button>
 
         <!-- Profile avatar: initials of the name, opens the profile -->

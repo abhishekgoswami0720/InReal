@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- small sizes: the shield is dropped, the "i" + tick stays -->
+  <rect width="64" height="64" rx="14" fill="#0f172a"/>
+  <circle cx="22" cy="18.5" r="5" fill="#f97316"/>
+  <path d="M22 29v15l21-21" fill="none" stroke="#f97316" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
