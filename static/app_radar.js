@@ -459,6 +459,26 @@ function openDetailDrawer(id) {
   document.getElementById('drawer-mod-title').innerText = `${view.label}${risk}`;
   const reasons = String(item.moderation_reasons || '').split(' | ').map(r => r.trim()).filter(Boolean);
   document.getElementById('drawer-mod-reasons').innerHTML = reasons.map(plainReason).filter(Boolean).map(r => `<li>${escapeHtml(r)}</li>`).join('');
+  // A wrong block can be undone by hand: the post goes to "needs a look", never straight to verified
+  const unblock = document.getElementById('drawer-unblock-btn');
+  if (unblock) {
+    unblock.classList.toggle('hidden', item.moderation_status !== 'blocked');
+    unblock.disabled = false;
+    unblock.onclick = async () => {
+      unblock.disabled = true;
+      try {
+        const res = await fetch('/api/moderation/unblock', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await loadData();
+        openDetailDrawer(item.id);
+      } catch (e) {
+        unblock.disabled = false;
+        console.error('Unblock failed:', e);
+      }
+    };
+  }
 
   const desc = String(item.description || '').trim();
   document.getElementById('drawer-desc-box').classList.toggle('hidden', !desc);

@@ -9,6 +9,19 @@
 
 const WEIGHTS = { llm: 0.6, vector: 0.25, signals: 0.15 };
 
+// Sure-and-proven rule (19 Oct 2026): with the weights above the LLM alone tops out at 0.6, so a
+// post the judge called a scam at 1.0, with a quote that IS in the post and that asks for money or
+// ID documents, only reached "review" when the vector search missed it (eval_judge: deposit,
+// Aadhaar/PAN, certificate fee, onboarding fee). Those three together now block. Everything else
+// keeps the old weighting, and a blocked post can be moved to "needs a look" by hand in the app.
+const SURE = 0.9;
+const ASKS_MONEY_OR_ID = /\b(fees?|deposit|refundable|charges?|purchase|buy|registration|register for|security (amount|money)|kit|pay|paying|payment)\b|aadhaa?r|\bpan\b|passbook|bank (details|account|statement)|\botp\b/i;
+const PRICED_PROGRAM = /(₹|\brs\.?\s?\d|\binr\b)[^.]{0,60}\b(training|course|program|programme|certificate|starter|enrol|enroll|emi)\b|\b(training|course|program|programme|certificate|starter|enrol|enroll)\b[^.]{0,60}(₹|\brs\.?\s?\d|\binr\b)/i;
+
+function askingQuote(verified) {
+  return verified.find(ev => ASKS_MONEY_OR_ID.test(ev.quote) || PRICED_PROGRAM.test(ev.quote)) || null;
+}
+
 function norm(s) {
   return String(s || "").toLowerCase().replace(/[“”"'’`]/g, "").replace(/[^a-z0-9₹%@.\s]/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -76,18 +89,25 @@ function fuse(listing, item, resp, cfg) {
   }
   reasons.push(...stageReasons(item));
 
+  const proof = llm.ok && llm.scam_probability >= SURE ? askingQuote(verified) : null;
+  if (proof) {
+    risk = Math.max(risk, Number(cfg.blockAt ?? 0.7));
+    reasons.unshift(`Blocked: the AI judge was sure (${llm.scam_probability}) and the post itself asks for money or ID documents: "${proof.quote}"`);
+  }
+
   // Neither AI stage ran (both APIs down / out of quota): don't approve on rules alone,
   // put the post back in the queue so the next run checks it properly.
   const nothingRan = pAdj === null && item.stage1 && item.stage1.error;
   if (nothingRan) reasons.unshift("Both AI checks failed this time; queued again");
   return {
     id: item.id,
-    status: nothingRan ? "retry" : decide(risk, cfg, disagree),
+    status: nothingRan ? "retry" : proof ? "blocked" : decide(risk, cfg, disagree),
     scam_risk: Number(Math.min(0.99, Math.max(0, risk)).toFixed(2)),
     reasons,
     decided_by: llm.ok ? "fusion" : "vector_search",
     parts: { llm_raw: llm.ok ? llm.scam_probability : null, llm_adjusted: pAdj === null ? null : Number(pAdj.toFixed(3)),
-             vector_risk: v, signal_risk: s, verified_quotes: verified.length, rejected_quotes: rejected.length + contradicting.length },
+             vector_risk: v, signal_risk: s, verified_quotes: verified.length, rejected_quotes: rejected.length + contradicting.length,
+             sure_and_proven: !!proof },
   };
 }
 

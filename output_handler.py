@@ -394,6 +394,22 @@ def save_verdict(listing_id: str, status: str, scam_risk, reasons) -> bool:
     return True
 
 
+def unblock(listing_id: str) -> bool:
+    """A person says a blocked post is not a scam: it moves to "review" (needs a look), with a note,
+    and keeps its scam reasons so anyone can still see why it was blocked."""
+    with _CSV_LOCK:
+        rows = _read_rows()
+        row = next((r for r in rows if r.get("id") == listing_id), None)
+        if row is None or row.get("moderation_status") != "blocked":
+            return False
+        row["moderation_status"] = "review"
+        row["moderation_reasons"] = " | ".join(filter(None, [
+            f"Moved out of 'likely scam' by hand on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            row.get("moderation_reasons", "")]))[:1500]
+        _write_rows(rows)
+    return True
+
+
 def update_run_history(new_listings_count: int, sources_failed: list):
     log_data = load_log()
     today_str = datetime.now().strftime("%Y-%m-%d")
