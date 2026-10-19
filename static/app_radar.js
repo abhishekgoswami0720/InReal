@@ -10,15 +10,13 @@ let activeSource = 'all';
 let activeRoleType = 'all';
 let activeModeration = 'verified';   // n8n scam check: show only listings it passed
 let showBookmarkedOnly = false;
-// Two modes, one page. /admin (this laptop): the CSV list, searching and the scam check.
-// /app (signed-in users): the shared list from Supabase; nothing here can start a search.
+// One dashboard, two doors. /admin: this laptop, no sign-in. /app: the same dashboard (search,
+// Load 5 more, scam check) behind Google sign-in; the account comes from Supabase.
 const CFG = window.INREAL || {};
 const USER_MODE = CFG.mode === 'user';
 const sb = (USER_MODE && window.supabase && CFG.supabaseUrl && CFG.supabaseKey)
   ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey) : null;
-let sbUser = null;      // the Google account signed in
-let sbAccount = null;   // its row in public.profiles (plan, is_admin)
-let bookmarks = USER_MODE ? [] : JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]');
+let bookmarks = JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]');
 let activeDrawerJob = null;
 let canEdit = true;
 // The search on screen: Search Internships starts a new one and the list shows only its results
@@ -78,7 +76,11 @@ function getCompanyLogoSvg(companyName) {
 document.addEventListener('DOMContentLoaded', () => {
   initGlassTranslucentBackground();
   bindEventHandlers();
-  if (USER_MODE) { startUserApp(); return; }
+  if (USER_MODE) { requireSignIn().then(ok => { if (ok) startDashboard(); }); return; }
+  startDashboard();
+});
+
+function startDashboard() {
   initProfile();
   try { localStorage.removeItem('inreal_view_run'); } catch (e) {}
   viewRun = '';
@@ -87,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
   pollAlerts();
   pollModeration();
   updateBookmarkCounter();
-});
+}
 
 // ==========================================
 // 1. Subtle Translucent 3D Ambient Mesh
@@ -96,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // 2. Data Fetching & Overview Metrics
 // ==========================================
 async function loadData() {
-  if (USER_MODE) return loadUserListings();
   try {
     const res = await fetch('/api/internships');
     const data = await res.json();
@@ -169,7 +170,6 @@ function applyFiltersAndRender() {
     // The student's profile: only their field, and unpaid posts only for 0 years of experience
     if (profile) {
       if (profile.experience !== '0' && isUnpaid(item)) return false;
-      if (USER_MODE && !String(item.field || '').split(';').includes(profile.field)) return false;
     }
 
     // Scam check verdict (n8n). Default: only what n8n checked and passed.
@@ -262,9 +262,8 @@ function renderListings(items) {
       return;
     }
     if (h) h.textContent = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'No Matching Opportunities Found';
-    const waitText = !USER_MODE ? 'Search the sites for your field with "Search Internships". New ones appear as each site finishes.'
-      : 'New posts are added automatically every few hours, as soon as they pass the scam check. Check back soon, or pick a nearby field in Edit profile.';
-    if (t) t.textContent = fieldEmpty ? waitText : 'Try broadening your search keywords or resetting region and stipend filters.';
+    if (t) t.textContent = fieldEmpty ? 'Search the sites for your field with "Search Internships". New ones appear as each site finishes.'
+                                      : 'Try broadening your search keywords or resetting region and stipend filters.';
     if (emptyState) {
       emptyState.classList.remove('hidden');
       emptyState.classList.add('flex');
@@ -455,7 +454,6 @@ function updateDrawerBookmarkIcon() {
 // 5. Bookmarks & Local Storage
 // ==========================================
 function toggleBookmark(id) {
-  if (USER_MODE) return toggleUserBookmark(id);
   if (bookmarks.includes(id)) {
     bookmarks = bookmarks.filter(b => b !== id);
   } else {
@@ -721,7 +719,7 @@ function bindEventHandlers() {
   });
 
   // Public (tunnel) visitors get a read-only dashboard: hide the scrape button for them
-  if (!USER_MODE) fetch('/api/whoami').then(r => r.json()).then(w => {
+  fetch('/api/whoami').then(r => r.json()).then(w => {
     canEdit = !!w.can_edit;
     if (!w.can_edit) {
       document.getElementById('trigger-scrape-btn')?.classList.add('hidden');
@@ -1034,7 +1032,6 @@ function closeProfileModal() {
 
 async function saveProfileFromForm(e) {
   e.preventDefault();
-  if (USER_MODE) return saveUserProfile(e.target);
   const form = e.target;
   const checked = name => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(cb => cb.value);
   const next = {
@@ -1354,148 +1351,41 @@ async function startSession() {
 
 
 // ==========================================
-// 19. User mode (/app): the signed-in student's view of the shared list in Supabase
+// 19. /app: Google sign-in in front of the dashboard
 // ==========================================
-// The database decides what may be read (supabase/schema.sql, row-level security): for now every
-// signed-in user gets every checked post at once (verified and "needs a look", never blocked).
-// This page shows the user's field, verified only unless Filters say otherwise.
-const LISTING_COLUMNS = 'id,source_platform,company_name,role_title,location,location_type,duration,stipend,'
-  + 'stipend_numeric,required_skills,apply_link,description,fields,org_type,trust_flags,status,scam_risk,'
-  + 'moderation_reasons,verified_at';
-const USER_REFRESH_MS = 5 * 60 * 1000;
-
-function toDashboardRow(j) {
-  // a Supabase listing in the shape the cards and the drawer were written for (internships.csv)
-  const when = j.verified_at ? new Date(j.verified_at) : null;
-  const local = when ? new Date(when.getTime() - when.getTimezoneOffset() * 60000).toISOString() : '';
-  return {
-    ...j,
-    moderation_status: j.status,
-    field: (j.fields || []).join(';'),
-    date_scraped: local ? local.slice(0, 16).replace('T', ' ') : '',
-    is_new: when && (Date.now() - when.getTime()) < 36 * 3600 * 1000 ? 'true' : '',
-  };
-}
-
-async function startUserApp() {
+// Signed out -> back to the landing page. Signed in -> the dashboard as above, with the Google
+// photo on the avatar, a sign-out button, and the Admin link for accounts with is_admin.
+async function requireSignIn() {
   if (!sb) {
     showToast('error', 'Sign-in is not set up', 'SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing in .env.');
-    return;
+    return false;
   }
   const { data } = await sb.auth.getSession();
-  if (!data.session) { location.replace('/'); return; }
-  sbUser = data.session.user;
+  if (!data.session) { location.replace('/'); return false; }
+  const user = data.session.user;
   sb.auth.onAuthStateChange((event, session) => { if (!session) location.replace('/'); });
-
-  fieldLabels = Object.fromEntries((CFG.fields || []).map(f => [f.key, f.label]));
-  // only the fields the automatic update searches can be picked: any other would always be empty
-  const live = new Set(CFG.liveFields || []);
-  const sel = document.getElementById('profile-field');
-  if (sel) sel.innerHTML = '<option value="">Choose a field</option>'
-    + (CFG.fields || []).map(f => live.has(f.key)
-      ? `<option value="${escapeHtml(f.key)}">${escapeHtml(f.label)}</option>`
-      : `<option value="${escapeHtml(f.key)}" disabled>${escapeHtml(f.label)} (coming soon)</option>`).join('');
-  document.getElementById('edit-profile-btn')?.addEventListener('click', () => openProfileModal(false));
-  document.getElementById('close-profile-btn')?.addEventListener('click', closeProfileModal);
-  document.getElementById('profile-form')?.addEventListener('submit', saveProfileFromForm);
   document.getElementById('sign-out-btn')?.addEventListener('click', async () => {
     await sb.auth.signOut();
     location.replace('/');
   });
+  const btn = document.getElementById('sign-out-btn');
+  if (btn && user.email) btn.title = `Sign out (${user.email})`;
 
-  const { data: row, error } = await sb.from('profiles').select('*').eq('id', sbUser.id).maybeSingle();
-  if (error) { showToast('error', 'Could not load your profile', error.message); return; }
-  sbAccount = row || { plan: 'free', is_admin: false };
-  const meta = sbUser.user_metadata || {};
-  profile = sbAccount.field ? {
-    name: sbAccount.name || meta.full_name || '',
-    field: sbAccount.field,
-    experience: sbAccount.experience || '0',
-    companies: sbAccount.companies || [],
-  } : null;
-  showAccount(meta);
-  updateProfileUI();
-  if (!profile) {
-    document.getElementById('profile-name').value = sbAccount.name || meta.full_name || '';
-    openProfileModal(true);
-    return;
-  }
-  await loadUserListings();
-  setInterval(loadUserListings, USER_REFRESH_MS);   // the automatic update adds posts every few hours
-}
-
-function showAccount(meta) {
-  const admin = document.getElementById('admin-link');
-  if (admin) { admin.classList.toggle('hidden', !sbAccount.is_admin); admin.classList.toggle('inline-flex', !!sbAccount.is_admin); }
-  const photo = sbAccount.avatar_url || meta.avatar_url;
+  const meta = user.user_metadata || {};
+  const { data: account } = await sb.from('profiles').select('name,avatar_url,is_admin').eq('id', user.id).maybeSingle();
+  const photo = (account && account.avatar_url) || meta.avatar_url;
   const avatar = document.getElementById('profile-avatar');
   if (avatar && photo && /^https:\/\//.test(photo)) {
     avatar.innerHTML = `<img src="${escapeHtml(photo)}" alt="" referrerpolicy="no-referrer" class="w-full h-full rounded-full object-cover">`;
     avatar.dataset.photo = '1';
   }
-  const btn = document.getElementById('sign-out-btn');
-  if (btn && sbUser.email) btn.title = `Sign out (${sbUser.email})`;
-}
-
-let userLoading = false;
-async function loadUserListings() {
-  if (!sb || !profile || userLoading) return;
-  userLoading = true;
-  try {
-    const [lst, bm] = await Promise.all([
-      sb.from('listings').select(LISTING_COLUMNS).order('verified_at', { ascending: false, nullsFirst: false }).limit(1000),
-      sb.from('bookmarks').select('listing_id'),
-    ]);
-    if (lst.error) { showToast('error', 'Could not load internships', lst.error.message); return; }
-    allInternships = (lst.data || []).map(toDashboardRow);
-    bookmarks = (bm.data || []).map(b => b.listing_id);
-    announceNewlyVerified(allInternships);
-    populateSourceFilter(allInternships);
-    applyFiltersAndRender();
-    updateBookmarkCounter();
-  } finally {
-    userLoading = false;
+  const admin = document.getElementById('admin-link');
+  if (admin && account && account.is_admin) { admin.classList.remove('hidden'); admin.classList.add('inline-flex'); }
+  // first visit: the profile form starts with the Google name
+  if (!profile) {
+    const name = document.getElementById('profile-name');
+    if (name && !name.value) name.value = (account && account.name) || meta.full_name || '';
   }
+  return true;
 }
 
-async function toggleUserBookmark(id) {
-  if (!sb || !sbUser) return;
-  if (bookmarks.includes(id)) {
-    const { error } = await sb.from('bookmarks').delete().eq('user_id', sbUser.id).eq('listing_id', id);
-    if (error) { showToast('error', 'Could not remove it', error.message); return; }
-    bookmarks = bookmarks.filter(b => b !== id);
-  } else {
-    const { error } = await sb.from('bookmarks').insert({ user_id: sbUser.id, listing_id: id });
-    if (error) {
-      if (/row-level security/i.test(error.message)) showToast('info', 'Saved list is full', 'You have saved 500 internships. Remove one first.');
-      else showToast('error', 'Could not save it', error.message);
-      return;
-    }
-    bookmarks.push(id);
-  }
-  updateBookmarkCounter();
-  applyFiltersAndRender();
-  if (activeDrawerJob && activeDrawerJob.id === id) updateDrawerBookmarkIcon();
-}
-
-async function saveUserProfile(form) {
-  const next = {
-    name: document.getElementById('profile-name').value.trim(),
-    field: document.getElementById('profile-field').value,
-    experience: (form.querySelector('input[name="experience"]:checked') || {}).value || '0',
-    companies: document.getElementById('profile-companies').value.split(',').map(c => c.trim()).filter(Boolean),
-  };
-  if (!next.field) { showToast('error', 'Choose a field', 'Pick the field you want internships in.'); return; }
-  const { error } = await sb.from('profiles').update(next).eq('id', sbUser.id);
-  if (error) { showToast('error', 'Could not save your profile', error.message); return; }
-  const first = !profile;
-  profile = next;
-  Object.assign(sbAccount, next);
-  document.getElementById('profile-modal').classList.add('hidden');
-  updateProfileUI();
-  showAccount(sbUser.user_metadata || {});
-  displayOrder.clear();
-  if (first) { await loadUserListings(); setInterval(loadUserListings, USER_REFRESH_MS); }
-  else await loadUserListings();
-  showToast('success', 'Profile saved', `Showing ${fieldLabels[next.field] || next.field} internships.`);
-}
