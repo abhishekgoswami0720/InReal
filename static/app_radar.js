@@ -752,6 +752,8 @@ function bindEventHandlers() {
   document.getElementById('close-config-btn')?.addEventListener('click', () => {
     modal.classList.add('hidden');
   });
+  closeOnBackdrop(modal, () => modal.classList.add('hidden'));
+  closeOnBackdrop(document.getElementById('profile-modal'), closeProfileModal);   // not on the first visit
 
   document.getElementById('scrape-config-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -816,6 +818,7 @@ function bindEventHandlers() {
     if (e.key === 'Escape') {
       closeDetailDrawer();
       modal.classList.add('hidden');
+      closeProfileModal();
     }
   });
 }
@@ -1081,6 +1084,18 @@ function openProfileModal(firstVisit) {
   syncSelectAll(modal);
   modal.classList.remove('hidden');
   document.getElementById('profile-field')?.focus();
+}
+
+// A click on the dimmed area around a dialog closes it. Both the press and the release must be
+// on the backdrop, so selecting text in the dialog and letting go outside does not close it.
+function closeOnBackdrop(backdrop, close) {
+  if (!backdrop) return;
+  let pressedOnBackdrop = false;
+  backdrop.addEventListener('mousedown', (e) => { pressedOnBackdrop = e.target === backdrop; });
+  backdrop.addEventListener('click', (e) => {
+    if (pressedOnBackdrop && e.target === backdrop) close();
+    pressedOnBackdrop = false;
+  });
 }
 
 function closeProfileModal() {
