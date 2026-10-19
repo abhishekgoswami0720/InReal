@@ -210,7 +210,7 @@ def test_vector_search_contrast_and_gate(index):
 
 
 @needs_node
-def test_fuse_checks_quotes_and_never_lets_llm_block_alone():
+def test_fuse_checks_quotes_and_blocks_only_when_sure_and_proven():
     cfg = {"blockAt": 0.7, "reviewAt": 0.4}
     listing = _listing("f", "Great team. Interns pay a refundable deposit of Rs 1500 to join.")
     item = {"id": "f", "stage1": {"vector_risk": 0.0, "categories": []}, "signals": [], "signal_risk": 0.0}
@@ -221,7 +221,11 @@ def test_fuse_checks_quotes_and_never_lets_llm_block_alone():
         return {"candidates": [{"content": {"parts": [{"text": json.dumps(body)}]}}]}
 
     real = js("_verdict_lib.js,fuse.js", "fuse", listing, item, llm(0.95, ["Interns pay a refundable deposit of Rs 1500"]), cfg)
-    assert real["parts"]["verified_quotes"] == 1 and real["status"] == "review"          # LLM alone: review, not blocked
+    # sure (>= 0.9) + a quote that is in the post + it asks for money: blocked even on the LLM alone (19 Oct)
+    assert real["parts"]["verified_quotes"] == 1 and real["status"] == "blocked" and real["parts"]["sure_and_proven"]
+    assert real["reasons"][0].startswith("Blocked: the AI judge was sure")
+    unsure = js("_verdict_lib.js,fuse.js", "fuse", listing, item, llm(0.85, ["Interns pay a refundable deposit of Rs 1500"]), cfg)
+    assert unsure["status"] == "review"                                                   # below 0.9: the old weighting
     fake = js("_verdict_lib.js,fuse.js", "fuse", listing, item, llm(0.95, ["pay the processing fee before joining"]), cfg)
     assert fake["parts"]["rejected_quotes"] == 1 and fake["parts"]["llm_adjusted"] < 0.65   # made-up quote discounted
     assert any("not in the post" in r for r in fake["reasons"])
@@ -555,3 +559,44 @@ def test_line_breaks_are_kept_and_do_not_count_as_a_change(store):
     oh.sync_listings([_row("lb", "QA Intern", desc=" ".join(text.split()))], [])
     assert oh.pending_moderation() == []
     assert "\n" in next(x for x in oh.read_all_rows() if x["id"] == "lb")["description"]
+
+
+@needs_node
+def test_sure_judge_without_a_money_or_id_quote_is_not_blocked():
+    cfg = {"blockAt": 0.7, "reviewAt": 0.4}
+    text = ("Earn 45,000 a month. Everyone who applies today is selected, no interview. "
+            "Tasks are shared in our Telegram group. Stipend: 45,000/month. We never charge any fee.")
+    listing = _listing("t", text)
+    item = {"id": "t", "stage1": {"vector_risk": 0.0, "categories": []}, "signals": [], "signal_risk": 0.0}
+
+    def llm(quotes):
+        body = {"scam_probability": 1.0, "verdict": "scam", "categories": ["too_good_to_be_true"],
+                "evidence": [{"quote": q, "why": "x"} for q in quotes], "summary": "s"}
+        return {"candidates": [{"content": {"parts": [{"text": json.dumps(body)}]}}]}
+
+    for quotes in (["Everyone who applies today is selected, no interview"],
+                   ["Tasks are shared in our Telegram group"],
+                   ["Stipend: 45,000/month"],
+                   ["We never charge any fee"],              # says the opposite: thrown out, not proof
+                   ["pay a deposit of Rs 2000 to join"]):    # not in the post: thrown out, not proof
+        v = js("_verdict_lib.js,fuse.js", "fuse", listing, item, llm(quotes), cfg)
+        assert v["status"] == "review" and not v["parts"]["sure_and_proven"], quotes
+
+    priced = _listing("p", "Selected candidates first complete a 2-month training program (₹4,500, EMI available).")
+    v = js("_verdict_lib.js,fuse.js", "fuse", priced, {**item, "id": "p"},
+           llm(["complete a 2-month training program (₹4,500, EMI available)"]), cfg)
+    assert v["status"] == "blocked"
+
+
+def test_unblock_moves_a_blocked_post_to_review(store, monkeypatch):
+    import app as app_mod
+    oh.sync_listings([_row("ub", "SDE Intern"), _row("ok", "ML Intern")], [])
+    oh.save_verdict("ub", "blocked", 0.9, ["Blocked: the AI judge was sure (1.0) ..."])
+    oh.save_verdict("ok", "approved", 0.1, ["LLM: genuine"])
+    client = app_mod.app.test_client()
+    assert client.post("/api/moderation/unblock", json={"id": "ok"}).status_code == 404   # only blocked posts
+    assert client.post("/api/moderation/unblock", json={"id": "ub"}).get_json() == {"saved": True}
+    row = next(x for x in oh.read_all_rows() if x["id"] == "ub")
+    assert row["moderation_status"] == "review"
+    assert row["moderation_reasons"].startswith("Moved out of 'likely scam' by hand")
+    assert "Blocked: the AI judge was sure" in row["moderation_reasons"]   # why it was blocked stays visible

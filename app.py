@@ -193,6 +193,16 @@ def chain_next_batch():
     threading.Thread(target=notify_n8n, args=("next batch",), daemon=True).start()
 
 
+@app.route("/api/moderation/unblock", methods=["POST"])
+def moderation_unblock():
+    """'Not a scam?' button in View Details: a blocked post goes to 'needs a look' (review)."""
+    from output_handler import unblock
+    data = request.get_json(silent=True) or {}
+    if not unblock(str(data.get("id", ""))):
+        return jsonify({"saved": False, "error": "no blocked listing with that id"}), 404
+    return jsonify({"saved": True})
+
+
 @app.route("/api/moderation/load-more", methods=["POST"])
 def moderation_load_more():
     """'Load more' on the dashboard: send the next few scraped listings (round-robin) to the scam check."""
