@@ -370,7 +370,14 @@ def pending_moderation(limit: int = 40, claim: bool = False) -> list:
     now = datetime.now()
     with _CSV_LOCK:
         rows = _read_rows()
-        todo = round_robin([r for r in rows if _is_pending(r, now)], max(1, limit))
+        waiting = [r for r in rows if _is_pending(r, now)]
+        # A person's "Load 5 more" goes first; the automatic update's posts fill the rest of the batch
+        # (19 Oct: 5 loaded posts sat behind 77 of the automatic update's for 10+ minutes)
+        mine = [r for r in waiting if not str(r.get("last_run") or "").startswith("auto-")]
+        todo = round_robin(mine, max(1, limit))
+        if len(todo) < limit:
+            auto = [r for r in waiting if str(r.get("last_run") or "").startswith("auto-")]
+            todo += round_robin(auto, limit - len(todo))
         if claim and todo:
             for r in todo:
                 r["moderation_status"] = "checking"

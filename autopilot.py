@@ -21,6 +21,7 @@ import os
 import threading
 import time
 from datetime import datetime
+from pathlib import Path
 
 from loguru import logger
 
@@ -28,6 +29,31 @@ STATE = {"enabled": False, "busy": False, "checking": False, "field": "", "last_
          "next_round": "", "last_result": {}, "error": "", "yield": False}
 _lock = threading.Lock()
 JUDGE_TIMEOUT_S = 90 * 60
+LAST_ROUND_FILE = Path(__file__).parent / ".cache" / "autopilot_last_round.txt"
+
+
+def _last_round_at() -> float:
+    """When the last round started (seconds since 1970), 0 if never. Kept on disk so a restart of
+    the app does not start a new 23-site round every time (19 Oct: one restart, one full round)."""
+    try:
+        return float(LAST_ROUND_FILE.read_text().strip())
+    except (OSError, ValueError):
+        return 0.0
+
+
+def _mark_round_started():
+    try:
+        LAST_ROUND_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LAST_ROUND_FILE.write_text(str(time.time()))
+    except OSError:
+        pass
+
+
+def first_delay(every_h: float, now: float = None) -> float:
+    """Seconds until the first round after the app starts: when the last one is due again,
+    at least 2 minutes from now."""
+    now = now or time.time()
+    return max(120.0, _last_round_at() + every_h * 3600 - now)
 
 
 def settings():
@@ -96,6 +122,7 @@ def run_round(manual_scrape_running=lambda: False):
         if STATE["busy"] or manual_scrape_running():
             return {}
         STATE["busy"] = True
+    _mark_round_started()
     result = {}
     try:
         for field in cfg["fields"]:
@@ -130,14 +157,15 @@ def run_round(manual_scrape_running=lambda: False):
 
 
 def start(manual_scrape_running):
-    """Background loop: first round 2 minutes after start, then every AUTO_EVERY_HOURS."""
+    """Background loop: a round every AUTO_EVERY_HOURS, counted from the last round even across
+    restarts (the first one ever starts 2 minutes after start)."""
     cfg = settings()
     STATE["enabled"] = cfg["on"]
     if not cfg["on"]:
         return None
 
     def loop():
-        delay = 120
+        delay = first_delay(cfg["every_h"])
         while True:
             STATE["next_round"] = datetime.fromtimestamp(time.time() + delay).strftime("%Y-%m-%d %H:%M")
             time.sleep(delay)
@@ -149,5 +177,6 @@ def start(manual_scrape_running):
 
     t = threading.Thread(target=loop, daemon=True, name="autopilot")
     t.start()
-    logger.info(f"Automatic update on: every {cfg['every_h']} h, fields {', '.join(cfg['fields'])}")
+    nxt = datetime.fromtimestamp(time.time() + first_delay(cfg["every_h"])).strftime("%d %b %H:%M")
+    logger.info(f"Automatic update on: every {cfg['every_h']} h, fields {', '.join(cfg['fields'])}; next round {nxt}")
     return t

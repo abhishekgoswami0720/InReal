@@ -90,3 +90,24 @@ def test_a_round_stops_before_the_next_field_when_asked(tmp_path, monkeypatch):
     assert searched == ["software"]
     assert autopilot.STATE["yield"] is False and autopilot.STATE["busy"] is False
 
+
+
+def test_a_restart_does_not_start_a_new_round(tmp_path, monkeypatch):
+    monkeypatch.setattr(autopilot, "LAST_ROUND_FILE", tmp_path / "last.txt")
+    now = 1_000_000.0
+    assert autopilot.first_delay(6, now) == 120                     # never ran: 2 minutes after start
+    (tmp_path / "last.txt").write_text(str(now - 3600))             # last round an hour ago
+    assert autopilot.first_delay(6, now) == 5 * 3600                # next one when it is due
+    (tmp_path / "last.txt").write_text(str(now - 7 * 3600))
+    assert autopilot.first_delay(6, now) == 120
+
+
+def test_load_more_posts_go_before_the_automatic_updates(tmp_path, monkeypatch):
+    monkeypatch.setattr(oh, "CSV_FILE", tmp_path / "internships.csv")
+    monkeypatch.setattr(oh, "LOG_FILE", tmp_path / "log.json")
+    row = lambda i, tag: {"id": f"{tag}{i}", "role_title": "Intern", "source_platform": "Unstop", "description": LONG}
+    oh.sync_listings([row(i, "a") for i in range(8)], [], run_tag="auto-20261019-1724-software")
+    oh.sync_listings([row(i, "m") for i in range(2)], [], run_tag="20261019-172342")
+    first = [p["id"] for p in oh.pending_moderation(limit=5)]
+    assert first[:2] == ["m0", "m1"] or set(first[:2]) == {"m0", "m1"}
+    assert len(first) == 5                                          # the rest of the batch: automatic ones
