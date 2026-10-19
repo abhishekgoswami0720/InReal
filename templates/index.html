@@ -501,73 +501,132 @@
 
   <!-- Sign-up / profile: asked before the first visit, editable from the header -->
   <div id="profile-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[55] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="profile-title">
-    <div class="glass-panel max-w-lg w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
-      <div class="flex items-start justify-between pb-3 border-b border-slate-200">
+    <div class="glass-panel bg-white max-w-xl w-full shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div class="px-6 pt-5 pb-3 flex items-start justify-between gap-3">
         <div>
-          <h3 id="profile-title" class="text-base font-bold text-slate-900">Set up your profile</h3>
-          <p class="text-[11px] text-slate-500 mt-0.5">We search the sites you pick for your field, and only show internships that fit you. {{ 'Saved to your account.' if user_mode else 'Saved in this browser.' }}</p>
+          <h3 id="profile-title" class="text-base font-bold text-slate-900">Your profile</h3>
+          <p id="profile-sub" class="text-[11px] text-slate-500 mt-0.5">Five short sections. The more you fill, the sharper your list. {{ 'Saved to your account.' if user_mode else 'Saved in this browser.' }}</p>
         </div>
-        <button id="close-profile-btn" type="button" class="hidden w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500" aria-label="Close">
+        <button id="close-profile-btn" type="button" class="hidden w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500" aria-label="Close">
           <i class="ph ph-x text-base"></i>
         </button>
       </div>
 
-      <form id="profile-form" class="mt-4 space-y-4 text-xs font-medium">
-        <div>
-          <label for="profile-name" class="font-bold text-slate-700 block mb-1.5">Your name <span class="font-medium text-slate-400">(optional)</span></label>
-          <input id="profile-name" type="text" autocomplete="name" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400/30">
-        </div>
+      <!-- the five sections: number, or a tick once that section is complete -->
+      <nav id="profile-steps" class="px-6 pb-3 flex gap-1.5 overflow-x-auto border-b border-slate-200" aria-label="Profile sections">
+        <button type="button" data-step="1" class="pstep"><span class="pstep-dot">1</span>About you</button>
+        <button type="button" data-step="2" class="pstep"><span class="pstep-dot">2</span>What you want</button>
+        <button type="button" data-step="3" class="pstep"><span class="pstep-dot">3</span>Skills</button>
+        <button type="button" data-step="4" class="pstep"><span class="pstep-dot">4</span>Preferences</button>
+        <button type="button" data-step="5" class="pstep"><span class="pstep-dot">5</span>Search</button>
+      </nav>
 
-        <div>
-          <label for="profile-field" class="font-bold text-slate-700 block mb-1.5">Field you want an internship in</label>
-          <select id="profile-field" required class="filter-select w-full"></select>
-        </div>
-
-        <fieldset>
-          <legend class="font-bold text-slate-700 mb-1.5">Work experience</legend>
-          <div class="grid grid-cols-3 gap-2">
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="radio" name="experience" value="0" checked> 0 years</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="radio" name="experience" value="1-2"> 1–2 years</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="radio" name="experience" value="3+"> 3+ years</label>
+      <form id="profile-form" class="flex-1 overflow-y-auto px-6 py-5 text-xs font-medium" novalidate>
+        <!-- 1 · About you -->
+        <section data-section="1" class="space-y-4">
+          <div>
+            <label for="profile-name" class="font-bold text-slate-700 block mb-1.5">Your name</label>
+            <input id="profile-name" type="text" autocomplete="name" maxlength="80" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400/30">
           </div>
-          <p class="text-[10px] text-slate-500 mt-1.5">Unpaid internships are shown only to students with 0 years of experience.</p>
-        </fieldset>
+          <fieldset>
+            <legend class="font-bold text-slate-700 mb-1.5">Where are you right now?</legend>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2"><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="1"> 1st year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="2"> 2nd year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="3"> 3rd year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="4"> 4th year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="5"> 5th year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="grad"> Graduated</label></div>
+          </fieldset>
+          <fieldset>
+            <legend class="font-bold text-slate-700 mb-1.5">Work experience</legend>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2"><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="experience" value="0" checked> 0 years</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="experience" value="1-2"> 1–2 years</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="experience" value="3+"> 3+ years</label></div>
+            <p class="text-[10px] text-slate-500 mt-1.5">Unpaid internships are shown only to students with 0 years of experience.</p>
+          </fieldset>
+        </section>
 
-        <div>
-          <label for="profile-companies" class="font-bold text-slate-700 block mb-1.5">Preferred companies <span class="font-medium text-slate-400">(optional)</span></label>
-          <input id="profile-companies" type="text" placeholder="e.g. Google, Apollo Hospitals, Zomato" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400/30">
-          <p class="text-[10px] text-slate-500 mt-1">Separate with commas. Their internships are shown first.</p>
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="font-bold text-slate-700">Regions</span>
-            <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="p_regions" checked> Select all</label>
+        <!-- 2 · What you want -->
+        <section data-section="2" class="space-y-4" hidden>
+          <div>
+            <label for="profile-field" class="font-bold text-slate-700 block mb-1.5">Field you want an internship in</label>
+            <select id="profile-field" required class="filter-select w-full"></select>
           </div>
-          <div class="grid grid-cols-3 gap-2">
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="india" checked> India</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="usa" checked> USA</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="europe" checked> Europe</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="remote" checked> Remote</label>
-            <label class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white"><input type="checkbox" name="p_regions" value="worldwide" checked> Global</label>
+          <fieldset>
+            <legend class="font-bold text-slate-700 mb-1.5">Which roles? <span class="font-medium text-slate-400">(pick any that fit)</span></legend>
+            <div id="profile-roles" class="grid grid-cols-2 gap-2"></div>
+            <p class="text-[10px] text-slate-500 mt-1.5">Posts for these roles come first in your list. Pick none to treat all roles the same.</p>
+          </fieldset>
+        </section>
+
+        <!-- 3 · Skills -->
+        <section data-section="3" class="space-y-4" hidden>
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-bold text-slate-700">Your skills</span>
+              <span id="profile-skill-count" class="text-slate-500">0 / 10</span>
+            </div>
+            <div id="profile-skills" class="flex flex-wrap gap-2 min-h-[38px] p-2 rounded-lg border border-dashed border-slate-300 bg-slate-50"></div>
+            <div class="flex gap-2 mt-2">
+              <input id="profile-skill-input" type="text" maxlength="40" placeholder="Type a skill and press Enter" class="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400/30">
+              <button type="button" id="profile-skill-add" class="glass-btn px-3 py-2 text-xs">Add</button>
+            </div>
           </div>
-
-        <div>
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="font-bold text-slate-700">Sites to search <span class="font-medium text-slate-500" data-site-count></span></span>
-            <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="p_sources" checked> Select all</label>
+          <div>
+            <div class="font-bold text-slate-700 mb-1.5">Suggested for your field</div>
+            <div id="profile-skill-suggest" class="flex flex-wrap gap-2"></div>
           </div>
-          <div data-site-list="p_sources" data-region-name="p_regions" class="space-y-3 max-h-64 overflow-y-auto pr-1"></div>
-          <p class="text-[10px] text-slate-500 mt-1.5">Naukri, Foundit, SimplyHired, Careerjet and Meta open a Chrome window: leave it open, and if a check appears, solve it there. "Soon" sites are listed but not built yet.</p>
-        </div>
-        </div>
+          <p class="text-[10px] text-slate-500">Each card shows how many of your skills the post asks for, and the best matches come first.</p>
+        </section>
 
-        <label id="profile-scrape-row" class="flex items-center gap-2 text-slate-700 cursor-pointer"><input id="profile-scrape-now" type="checkbox" checked> Search these sites for my field now</label>
+        <!-- 4 · Preferences -->
+        <section data-section="4" class="space-y-4" hidden>
+          <fieldset>
+            <legend class="font-bold text-slate-700 mb-1.5">Work mode</legend>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2"><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="work_mode" value="any"> Any</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="work_mode" value="remote"> Remote only</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="work_mode" value="office"> Office / hybrid</label></div>
+          </fieldset>
+          <fieldset>
+            <legend class="font-bold text-slate-700 mb-1.5">Minimum stipend (per month)</legend>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2"><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="min_stipend" value="0"> Any</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="min_stipend" value="5000"> ₹5,000+</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="min_stipend" value="10000"> ₹10,000+</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="min_stipend" value="20000"> ₹20,000+</label></div>
+          </fieldset>
+          <fieldset>
+            <legend class="font-bold text-slate-700 mb-1.5">Longest duration you can do</legend>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2"><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="max_duration" value="any"> Any</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="max_duration" value="2"> Up to 2 months</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="max_duration" value="3"> Up to 3 months</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="max_duration" value="6"> Up to 6 months</label></div>
+          </fieldset>
+          <p class="text-[10px] text-slate-500">Posts that don't state a stipend, mode or duration are still shown.</p>
+        </section>
 
-        <button type="submit" class="w-full py-2.5 glass-btn glass-btn-primary text-xs font-bold transition">
-          Save and find internships
-        </button>
+        <!-- 5 · Search settings -->
+        <section data-section="5" class="space-y-4" hidden>
+          <div>
+            <label for="profile-companies" class="font-bold text-slate-700 block mb-1.5">Preferred companies <span class="font-medium text-slate-400">(optional)</span></label>
+            <input id="profile-companies" type="text" placeholder="e.g. Google, Apollo Hospitals, Zomato" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400/30">
+            <p class="text-[10px] text-slate-500 mt-1">Separate with commas. Their internships are shown first.</p>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-bold text-slate-700">Regions</span>
+              <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="p_regions" checked> Select all</label>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="checkbox" name="p_regions" value="india" checked> India</label>
+              <label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="checkbox" name="p_regions" value="usa" checked> USA</label>
+              <label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="checkbox" name="p_regions" value="europe" checked> Europe</label>
+              <label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="checkbox" name="p_regions" value="remote" checked> Remote</label>
+              <label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="checkbox" name="p_regions" value="worldwide" checked> Global</label>
+            </div>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-bold text-slate-700">Sites to search <span class="font-medium text-slate-500" data-site-count></span></span>
+              <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer"><input type="checkbox" data-select-all="p_sources" checked> Select all</label>
+            </div>
+            <div data-site-list="p_sources" data-region-name="p_regions" class="space-y-3 max-h-56 overflow-y-auto pr-1"></div>
+            <p class="text-[10px] text-slate-500 mt-1.5">Naukri, Foundit, SimplyHired, Careerjet and Meta open a Chrome window: leave it open, and if a check appears, solve it there. "Soon" sites are listed but not built yet.</p>
+          </div>
+          <label id="profile-scrape-row" class="flex items-center gap-2 text-slate-700 cursor-pointer"><input id="profile-scrape-now" type="checkbox"> Search these sites for my field when I save</label>
+        </section>
+        <button type="submit" hidden aria-hidden="true" tabindex="-1"></button>
       </form>
+
+      <div class="px-6 py-4 border-t border-slate-200 flex items-center gap-2 bg-white">
+        <button type="button" id="profile-back" class="glass-btn px-3.5 py-2.5 text-xs"><i class="ph ph-arrow-left"></i> Back</button>
+        <button type="button" id="profile-skip" class="px-3 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800">Skip for now</button>
+        <button type="button" id="profile-next" class="ml-auto glass-btn glass-btn-primary px-5 py-2.5 text-xs font-bold">Next</button>
+      </div>
     </div>
   </div>
 
@@ -591,6 +650,7 @@
   </div>
 
   <script src="{{ url_for('static', filename='background.js') }}"></script>
+  <script src="{{ url_for('static', filename='profile_options.js') }}"></script>
   <script src="{{ url_for('static', filename='app_radar.js') }}"></script>
 </body>
 </html>

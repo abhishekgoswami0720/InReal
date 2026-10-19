@@ -5,6 +5,9 @@ create table public.profiles (
   name text, email text, avatar_url text,
   field text, experience text,
   regions text[] not null default '{}', sources text[] not null default '{}', companies text[] not null default '{}',
+  -- the 5-section profile (migration profile_sections)
+  study_year text, roles text[] not null default '{}', skills text[] not null default '{}',
+  work_mode text, min_stipend integer, max_duration text,
   plan text not null default 'free' check (plan in ('free','pro')),
   is_admin boolean not null default false,
   created_at timestamptz not null default now()
@@ -14,6 +17,9 @@ create policy "read own profile" on public.profiles for select to authenticated 
 create policy "update own profile" on public.profiles for update to authenticated using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
 revoke update on public.profiles from authenticated, anon;
 grant update (name, field, experience, regions, sources, companies) on public.profiles to authenticated;
+grant update (study_year, roles, skills, work_mode, min_stipend, max_duration) on public.profiles to authenticated;
+alter table public.profiles add constraint profiles_skills_max check (cardinality(skills) <= 15);
+alter table public.profiles add constraint profiles_min_stipend_range check (min_stipend is null or min_stipend between 0 and 1000000);
 
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = '' as $$
