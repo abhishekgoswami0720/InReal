@@ -726,6 +726,7 @@ function bindEventHandlers() {
         // (19 Oct: the window kept showing only the sites picked once in the profile form)
         if (profile) {
           writeProfile({ ...profile, field: config.field, sources: config.sources, regions: config.regions });
+          saveProfileToAccount(profile);
           updateProfileUI();
           applyFiltersAndRender();   // the list shows the field just searched
         }
@@ -1065,6 +1066,7 @@ async function saveProfileFromForm(e) {
     return;
   }
   writeProfile(next);
+  saveProfileToAccount(next);
   document.getElementById('profile-modal').classList.add('hidden');
   updateProfileUI();
   applyFiltersAndRender();
@@ -1380,6 +1382,16 @@ async function startSession() {
 // ==========================================
 // Signed out -> back to the landing page. Signed in -> the dashboard as above, with the Google
 // photo on the avatar, a sign-out button, and the Admin link for accounts with is_admin.
+let sbUserId = null;
+function saveProfileToAccount(p) {
+  if (!sb || !sbUserId || !p) return;
+  const row = { name: p.name || null, field: p.field || null, experience: p.experience || '0',
+                companies: p.companies || [], sources: p.sources || [], regions: p.regions || [] };
+  sb.from('profiles').update(row).eq('id', sbUserId).then(({ error }) => {
+    if (error) showToast('error', 'Profile saved only in this browser', error.message);
+  });
+}
+
 async function requireSignIn() {
   if (!sb) {
     showToast('error', 'Sign-in is not set up', 'SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing in .env.');
@@ -1397,7 +1409,23 @@ async function requireSignIn() {
   if (btn && user.email) btn.title = `Sign out (${user.email})`;
 
   const meta = user.user_metadata || {};
-  const { data: account } = await sb.from('profiles').select('name,avatar_url,is_admin').eq('id', user.id).maybeSingle();
+  sbUserId = user.id;
+  const { data: account } = await sb.from('profiles')
+    .select('name,avatar_url,is_admin,field,experience,companies,sources,regions').eq('id', user.id).maybeSingle();
+  // The profile lives in the account: a new browser or an incognito window gets it back instead
+  // of the first-visit form (19 Oct). A profile only in this browser is copied up once.
+  if (account && account.field) {
+    writeProfile({
+      name: account.name || meta.full_name || '',
+      field: account.field,
+      experience: account.experience || '0',
+      companies: account.companies || [],
+      sources: account.sources || [],
+      regions: account.regions || [],
+    });
+  } else if (profile) {
+    saveProfileToAccount(profile);
+  }
   const photo = (account && account.avatar_url) || meta.avatar_url;
   const avatar = document.getElementById('profile-avatar');
   if (avatar && photo && /^https:\/\//.test(photo)) {
