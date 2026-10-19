@@ -543,3 +543,15 @@ def test_load_more_takes_the_stipend_from_the_full_talent_post(store, monkeypatc
     oh.sync_listings([dict(row)], [], hold=True)
     saved = next(x for x in oh.read_all_rows() if x["id"] == "t3")
     assert saved["stipend"] == "₹10,000 a month" and saved["moderation_status"] == "approved"
+
+
+def test_line_breaks_are_kept_and_do_not_count_as_a_change(store):
+    text = "About The Internship\nWe test apps.\n• Write tests.\n\n   • Fix   bugs."
+    oh.sync_listings([_row("lb", "QA Intern", desc=text)], [])
+    row = next(x for x in oh.read_all_rows() if x["id"] == "lb")
+    assert row["description"] == "About The Internship\nWe test apps.\n• Write tests.\n• Fix bugs."
+    oh.save_verdict("lb", "approved", 0.1, ["LLM: genuine"])
+    # the same post saved as one flat line (older scraper) is not a changed post
+    oh.sync_listings([_row("lb", "QA Intern", desc=" ".join(text.split()))], [])
+    assert oh.pending_moderation() == []
+    assert "\n" in next(x for x in oh.read_all_rows() if x["id"] == "lb")["description"]

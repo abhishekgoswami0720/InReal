@@ -81,9 +81,20 @@ def _write_rows(rows: list):
             time.sleep(0.1 * (attempt + 1))
 
 
+def clean_description(text) -> str:
+    """Spaces squeezed, line breaks kept (paragraphs, headings and '• ' points stay readable)."""
+    lines = (" ".join(line.split()) for line in str(text or "").replace("\r", "\n").split("\n"))
+    return "\n".join(line for line in lines if line)[:DESCRIPTION_LIMIT]
+
+
+def _same_text(a, b) -> bool:
+    """Equal apart from spacing and line breaks (a post saved as one line is not a changed post)."""
+    return " ".join(str(a or "").split()) == " ".join(str(b or "").split())
+
+
 def _record(item: dict) -> dict:
     rec = {k: item.get(k, "") for k in CSV_HEADERS if k not in MODERATION_FIELDS}
-    rec["description"] = " ".join(str(item.get("description") or "").split())[:DESCRIPTION_LIMIT]
+    rec["description"] = clean_description(item.get("description"))
     return rec
 
 
@@ -125,7 +136,9 @@ def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool
                         # ... and so must the stipend read from that full text (with its flags)
                         for k in ("stipend", "stipend_numeric", "stipend_currency", "trust_flags"):
                             rec[k] = old.get(k, "")
-                content_changed = any(str(old.get(k, "") or "") != str(rec.get(k, "") or "") for k in CONTENT_FIELDS)
+                content_changed = any(not _same_text(old.get(k, ""), rec.get(k, "")) if k == "description"
+                                      else str(old.get(k, "") or "") != str(rec.get(k, "") or "")
+                                      for k in CONTENT_FIELDS)
                 for k, v in rec.items():
                     if k in keep_as_is:
                         continue
@@ -136,6 +149,8 @@ def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool
                             old["field"] = ";".join(have + [v])
                             changed = True
                         continue
+                    if k == "description" and _same_text(old.get(k), v) and "\n" in str(old.get(k) or ""):
+                        continue    # keep the version with its line breaks
                     if str(old.get(k, "") or "") != str(v if v is not None else ""):
                         old[k] = v
                         changed = True
@@ -277,7 +292,7 @@ def release_held(n: int, run_tag: str = "") -> int:
             if r.get("id") in full and r.get("moderation_status") == "checking":
                 c = full[r["id"]]
                 if len(c.get("description") or "") > len(r.get("description") or ""):
-                    r["description"] = " ".join(c["description"].split())[:DESCRIPTION_LIMIT]
+                    r["description"] = clean_description(c["description"])
                 if c.get("stipend") and not r.get("stipend"):   # the stipend the full post states
                     for k in ("stipend", "stipend_numeric", "stipend_currency", "trust_flags"):
                         r[k] = c.get(k, "")

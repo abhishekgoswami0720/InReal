@@ -49,7 +49,8 @@ FETCH_JS = """async (url) => {
 
 
 def _html_to_text(html: str) -> str:
-    return re.sub(r"\s+", " ", BeautifulSoup(html or "", "lxml").get_text(" ")).strip()
+    from sites._common import html_to_text
+    return html_to_text(html, limit=100000)
 
 
 def _stipend(job: dict):

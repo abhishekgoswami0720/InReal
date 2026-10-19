@@ -462,7 +462,7 @@ function openDetailDrawer(id) {
 
   const desc = String(item.description || '').trim();
   document.getElementById('drawer-desc-box').classList.toggle('hidden', !desc);
-  document.getElementById('drawer-description').innerText = desc;
+  document.getElementById('drawer-description').innerHTML = describeHtml(desc);
 
   const skillsContainer = document.getElementById('drawer-skills-list');
   const skills = (item.required_skills || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -777,6 +777,44 @@ function bindEventHandlers() {
       modal.classList.add('hidden');
     }
   });
+}
+
+// The post text keeps one line per paragraph, heading or "• " point (sites/_common.html_to_text).
+// Short title-like lines followed by a paragraph or a list become headings; "Label: value" lines get
+// a bold label; "• " lines become a list. Posts saved as one long line still show as one paragraph.
+function describeHtml(desc) {
+  const BULLET = /^[•·▪●◦\-*]\s+/;
+  const lines = String(desc || '').split(/\n+/).map(l => l.trim()).filter(Boolean);
+  const words = (line) => line.split(/\s+/).length;
+  const titleCase = (line) => line.split(/\s+/).every(w => /^[A-Z0-9&(]/.test(w) || /^(and|or|of|the|to|for|in|on|at|a|an|we|you)$/i.test(w));
+  const isHeading = (line, next) => {
+    if (line.length > 60 || BULLET.test(line) || /[.,;!?]$/.test(line) || !/^[A-Z]/.test(line) || words(line) > 6) return false;
+    if (/:\s/.test(line)) return false;                              // "Job ID: 0490" is a label line
+    if (/:$/.test(line)) return titleCase(line.replace(/:$/, ''));   // "Requirements:" yes, "…who:" no
+    if (!next) return false;
+    return BULLET.test(next) || next.length > 60 || /:$/.test(next) || (words(line) >= 2 && titleCase(line));
+  };
+  let html = '', list = false;
+  lines.forEach((line, i) => {
+    if (BULLET.test(line)) {
+      if (!list) { html += '<ul class="list-disc pl-4 space-y-0.5">'; list = true; }
+      html += `<li>${escapeHtml(line.replace(BULLET, ''))}</li>`;
+      return;
+    }
+    if (list) { html += '</ul>'; list = false; }
+    const label = line.match(/^([A-Z][^:]{1,35}):\s+(.{1,120})$/);
+    if (isHeading(line, lines[i + 1])) {
+      html += `<h5 class="font-bold text-slate-800 ${i ? 'pt-2' : ''}">${escapeHtml(line.replace(/:$/, ''))}</h5>`;
+    } else if (/:$/.test(line)) {   // a lead-in sentence such as "We are looking for candidates who:"
+      html += `<p class="font-medium text-slate-700">${escapeHtml(line)}</p>`;
+    } else if (label && !/[.!?]\s/.test(label[1])) {
+      html += `<p><span class="font-semibold text-slate-700">${escapeHtml(label[1])}:</span> ${escapeHtml(label[2])}</p>`;
+    } else {
+      html += `<p>${escapeHtml(line)}</p>`;
+    }
+  });
+  if (list) html += '</ul>';
+  return html;
 }
 
 function escapeHtml(str) {
