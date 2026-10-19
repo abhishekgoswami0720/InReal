@@ -1295,7 +1295,10 @@ function updateHeldUI(c) {
   if (n) n.textContent = held;
   const btn = document.getElementById('load-more-btn');
   if (!btn) return;
-  const inFlight = (c.pending || 0) + (c.checking || 0);
+  // only this search's posts: the automatic update's posts go through the same check in the background
+  const inFlight = viewRun
+    ? allInternships.filter(r => r.last_run === viewRun && ['', 'checking'].includes(r.moderation_status || '')).length
+    : (c.pending || 0) + (c.checking || 0);
   if (loadMoreBusy && inFlight === 0) loadMoreBusy = false;   // the 5 have been judged
   const label = btn.querySelector('span');
   btn.disabled = loadMoreBusy || held === 0;
