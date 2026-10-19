@@ -58,6 +58,8 @@ function teaserCard(j) {
   </article>`;
 }
 
+const landing = { stats: null, more: 0 };
+
 async function showLanding() {
   document.querySelectorAll('[data-sites]').forEach(el => { el.textContent = CFG.liveSites ? String(CFG.liveSites) : 'many'; });
   if (!db) { $('teaser-empty').hidden = false; return; }
@@ -67,6 +69,7 @@ async function showLanding() {
   $('teaser-empty').hidden = rows.length > 0;
   $('teaser-marquee').hidden = rows.length === 0;
   const s = stats.data || {};
+  landing.stats = s; landing.more = Math.max(0, (s.verified_total || 0) - rows.length);
   document.querySelectorAll('[data-stat]').forEach(el => {
     const v = s[el.dataset.stat];
     el.textContent = typeof v === 'number' ? v.toLocaleString('en-IN') : '–';
@@ -246,9 +249,31 @@ async function signIn() {
 
 // Open: show it, then add .open on the next frame so the fade and rise play (site.html styles).
 // Close: remove .open and hide it once the fade has finished.
-function openSignIn() {
+// The box speaks to the button that opened it, and shows the real numbers once they have loaded
+const SIGNIN_TEXT = {
+  login:  { title: 'Welcome back', sub: 'Log in with the Google account you used before.', btn: 'Log in with Google' },
+  signup: { title: 'Create your free account', sub: 'One click with Google. No password to remember.', btn: 'Sign up with Google' },
+  lock:   { title: null, sub: 'Free. One click with Google, no password.', btn: 'Unlock with Google' },
+};
+function fillSignIn(source) {
+  const t = SIGNIN_TEXT[source] || SIGNIN_TEXT.signup;
+  $('signin-title').textContent = t.title
+    || (landing.more ? `Unlock ${plural(landing.more, 'more verified internship')}` : 'Unlock every verified internship');
+  $('signin-sub').textContent = t.sub;
+  $('google-btn-label').textContent = t.btn;
+  const s = landing.stats || {};
+  const ok = typeof s.verified_week === 'number' && typeof s.hidden_scams === 'number' && (s.verified_week || s.hidden_scams);
+  $('signin-proof').hidden = !ok;
+  if (ok) {
+    $('proof-week').textContent = s.verified_week.toLocaleString('en-IN');
+    $('proof-hidden').textContent = s.hidden_scams.toLocaleString('en-IN');
+  }
+}
+
+function openSignIn(source) {
   const m = $('signin-modal');
   clearTimeout(m.closeTimer);
+  fillSignIn(source);
   $('signin-error').hidden = true;
   m.hidden = false;
   requestAnimationFrame(() => requestAnimationFrame(() => m.classList.add('open')));
@@ -265,7 +290,7 @@ function closeSignIn() {
 document.addEventListener('click', (e) => {
   const t = e.target.closest('button, a');
   if (!t) return;
-  if (t.matches('[data-signin]')) openSignIn();
+  if (t.matches('[data-signin]')) openSignIn(t.dataset.signin);
   else if (t.matches('[data-close]')) closeSignIn();
 });
 $('google-btn').addEventListener('click', signIn);
