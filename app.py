@@ -26,7 +26,7 @@ app = Flask(__name__)
 # request is never mistaken for a local one.
 PROXY_HEADERS = ("Cf-Connecting-Ip", "Cf-Ray", "X-Forwarded-For", "X-Forwarded-Host", "Forwarded", "X-Real-Ip")
 LOOPBACK = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
-PROTECTED = {"/api/scrape", "/api/clear", "/api/alerts/dismiss", "/api/session/new"}
+PROTECTED = {"/api/scrape", "/api/clear", "/api/alerts/dismiss", "/api/session/new", "/api/autopilot/run"}
 
 
 def is_local_request() -> bool:
@@ -71,7 +71,27 @@ PATTERN_INDEX = Path(__file__).parent / "moderation" / "pattern_index.json"
 scraper_t = None
 
 @app.route("/")
-def index():
+def site():
+    """The public site: landing page signed out, the internship list signed in (static/site.js).
+    Who sees what is decided by Supabase's row-level security, not here."""
+    import fields
+    from moderation.env import load_env
+    from sites import registry
+    load_env()
+    config = {
+        "supabaseUrl": os.environ.get("SUPABASE_URL", "").strip(),
+        "supabaseKey": os.environ.get("SUPABASE_PUBLISHABLE_KEY", "").strip(),   # public by design
+        "liveSites": sum(1 for s in registry.SITES if s["status"] == "tested"),
+        "fields": fields.public_list(),
+    }
+    return render_template("site.html", config=config)
+
+
+@app.route("/admin")
+def admin():
+    """The search / scam-check dashboard: this laptop only."""
+    if not (is_local_request() or has_admin_token()):
+        return "The admin dashboard opens only on the laptop that runs InReal.", 403
     return render_template("index.html")
 
 @app.route("/api/internships")
@@ -102,7 +122,10 @@ def trigger_scrape():
     
     if scraper_t and scraper_t.is_alive():
         return jsonify({"status": "running", "message": "Scraping is already in progress!"})
-        
+    import autopilot
+    if autopilot.busy():
+        return jsonify({"status": "running", "message": "The automatic update is running. Try again when it finishes."})
+
     config = request.json if request.is_json else None
     run_tag = ""
     if config is not None:
@@ -169,8 +192,32 @@ def moderation_verdict():
         return jsonify({"saved": False, "error": str(e)}), 400
     if not ok:
         return jsonify({"saved": False, "error": "unknown id"}), 404
-    # No automatic next batch: only "Load 5 more" sends listings to the scam check (13 Oct 00:06)
+    # No automatic next batch for a manual search: only "Load 5 more" sends listings (13 Oct 00:06).
+    # The automatic update keeps n8n going until its round is judged.
+    import autopilot
+    if autopilot.STATE["checking"]:
+        chain_next_batch()
     return jsonify({"saved": True, "id": data.get("id"), "status": data.get("status")})
+
+
+def manual_scrape_running() -> bool:
+    return bool(scraper_t and scraper_t.is_alive())
+
+
+@app.route("/api/autopilot")
+def autopilot_status():
+    import autopilot
+    return jsonify({**autopilot.STATE, **{k: v for k, v in autopilot.settings().items() if k != "on"}})
+
+
+@app.route("/api/autopilot/run", methods=["POST"])
+def autopilot_run():
+    """Start a round now (laptop only)."""
+    import autopilot
+    if autopilot.busy() or manual_scrape_running():
+        return jsonify({"status": "busy"}), 409
+    threading.Thread(target=autopilot.run_round, args=(manual_scrape_running,), daemon=True).start()
+    return jsonify({"status": "started"})
 
 
 _last_chain = {"t": 0.0}
@@ -226,7 +273,8 @@ def moderation_load_more():
 def new_session():
     """Each page load (refresh) is a new session: internships.csv starts empty.
     Skipped while a search is running, so a refresh mid-search doesn't lose it."""
-    if scraper_t and scraper_t.is_alive():
+    import autopilot
+    if (scraper_t and scraper_t.is_alive()) or autopilot.busy():
         return jsonify({"status": "busy"})
     from output_handler import clear_all
     clear_all()
@@ -330,6 +378,8 @@ def _hold_old_listings():
 
 if __name__ == "__main__":
     _hold_old_listings()
+    import autopilot
+    autopilot.start(manual_scrape_running)
     port = int(os.environ.get("PORT", 5000))
     if os.environ.get("INREAL_DEBUG") == "1":
         # Flask's debugger can run code on this machine: only for local development, never with a tunnel
