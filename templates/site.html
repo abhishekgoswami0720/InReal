@@ -38,6 +38,12 @@
     }
     .arrive { animation: arrive 1.1s cubic-bezier(.16, 1, .3, 1); border-radius: 18px; }
 
+    /* Sign-in box: the backdrop fades in and the box rises into place (and back out on close) */
+    #signin-modal { opacity: 0; transition: opacity .25s ease; }
+    #signin-modal.open { opacity: 1; }
+    #signin-modal > [role="dialog"] { opacity: 0; transform: translateY(28px) scale(.94); transition: opacity .25s ease, transform .4s cubic-bezier(.16, 1, .3, 1); }
+    #signin-modal.open > [role="dialog"] { opacity: 1; transform: none; }
+
     /* "Verified recently": one row running right to left like a news ticker; stops under the mouse */
     .marquee { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
     .marquee-track { display: flex; width: max-content; animation: marquee var(--marquee-s, 50s) linear infinite; }
@@ -75,6 +81,7 @@
       .step, .chip, .pop, .stamp, .flag { opacity: 1 !important; transform: none !important; transition: none !important; }
       .flag { background-size: 100% 100%; }
       .step.in .scan-line, .shake, .arrive { animation: none; }
+      #signin-modal, #signin-modal > [role="dialog"] { transition: none; }
     }
     a:focus-visible, button:focus-visible { outline: 2px solid #F97316; outline-offset: 2px; }
     [hidden] { display: none !important; }
