@@ -76,7 +76,7 @@ def text_under_heading(html, heading="Job description"):
 # "Stipend: 6,000 – 10,000 per month", "Stipend: Performance-based" (no amount: left empty).
 _AMOUNT = r"(?:₹|rs\.?|inr)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k|lpa|lakhs?)?"
 STIPEND_RE = re.compile(
-    r"\bstipend\b[^\n.]{0,40}?" + _AMOUNT + r"(?:\s*(?:-|–|—|to)\s*" + _AMOUNT + r")?"
+    r"\bstipend\b[^.]{0,40}?" + _AMOUNT + r"(?:\s*(?:-|–|—|to)\s*" + _AMOUNT + r")?"
     r"(?:\s*(?:/|per|a|an)?\s*(month|mo|week|year|annum|day))?", re.I)
 UNPAID_STIPEND_RE = re.compile(r"\bstipend\b\s*[:\-–]?\s*(?:unpaid|none|nil|not\s+provided|no\s+stipend)\b"
                                r"|\bunpaid\s+internship\b|\bno\s+stipend\b", re.I)
@@ -103,7 +103,9 @@ def stipend_from_text(text):
         high, yearly2 = _rupees(m.group(3), m.group(4)) if m.group(3) else (low, yearly1)
         period = (m.group(5) or "").lower()
         if low < 500 and not m.group(2):
-            continue            # "stipend for 3 months", a year, a count: not an amount
+            continue            # "stipend for 3 months", a count: not an amount
+        if 1900 <= low <= 2100 and not re.search(r"₹|rs\.?|inr|,|/", m.group(0), re.I):
+            continue            # "Stipend & Benefits\n• 2026 batch": a year, not rupees
         per_year = yearly1 or yearly2 or period in ("year", "annum")
         monthly = low / 12 if per_year else low * 4.33 if period == "week" else low * 22 if period == "day" else low
         up_to = re.search(r"\b(up\s*to|upto|max(imum)?)\b", m.group(0), re.I)

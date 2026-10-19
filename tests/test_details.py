@@ -107,3 +107,13 @@ def test_performance_based_stipends_say_so():
     f = details.stipend_from_text
     assert f("Stipend: Performance-Based, up to 7,500/- FOR COLLEGE STUDENTS") == ("Up to ₹7,500 a month (performance-based)", 7500)
     assert f("Stipend: 7,500 – 15,000 (performance-based). Equal") == ("₹7,500 – ₹15,000 a month (performance-based)", 7500)
+
+
+def test_html_to_text_keeps_paragraphs_headings_and_points():
+    from sites._common import html_to_text
+    html = ("<p><strong>Job ID: </strong>0490<br><br><strong>Stipend: </strong>6,000 per month<br><br>"
+            "<strong>About The Internship<br><br></strong>We test apps.</p><ul><li>Write tests.</li><li>Fix bugs.<br><br></li></ul>")
+    assert html_to_text(html).split("\n") == ["Job ID: 0490", "Stipend: 6,000 per month", "About The Internship",
+                                               "We test apps.", "• Write tests.", "• Fix bugs."]
+    assert details.stipend_from_text("Stipend\n15,000 per month") == ("₹15,000 a month", 15000)
+    assert details.stipend_from_text("Stipend & Benefits\n• Certificate for 2026 batch") == ("", 0.0)

@@ -46,10 +46,31 @@ def post_json(url, payload, **kw):
     return r.json()
 
 
+BLOCK_TAGS = ["p", "div", "section", "article", "header", "footer", "ul", "ol", "table", "tr",
+              "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre"]
+
+
+def tidy_lines(text):
+    """Spaces squeezed inside each line, empty lines and lone bullets dropped, line breaks KEPT
+    (19 Oct 2026: one flat line made "Stipend: ... About The Internship ..." unreadable)."""
+    lines = (re.sub(r"[ \t\r\f\v\u00a0\u200b]+", " ", line).strip() for line in str(text or "").split("\n"))
+    return "\n".join(line for line in lines if line and line not in ("•", "-", "*"))
+
+
 def html_to_text(html, limit=4000):
+    """Readable text from a post's HTML: one line per paragraph or heading, '• ' before list items."""
     if not html:
         return ""
-    return re.sub(r"\s+", " ", BeautifulSoup(html, "lxml").get_text(" ")).strip()[:limit]
+    soup = BeautifulSoup(html, "lxml")
+    for br in soup.find_all("br"):
+        br.replace_with("\n")
+    for li in soup.find_all("li"):
+        li.insert_before("\n• ")
+        li.insert_after("\n")
+    for tag in soup.find_all(BLOCK_TAGS):
+        tag.insert_before("\n")
+        tag.insert_after("\n")
+    return tidy_lines(soup.get_text(" "))[:limit]
 
 
 def location_type(location):
