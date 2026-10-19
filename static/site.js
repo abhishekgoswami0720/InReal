@@ -190,6 +190,45 @@ function watchSteps() {
   steps.forEach(s => io.observe(s));
 }
 
+// Header links: glide to the section, then a glow ring shows where you landed
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function arriveAt(section) {
+  const target = section.id === 'how' ? section.querySelector('h2') || section : section;
+  const ring = section.id === 'how' ? section.firstElementChild : section;
+  const top = section.getBoundingClientRect().top + window.scrollY - 88;   // below the sticky header
+  window.scrollTo({ top, behavior: reduceMotion ? 'auto' : 'smooth' });
+  let last = -1, still = 0;
+  const wait = () => {                       // play the glow once the scroll has stopped
+    const y = Math.round(window.scrollY);
+    still = y === last ? still + 1 : 0;
+    last = y;
+    if (still < 3) return requestAnimationFrame(wait);
+    ring.classList.remove('arrive'); void ring.offsetWidth; ring.classList.add('arrive');
+    ring.addEventListener('animationend', () => ring.classList.remove('arrive'), { once: true });
+    if (target.focus) { target.setAttribute('tabindex', '-1'); target.focus({ preventScroll: true }); }
+  };
+  requestAnimationFrame(wait);
+}
+document.querySelectorAll('a[data-nav]').forEach(a => a.addEventListener('click', e => {
+  const section = document.querySelector(a.getAttribute('href'));
+  if (!section || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+  e.preventDefault();
+  history.replaceState(null, '', a.getAttribute('href'));
+  arriveAt(section);
+}));
+// the link of the section you are in stays orange
+if ('IntersectionObserver' in window) {
+  const navFor = id => document.querySelector(`a[data-nav][href="#${id}"]`);
+  new IntersectionObserver(entries => entries.forEach(en => {
+    const link = navFor(en.target.id);
+    if (link) link.classList.toggle('active', en.isIntersecting);
+  }), { rootMargin: '-45% 0px -45% 0px' }).observe($('spot'));
+  new IntersectionObserver(entries => entries.forEach(en => {
+    const link = navFor(en.target.id);
+    if (link) link.classList.toggle('active', en.isIntersecting);
+  }), { rootMargin: '-45% 0px -45% 0px' }).observe($('how'));
+}
+
 // Logo: on this page, a spin and a glide back to the top instead of a reload
 $('brand-home').addEventListener('click', e => {
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
