@@ -55,6 +55,58 @@ function writeProfile(p) {
   try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch (e) { /* private window: kept for this visit */ }
 }
 const isUnpaid = (item) => /unpaid/i.test(String(item.stipend || ''));
+
+// ---- What the profile changes in the list ----
+// Filters (section 4) hide a post only when the post states the thing: no stated stipend, mode or
+// duration means it stays. Roles (2) and skills (3) never hide anything; they decide the order.
+const isRemotePost = (item) => String(item.location_type || '').toLowerCase() === 'remote'
+  || /\b(remote|work from home|wfh)\b/i.test(String(item.location || ''));
+function durationMonths(item) {
+  const m = String(item.duration || '').match(/(\d+(?:\.\d+)?)\s*(month|week|mo\b)/i);
+  if (!m) return null;
+  return /week/i.test(m[2]) ? Number(m[1]) / 4.3 : Number(m[1]);
+}
+function failsPreferences(item, p) {
+  const min = Number(p.min_stipend || 0);
+  if (min > 0) {
+    if (isUnpaid(item)) return true;
+    const num = Number(item.stipend_numeric || 0);
+    const inr = !item.stipend_currency || /inr|₹|rs/i.test(String(item.stipend_currency));
+    if (num > 0 && inr && num < min) return true;
+  }
+  if (p.work_mode === 'remote' && !isRemotePost(item)) return true;
+  if (p.work_mode === 'office' && isRemotePost(item)) return true;
+  if (p.max_duration && p.max_duration !== 'any') {
+    const months = durationMonths(item);
+    if (months && months > Number(p.max_duration) + 0.01) return true;
+  }
+  return false;
+}
+function escapeRe(x) { return x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+// skills the post asks for (its skill list, title and text) that are in the profile
+function matchedSkills(item, p) {
+  const skills = (p && p.skills) || [];
+  if (!skills.length) return [];
+  const listed = String(item.required_skills || '').toLowerCase().split(/\s*[,;|]\s*/).filter(Boolean);
+  const text = `${item.required_skills || ''} ${item.role_title || ''} ${item.description || ''}`.toLowerCase();
+  return skills.filter(sk => {
+    const s = sk.toLowerCase();
+    if (listed.includes(s)) return true;
+    if (s.length <= 2) return false;   // "R", "C": only from the post's own skill list
+    return new RegExp(`(^|[^a-z0-9+#])${escapeRe(s)}($|[^a-z0-9+#])`).test(text);
+  });
+}
+function roleHit(item, p) {
+  const roles = (p && p.roles) || [];
+  if (!roles.length) return false;
+  const defs = ((window.PROFILE_ROLES || {})[p.field] || []).filter(r => roles.includes(r.key));
+  const title = ` ${String(item.role_title || '').toLowerCase()} `;
+  return defs.some(r => r.words.some(w => title.includes(w)));
+}
+function matchScore(item) {
+  if (!profile) return 0;
+  return (isPreferred(item) ? 1000 : 0) + (roleHit(item, profile) ? 100 : 0) + 10 * matchedSkills(item, profile).length;
+}
 function isPreferred(item) {
   if (!profile || !profile.companies || !profile.companies.length) return false;
   const name = String(item.company_name || '').toLowerCase();
@@ -185,6 +237,7 @@ function applyFiltersAndRender() {
     // The student's profile: only their field, and unpaid posts only for 0 years of experience
     if (profile) {
       if (profile.experience !== '0' && isUnpaid(item)) return false;
+      if (failsPreferences(item, profile)) return false;
     }
 
     // Scam check verdict (n8n). Default: only what n8n checked and passed.
@@ -240,11 +293,20 @@ function applyFiltersAndRender() {
   const filtered = base.filter(item => matches(item, false));
   // Cards keep their place while verdicts arrive: anything not shown before goes to the end
   filtered.forEach(item => { if (!displayOrder.has(item.id)) displayOrder.set(item.id, displayOrder.size); });
-  filtered.sort((a, b) => (Number(isPreferred(b)) - Number(isPreferred(a)))
+  // preferred companies, then your roles, then the most matching skills; ties keep their place
+  const score = new Map(filtered.map(item => [item.id, matchScore(item)]));
+  filtered.sort((a, b) => (score.get(b.id) - score.get(a.id))
                           || (displayOrder.get(a.id) - displayOrder.get(b.id)));
   renderOverviewStats(filtered, base);
   updateFilterCount();
   renderListings(filtered);
+}
+
+function skillChip(item) {
+  const hits = matchedSkills(item, profile);
+  if (!hits.length) return '';
+  const all = (profile.skills || []).length;
+  return `<span class="px-1.5 py-0.2 bg-orange-50 text-orange-700 font-bold border border-orange-200 rounded text-[10px] ml-1 flex items-center gap-0.5" title="Your skills in this post: ${escapeHtml(hits.join(', '))}"><i class="ph ph-lightning"></i> ${hits.length}/${all} SKILLS</span>`;
 }
 
 function renderListings(items) {
@@ -324,6 +386,7 @@ function renderListings(items) {
                   ${isNewToday(item) ? '<span class="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 rounded text-[10px] ml-1">NEW</span>' : ''}
                   ${moderationChip(item)}
                   ${isPreferred(item) ? '<span class="px-1.5 py-0.2 bg-violet-50 text-violet-700 font-bold border border-violet-200 rounded text-[10px] ml-1 flex items-center gap-0.5"><i class="ph ph-star"></i> YOUR PICK</span>' : ''}
+                  ${skillChip(item)}
                   ${item.trust_flags ? `<span class="px-1.5 py-0.2 bg-amber-50 text-amber-700 font-bold border border-amber-200 rounded text-[10px] ml-1 flex items-center gap-0.5" title="${escapeHtml(item.trust_flags)}"><i class="ph ph-warning"></i> NOTE</span>` : ''}
                 </div>
                 <div class="text-xs font-bold text-slate-800 mt-0.5">${escapeHtml(item.company_name || 'Company')}</div>
@@ -985,7 +1048,7 @@ async function initProfile() {
 
   document.getElementById('edit-profile-btn')?.addEventListener('click', () => openProfileModal(false));
   document.getElementById('close-profile-btn')?.addEventListener('click', closeProfileModal);
-  document.getElementById('profile-form')?.addEventListener('submit', saveProfileFromForm);
+  bindProfileForm();
 
   // "Select all" boxes: one per group of checkboxes, in both forms
   document.addEventListener('change', (e) => {
@@ -1000,6 +1063,39 @@ async function initProfile() {
 
   updateProfileUI();
   if (!profile) openProfileModal(true);
+}
+
+function bindProfileForm() {
+  const form = document.getElementById('profile-form');
+  if (!form || form.dataset.bound) return;
+  form.dataset.bound = '1';
+  form.addEventListener('submit', e => { e.preventDefault(); onProfileNext(); });   // Enter in a text box
+  document.getElementById('profile-next').addEventListener('click', onProfileNext);
+  document.getElementById('profile-back').addEventListener('click', () => showProfileStep(profileStep - 1));
+  document.getElementById('profile-skip').addEventListener('click', () => { closeProfileModal(); showToast('info', 'Saved what you filled', 'Finish your profile any time from your photo, top right.'); });
+  document.getElementById('profile-steps').addEventListener('click', e => {
+    const btn = e.target.closest('.pstep');
+    if (btn && !btn.disabled) showProfileStep(Number(btn.dataset.step));
+  });
+  document.getElementById('profile-field').addEventListener('change', e => {
+    renderRoleChips(e.target.value, collectProfile().roles);
+    renderSkills();
+  });
+  form.addEventListener('change', () => showProfileStep(profileStep));   // ticks follow the answers
+  document.getElementById('profile-skill-add').addEventListener('click', () => {
+    const inp = document.getElementById('profile-skill-input'); addSkill(inp.value); inp.value = ''; inp.focus(); showProfileStep(3);
+  });
+  document.getElementById('profile-skill-input').addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault(); e.stopPropagation();
+    addSkill(e.target.value); e.target.value = ''; showProfileStep(3);
+  });
+  form.addEventListener('click', e => {
+    const add = e.target.closest('[data-skill-add]');
+    const rm = e.target.closest('[data-skill-remove]');
+    if (add) { addSkill(add.dataset.skillAdd); showProfileStep(3); }
+    if (rm) { draftSkills.splice(Number(rm.dataset.skillRemove), 1); renderSkills(); showProfileStep(3); }
+  });
 }
 
 function setChecked(name, values) {
@@ -1017,24 +1113,138 @@ function syncSelectAll(root) {
   });
 }
 
-function openProfileModal(firstVisit) {
+// ==========================================
+// Profile: five sections (About you, What you want, Skills, Preferences, Search).
+// First visit: sections 1 and 2 are required and the form can't be closed until they are saved;
+// then 3-5 are offered and can be skipped. Every "Save & next" saves, so nothing is lost on close.
+// ==========================================
+const SKILL_LIMIT = 10;
+const PROFILE_STEPS = 5;
+let profileStep = 1;
+let profileMandatory = false;
+let draftSkills = [];
+
+function sectionDone(p, n) {
+  if (!p) return false;
+  switch (n) {
+    case 1: return !!(String(p.name || '').trim() && p.study_year && p.experience);
+    case 2: return !!(p.field && (p.roles || []).length);
+    case 3: return (p.skills || []).length >= 3;
+    case 4: return !!(p.work_mode && p.min_stipend != null && p.min_stipend !== '' && p.max_duration);
+    case 5: return !!((p.sources || []).length && (p.regions || []).length);
+    default: return false;
+  }
+}
+const SECTION_NAMES = ['', 'about you', 'your roles', 'at least 3 skills', 'your preferences', 'search settings'];
+
+function renderRoleChips(field, selected) {
+  const box = document.getElementById('profile-roles');
+  if (!box) return;
+  const roles = (window.PROFILE_ROLES || {})[field] || [];
+  box.innerHTML = roles.length ? roles.map(r => `<label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900">
+      <input type="checkbox" name="p_roles" value="${escapeHtml(r.key)}" ${(selected || []).includes(r.key) ? 'checked' : ''}> ${escapeHtml(r.label)}</label>`).join('')
+    : '<p class="text-slate-500 col-span-2">No role choices for this field yet.</p>';
+}
+
+function renderSkills() {
+  const field = document.getElementById('profile-field')?.value;
+  const chosen = document.getElementById('profile-skills');
+  const lower = draftSkills.map(x => x.toLowerCase());
+  if (chosen) chosen.innerHTML = draftSkills.length
+    ? draftSkills.map((sk, i) => `<span class="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full bg-orange-500 text-white text-[11px] font-bold">${escapeHtml(sk)}
+        <button type="button" data-skill-remove="${i}" class="w-5 h-5 rounded-full hover:bg-white/20 flex items-center justify-center" aria-label="Remove ${escapeHtml(sk)}">×</button></span>`).join('')
+    : '<span class="text-slate-400 px-1 py-1">No skills yet. Pick from the suggestions or type your own.</span>';
+  const suggest = document.getElementById('profile-skill-suggest');
+  const list = ((window.PROFILE_SKILLS || {})[field] || []).filter(sk => !lower.includes(sk.toLowerCase()));
+  if (suggest) suggest.innerHTML = list.map(sk => `<button type="button" data-skill-add="${escapeHtml(sk)}" class="px-2.5 py-1 rounded-full border border-slate-300 bg-white text-[11px] font-bold text-slate-700 hover:border-orange-400 hover:text-orange-700">+ ${escapeHtml(sk)}</button>`).join('')
+    || '<span class="text-slate-400">All suggestions added.</span>';
+  const count = document.getElementById('profile-skill-count');
+  if (count) count.textContent = `${draftSkills.length} / ${SKILL_LIMIT}`;
+}
+function addSkill(raw) {
+  const sk = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (!sk) return;
+  if (draftSkills.some(x => x.toLowerCase() === sk.toLowerCase())) return;
+  if (draftSkills.length >= SKILL_LIMIT) { showToast('info', `Up to ${SKILL_LIMIT} skills`, 'Remove one to add another.'); return; }
+  draftSkills.push(sk);
+  renderSkills();
+}
+
+function setRadio(name, value) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach(r => { r.checked = value != null && String(r.value) === String(value); });
+}
+
+function collectProfile() {
+  const form = document.getElementById('profile-form');
+  const checked = name => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(cb => cb.value);
+  const radio = name => (form.querySelector(`input[name="${name}"]:checked`) || {}).value || null;
+  const minStipend = radio('min_stipend');
+  return {
+    name: document.getElementById('profile-name').value.trim(),
+    study_year: radio('study_year'),
+    experience: radio('experience') || '0',
+    field: document.getElementById('profile-field').value || '',
+    roles: checked('p_roles'),
+    skills: draftSkills.slice(),
+    work_mode: radio('work_mode'),
+    min_stipend: minStipend == null ? null : Number(minStipend),
+    max_duration: radio('max_duration'),
+    companies: document.getElementById('profile-companies').value.split(',').map(c => c.trim()).filter(Boolean),
+    sources: checked('p_sources'),
+    regions: checked('p_regions'),
+  };
+}
+
+function showProfileStep(n) {
+  const target = Math.max(1, Math.min(PROFILE_STEPS, n));
+  const moved = target !== profileStep;
+  profileStep = target;
+  const draft = collectProfile();
+  document.querySelectorAll('#profile-form > section').forEach(sec => { sec.hidden = Number(sec.dataset.section) !== profileStep; });
+  document.querySelectorAll('#profile-steps .pstep').forEach(btn => {
+    const k = Number(btn.dataset.step);
+    btn.toggleAttribute('disabled', profileMandatory && k > 2);
+    btn.classList.toggle('done', sectionDone(draft, k));
+    if (k === profileStep) btn.setAttribute('aria-current', 'step'); else btn.removeAttribute('aria-current');
+    btn.querySelector('.pstep-dot').textContent = sectionDone(draft, k) ? '✓' : String(k);
+  });
+  document.getElementById('profile-back').classList.toggle('invisible', profileStep === 1);
+  document.getElementById('profile-skip').classList.toggle('hidden', profileMandatory);
+  const next = document.getElementById('profile-next');
+  next.textContent = profileMandatory
+    ? (profileStep === 1 ? 'Next' : 'Save and continue')
+    : (profileStep === PROFILE_STEPS ? 'Save and finish' : 'Save and next');
+  document.getElementById('profile-title').textContent = profileMandatory ? 'Set up your profile' : 'Your profile';
+  if (moved) document.getElementById('profile-form').scrollTop = 0;
+}
+
+function openProfileModal(firstVisit, step) {
   const modal = document.getElementById('profile-modal');
   if (!modal) return;
-  if (profile) {
-    document.getElementById('profile-name').value = profile.name || '';
-    document.getElementById('profile-field').value = profile.field || 'ai_ml';
-    const exp = document.querySelector(`input[name="experience"][value="${profile.experience}"]`);
-    if (exp) exp.checked = true;
-    document.getElementById('profile-companies').value = (profile.companies || []).join(', ');
-    setChecked('p_sources', profile.sources);
-    setChecked('p_regions', profile.regions);
-  }
+  profileMandatory = !!firstVisit || !profile;
+  const p = profile || {};
+  document.getElementById('profile-name').value = p.name || document.getElementById('profile-name').value || '';
+  if (p.field) document.getElementById('profile-field').value = p.field;
+  setRadio('study_year', p.study_year);
+  setRadio('experience', p.experience || '0');
+  renderRoleChips(document.getElementById('profile-field').value, p.roles);
+  draftSkills = (p.skills || []).slice(0, SKILL_LIMIT);
+  renderSkills();
+  setRadio('work_mode', p.work_mode);
+  setRadio('min_stipend', p.min_stipend);
+  setRadio('max_duration', p.max_duration);
+  document.getElementById('profile-companies').value = (p.companies || []).join(', ');
+  if (profile) { setChecked('p_sources', profile.sources); setChecked('p_regions', profile.regions); }
   const scrapeNow = document.getElementById('profile-scrape-now');
-  if (scrapeNow) scrapeNow.checked = firstVisit;
-  document.getElementById('close-profile-btn').classList.toggle('hidden', firstVisit);
+  if (scrapeNow) scrapeNow.checked = false;
+  document.getElementById('close-profile-btn').classList.toggle('hidden', profileMandatory);
   syncSelectAll(modal);
+  // open on the first section that still needs something, unless one was asked for
+  const first = step || (profileMandatory ? 1 : ([1, 2, 3, 4, 5].find(k => !sectionDone(profile, k)) || 1));
+  profileStep = 0;   // so the first showProfileStep counts as a move
+  showProfileStep(first);
   modal.classList.remove('hidden');
-  document.getElementById('profile-field')?.focus();
+  (profileStep === 1 ? document.getElementById('profile-name') : null)?.focus();
 }
 
 // A click on the dimmed area around a dialog closes it. Both the press and the release must be
@@ -1050,61 +1260,61 @@ function closeOnBackdrop(backdrop, close) {
 }
 
 function closeProfileModal() {
-  if (!profile) return;   // first visit: the form must be filled once
+  if (profileMandatory || !profile) return;   // first visit: sections 1 and 2 must be saved once
   document.getElementById('profile-modal').classList.add('hidden');
 }
 
-async function saveProfileFromForm(e) {
-  e.preventDefault();
-  const form = e.target;
-  const checked = name => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(cb => cb.value);
-  const next = {
-    name: document.getElementById('profile-name').value.trim(),
-    field: document.getElementById('profile-field').value || 'ai_ml',
-    experience: (form.querySelector('input[name="experience"]:checked') || {}).value || '0',
-    companies: document.getElementById('profile-companies').value.split(',').map(c => c.trim()).filter(Boolean),
-    sources: checked('p_sources'),
-    regions: checked('p_regions'),
-  };
-  const scrapeNow = canEdit && document.getElementById('profile-scrape-now').checked;
-  if (scrapeNow && !next.sources.length) {
-    showToast('error', 'Pick at least one site', 'Choose the sites to search, or untick "Search these sites now".');
+// "Next" / "Save and next" / "Save and finish"
+async function onProfileNext() {
+  const draft = collectProfile();
+  if (profileStep === 1 && !draft.name) { showToast('error', 'Add your name', 'It is shown only to you.'); document.getElementById('profile-name').focus(); return; }
+  if (profileMandatory && profileStep === 1) {
+    if (!draft.study_year) { showToast('error', 'Where are you right now?', 'Pick your year, or Graduated.'); return; }
+    showProfileStep(2);
     return;
   }
-  writeProfile(next);
-  saveProfileToAccount(next);
-  document.getElementById('profile-modal').classList.add('hidden');
+  if (!draft.field) { showProfileStep(2); showToast('error', 'Choose a field', 'Pick the field you want an internship in.'); return; }
+  const finishing = !profileMandatory && profileStep === PROFILE_STEPS;
+  const scrapeNow = finishing && canEdit && document.getElementById('profile-scrape-now').checked;
+  if (scrapeNow && !draft.sources.length) { showToast('error', 'Pick at least one site', 'Choose the sites to search, or untick "Search these sites".'); return; }
+
+  writeProfile(draft);
+  saveProfileToAccount(draft);
+  displayOrder.clear();
   updateProfileUI();
   applyFiltersAndRender();
 
-  if (!scrapeNow) { showToast('success', 'Profile saved', 'The list now follows your field and experience.'); return; }
+  if (profileMandatory) {   // sections 1 and 2 saved: the rest is optional from here
+    profileMandatory = false;
+    document.getElementById('close-profile-btn').classList.remove('hidden');
+    showProfileStep(3);
+    showToast('success', 'Profile saved', 'Three short optional sections make your list sharper. Or "Skip for now" and click Search Internships.');
+    return;
+  }
+  if (!finishing) { showProfileStep(profileStep + 1); return; }
+  document.getElementById('profile-modal').classList.add('hidden');
+  if (!scrapeNow) { showToast('success', 'Profile saved', 'Your list now follows your profile.'); return; }
   try {
     const res = await fetch('/api/scrape', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ field: next.field, sources: next.sources, regions: next.regions, limit: FIRST_BATCH })
+      body: JSON.stringify({ field: draft.field, sources: draft.sources, regions: draft.regions, limit: FIRST_BATCH })
     });
     const data = await res.json().catch(() => ({}));
     if (data.run_tag) startNewView(data.run_tag);
     if (data.status === 'running') showToast('info', 'Profile saved', 'A search is already running. Start yours with "Search Internships" when it ends.');
     else if (data.status === 'queued') showToast('info', 'Profile saved, search queued', 'The automatic update is finishing the site it is on. Your search starts right after, by itself; results appear here.');
-    else showToast('success', 'Profile saved, searching now', `Searching ${next.sources.length} site(s) for ${fieldLabels[next.field] || next.field} internships. They appear as each site finishes and passes the scam check.`);
+    else showToast('success', 'Profile saved, searching now', `Searching ${draft.sources.length} site(s) for ${fieldLabels[draft.field] || draft.field} internships. They appear as each site finishes and passes the scam check.`);
   } catch (err) {
     showToast('error', 'Profile saved, search did not start', 'The app is not answering. Is python app.py running?');
   }
 }
 
-// How complete the profile is: five parts, 20% each. Shown as the orange ring around the avatar.
+// How complete the profile is: the five sections, 20% each. Shown as the orange ring around the avatar.
 function profileCompletion(p) {
-  const parts = [
-    ['your name', !!(p && String(p.name || '').trim())],
-    ['your field', !!(p && p.field)],
-    ['work experience', !!(p && p.experience)],
-    ['preferred companies', !!(p && (p.companies || []).length)],
-    ['sites and regions', !!(p && (p.sources || []).length && (p.regions || []).length)],
-  ];
-  const done = parts.filter(([, ok]) => ok).length;
-  return { pct: Math.round(100 * done / parts.length), missing: parts.filter(([, ok]) => !ok).map(([name]) => name) };
+  const done = [1, 2, 3, 4, 5].filter(k => sectionDone(p, k));
+  return { pct: done.length * 20, missing: [1, 2, 3, 4, 5].filter(k => !sectionDone(p, k)).map(k => SECTION_NAMES[k]) };
 }
+
 function updateProfileRing() {
   const btn = document.getElementById('edit-profile-btn');
   const badge = document.getElementById('profile-pct');
@@ -1136,8 +1346,14 @@ function updateProfileUI() {
   if (box) {
     const exp = { '0': '0 years experience (unpaid shown)', '1-2': '1–2 years experience (paid only)', '3+': '3+ years experience (paid only)' }[profile.experience] || '';
     const picks = (profile.companies || []).length ? ` · Preferred: ${profile.companies.map(escapeHtml).join(', ')}` : '';
+    const prefs = [
+      Number(profile.min_stipend) > 0 ? `₹${Number(profile.min_stipend).toLocaleString('en-IN')}+ / month` : '',
+      profile.work_mode === 'remote' ? 'remote only' : profile.work_mode === 'office' ? 'office / hybrid' : '',
+      profile.max_duration && profile.max_duration !== 'any' ? `up to ${profile.max_duration} months` : '',
+      (profile.skills || []).length ? `ranked by your ${profile.skills.length} skills` : '',
+    ].filter(Boolean).map(t => ` · ${t}`).join('');
     box.innerHTML = `<i class="ph ph-user-focus text-base text-orange-500"></i>
-      <span>Showing <b class="text-slate-900">${escapeHtml(field)}</b> internships · ${exp}${picks}</span>
+      <span>Showing <b class="text-slate-900">${escapeHtml(field)}</b> internships · ${exp}${prefs}${picks}</span>
       <button type="button" class="ml-auto text-orange-600 hover:underline" onclick="openProfileModal(false)">Edit profile</button>`;
     box.classList.remove('hidden');
   }
@@ -1412,7 +1628,10 @@ async function startSession() {
 function saveProfileToAccount(p) {
   if (!sb || !sbUserId || !p) return;
   const row = { name: p.name || null, field: p.field || null, experience: p.experience || '0',
-                companies: p.companies || [], sources: p.sources || [], regions: p.regions || [] };
+                companies: p.companies || [], sources: p.sources || [], regions: p.regions || [],
+                study_year: p.study_year || null, roles: p.roles || [], skills: (p.skills || []).slice(0, 15),
+                work_mode: p.work_mode || null, max_duration: p.max_duration || null,
+                min_stipend: (p.min_stipend === null || p.min_stipend === undefined || p.min_stipend === '') ? null : Number(p.min_stipend) };
   sb.from('profiles').update(row).eq('id', sbUserId).then(({ error }) => {
     if (error) showToast('error', 'Profile saved only in this browser', error.message);
   });
@@ -1437,7 +1656,8 @@ async function requireSignIn() {
   const meta = user.user_metadata || {};
   sbUserId = user.id;
   const { data: account } = await sb.from('profiles')
-    .select('name,avatar_url,is_admin,field,experience,companies,sources,regions').eq('id', user.id).maybeSingle();
+    .select('name,avatar_url,is_admin,field,experience,companies,sources,regions,study_year,roles,skills,work_mode,min_stipend,max_duration')
+    .eq('id', user.id).maybeSingle();
   // The profile lives in the account: a new browser or an incognito window gets it back instead
   // of the first-visit form (19 Oct). A profile only in this browser is copied up once.
   if (account && account.field) {
@@ -1448,6 +1668,12 @@ async function requireSignIn() {
       companies: account.companies || [],
       sources: account.sources || [],
       regions: account.regions || [],
+      study_year: account.study_year || null,
+      roles: account.roles || [],
+      skills: account.skills || [],
+      work_mode: account.work_mode || null,
+      min_stipend: account.min_stipend,
+      max_duration: account.max_duration || null,
     });
   } else if (profile && profile.owner === user.id) {
     saveProfileToAccount(profile);          // filled in this browser before the account had it
