@@ -1062,7 +1062,7 @@ async function initProfile() {
   });
 
   updateProfileUI();
-  if (!profile) openProfileModal(true);
+  if (!requiredDone(profile)) openProfileModal(true);   // right away, before anything else on the page
 }
 
 function bindProfileForm() {
@@ -1136,6 +1136,8 @@ function sectionDone(p, n) {
   }
 }
 const SECTION_NAMES = ['', 'about you', 'your roles', 'at least 3 skills', 'your preferences', 'search settings'];
+// Sections 1 and 2 are required: until both are complete the form opens by itself and can't be closed
+const requiredDone = (p) => sectionDone(p, 1) && sectionDone(p, 2);
 
 function renderRoleChips(field, selected) {
   const box = document.getElementById('profile-roles');
@@ -1221,7 +1223,7 @@ function showProfileStep(n) {
 function openProfileModal(firstVisit, step) {
   const modal = document.getElementById('profile-modal');
   if (!modal) return;
-  profileMandatory = !!firstVisit || !profile;
+  profileMandatory = !!firstVisit || !requiredDone(profile);
   const p = profile || {};
   document.getElementById('profile-name').value = p.name || document.getElementById('profile-name').value || '';
   if (p.field) document.getElementById('profile-field').value = p.field;
@@ -1240,7 +1242,8 @@ function openProfileModal(firstVisit, step) {
   document.getElementById('close-profile-btn').classList.toggle('hidden', profileMandatory);
   syncSelectAll(modal);
   // open on the first section that still needs something, unless one was asked for
-  const first = step || (profileMandatory ? 1 : ([1, 2, 3, 4, 5].find(k => !sectionDone(profile, k)) || 1));
+  const first = step || (profileMandatory ? (sectionDone(profile, 1) ? 2 : 1)
+                                          : ([1, 2, 3, 4, 5].find(k => !sectionDone(profile, k)) || 1));
   profileStep = 0;   // so the first showProfileStep counts as a move
   showProfileStep(first);
   modal.classList.remove('hidden');
@@ -1260,7 +1263,7 @@ function closeOnBackdrop(backdrop, close) {
 }
 
 function closeProfileModal() {
-  if (profileMandatory || !profile) return;   // first visit: sections 1 and 2 must be saved once
+  if (profileMandatory || !requiredDone(profile)) return;   // sections 1 and 2 must be saved first
   document.getElementById('profile-modal').classList.add('hidden');
 }
 
@@ -1274,6 +1277,11 @@ async function onProfileNext() {
     return;
   }
   if (!draft.field) { showProfileStep(2); showToast('error', 'Choose a field', 'Pick the field you want an internship in.'); return; }
+  const hasRoles = ((window.PROFILE_ROLES || {})[draft.field] || []).length > 0;
+  if (profileMandatory && hasRoles && !draft.roles.length) {
+    showToast('error', 'Pick at least one role', 'Choose the roles you want, so the right posts come first.');
+    return;
+  }
   const finishing = !profileMandatory && profileStep === PROFILE_STEPS;
   const scrapeNow = finishing && canEdit && document.getElementById('profile-scrape-now').checked;
   if (scrapeNow && !draft.sources.length) { showToast('error', 'Pick at least one site', 'Choose the sites to search, or untick "Search these sites".'); return; }
