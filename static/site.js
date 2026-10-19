@@ -244,8 +244,23 @@ async function signIn() {
   if (error) { $('signin-error').textContent = `Google sign-in did not start: ${error.message}`; $('signin-error').hidden = false; }
 }
 
-function openSignIn() { $('signin-error').hidden = true; $('signin-modal').hidden = false; $('google-btn').focus(); }
-function closeSignIn() { $('signin-modal').hidden = true; }
+// Open: show it, then add .open on the next frame so the fade and rise play (site.html styles).
+// Close: remove .open and hide it once the fade has finished.
+function openSignIn() {
+  const m = $('signin-modal');
+  clearTimeout(m.closeTimer);
+  $('signin-error').hidden = true;
+  m.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => m.classList.add('open')));
+  $('google-btn').focus({ preventScroll: true });
+}
+function closeSignIn() {
+  const m = $('signin-modal');
+  if (m.hidden) return;
+  m.classList.remove('open');
+  clearTimeout(m.closeTimer);
+  m.closeTimer = setTimeout(() => { m.hidden = true; }, reduceMotion ? 0 : 280);
+}
 
 document.addEventListener('click', (e) => {
   const t = e.target.closest('button, a');
