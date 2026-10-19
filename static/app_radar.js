@@ -14,9 +14,12 @@ let showBookmarkedOnly = false;
 // Load 5 more, scam check) behind Google sign-in; the account comes from Supabase.
 const CFG = window.INREAL || {};
 const USER_MODE = CFG.mode === 'user';
+let sbUserId = null;   // the signed-in account on /app (set by requireSignIn)
 const sb = (USER_MODE && window.supabase && CFG.supabaseUrl && CFG.supabaseKey)
   ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey) : null;
-let bookmarks = JSON.parse(localStorage.getItem('inreal_bookmarks') || '[]');
+// /app keeps each account's saved posts apart (requireSignIn switches the key to the account's)
+let BOOKMARK_KEY = 'inreal_bookmarks';
+let bookmarks = JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]');
 let activeDrawerJob = null;
 let canEdit = true;
 // The search on screen: Search Internships starts a new one and the list shows only its results
@@ -45,6 +48,9 @@ function readProfile() {
   try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { return null; }
 }
 function writeProfile(p) {
+  // on /app the copy in this browser is marked with its account, so the next account to sign in
+  // here never takes it for its own (19 Oct: a new account skipped the profile form)
+  if (USER_MODE && sbUserId) p = { ...p, owner: sbUserId };
   profile = p;
   try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch (e) { /* private window: kept for this visit */ }
 }
@@ -474,7 +480,7 @@ function toggleBookmark(id) {
   } else {
     bookmarks.push(id);
   }
-  localStorage.setItem('inreal_bookmarks', JSON.stringify(bookmarks));
+  try { localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks)); } catch (e) { /* private window */ }
   updateBookmarkCounter();
   applyFiltersAndRender();
   if (activeDrawerJob && activeDrawerJob.id === id) {
@@ -1087,9 +1093,36 @@ async function saveProfileFromForm(e) {
   }
 }
 
+// How complete the profile is: five parts, 20% each. Shown as the orange ring around the avatar.
+function profileCompletion(p) {
+  const parts = [
+    ['your name', !!(p && String(p.name || '').trim())],
+    ['your field', !!(p && p.field)],
+    ['work experience', !!(p && p.experience)],
+    ['preferred companies', !!(p && (p.companies || []).length)],
+    ['sites and regions', !!(p && (p.sources || []).length && (p.regions || []).length)],
+  ];
+  const done = parts.filter(([, ok]) => ok).length;
+  return { pct: Math.round(100 * done / parts.length), missing: parts.filter(([, ok]) => !ok).map(([name]) => name) };
+}
+function updateProfileRing() {
+  const btn = document.getElementById('edit-profile-btn');
+  const badge = document.getElementById('profile-pct');
+  if (!btn) return;
+  const { pct, missing } = profileCompletion(profile);
+  requestAnimationFrame(() => btn.style.setProperty('--pct', pct));   // next frame: the ring fills up
+  btn.classList.toggle('done', pct === 100);
+  if (badge) { badge.textContent = `${pct}%`; badge.classList.toggle('hidden', pct === 100); }
+  const tip = pct === 100 ? 'Profile complete · Edit profile'
+    : `Profile ${pct}% complete · add ${missing.join(', ')}`;
+  btn.title = tip;
+  btn.setAttribute('aria-label', tip);
+}
+
 function updateProfileUI() {
   const label = document.getElementById('profile-btn-label');
   const box = document.getElementById('profile-summary');
+  updateProfileRing();
   if (!profile) {
     if (label) label.textContent = 'Set up profile';
     if (box) box.classList.add('hidden');
@@ -1098,14 +1131,8 @@ function updateProfileUI() {
   const field = fieldLabels[profile.field] || profile.field;
   if (label) label.textContent = profile.name ? `${profile.name} · ${field}` : field;
   const avatar = document.getElementById('profile-avatar');
-  const btn = document.getElementById('edit-profile-btn');
   const initials = (profile.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
   if (avatar && !avatar.dataset.photo) avatar.innerHTML = initials ? escapeHtml(initials) : '<i class="ph ph-user text-lg"></i>';
-  if (btn) {
-    const tip = `${profile.name ? profile.name + ' · ' : ''}${field} · Edit profile`;
-    btn.title = tip;
-    btn.setAttribute('aria-label', tip);
-  }
   if (box) {
     const exp = { '0': '0 years experience (unpaid shown)', '1-2': '1–2 years experience (paid only)', '3+': '3+ years experience (paid only)' }[profile.experience] || '';
     const picks = (profile.companies || []).length ? ` · Preferred: ${profile.companies.map(escapeHtml).join(', ')}` : '';
@@ -1382,7 +1409,6 @@ async function startSession() {
 // ==========================================
 // Signed out -> back to the landing page. Signed in -> the dashboard as above, with the Google
 // photo on the avatar, a sign-out button, and the Admin link for accounts with is_admin.
-let sbUserId = null;
 function saveProfileToAccount(p) {
   if (!sb || !sbUserId || !p) return;
   const row = { name: p.name || null, field: p.field || null, experience: p.experience || '0',
@@ -1423,9 +1449,14 @@ async function requireSignIn() {
       sources: account.sources || [],
       regions: account.regions || [],
     });
-  } else if (profile) {
-    saveProfileToAccount(profile);
+  } else if (profile && profile.owner === user.id) {
+    saveProfileToAccount(profile);          // filled in this browser before the account had it
+  } else {
+    profile = null;                         // another account's, or none: this one fills the form
+    try { localStorage.removeItem(PROFILE_KEY); } catch (e) { /* private window */ }
   }
+  BOOKMARK_KEY = `inreal_bookmarks:${user.id}`;
+  try { bookmarks = JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]'); } catch (e) { bookmarks = []; }
   const photo = (account && account.avatar_url) || meta.avatar_url;
   const avatar = document.getElementById('profile-avatar');
   if (avatar && photo && /^https:\/\//.test(photo)) {

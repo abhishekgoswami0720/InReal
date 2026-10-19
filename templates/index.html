@@ -91,10 +91,11 @@
 
         <!-- Profile avatar: initials of the name, opens the profile -->
         <button id="edit-profile-btn" type="button" title="Set up profile" aria-label="Set up profile"
-          class="relative w-11 h-11 rounded-full p-[3px] bg-slate-100 border border-slate-200 hover:border-slate-400 transition shrink-0">
-          <span id="profile-avatar" class="w-full h-full rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-white font-extrabold text-sm flex items-center justify-center select-none">
+          class="profile-ring relative w-12 h-12 rounded-full p-1 shrink-0">
+          <span id="profile-avatar" class="w-full h-full rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-white font-extrabold text-sm flex items-center justify-center select-none ring-2 ring-white overflow-hidden">
             <i class="ph ph-user text-lg"></i>
           </span>
+          <span id="profile-pct" class="hidden absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-1.5 py-px rounded-full bg-orange-500 text-white text-[9px] font-extrabold leading-tight shadow ring-2 ring-white">0%</span>
           <span id="profile-btn-label" class="sr-only">Set up profile</span>
         </button>
         {% if user_mode %}
