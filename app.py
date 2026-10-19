@@ -70,21 +70,35 @@ PATTERN_INDEX = Path(__file__).parent / "moderation" / "pattern_index.json"
 # Global state for scraping
 scraper_t = None
 
-@app.route("/")
-def site():
-    """The public site: landing page signed out, the internship list signed in (static/site.js).
-    Who sees what is decided by Supabase's row-level security, not here."""
+def public_config():
+    """What the browser needs to talk to Supabase. The publishable key is public by design;
+    the secret key never leaves this laptop (supabase_sync.py)."""
     import fields
     from moderation.env import load_env
     from sites import registry
     load_env()
-    config = {
+    return {
         "supabaseUrl": os.environ.get("SUPABASE_URL", "").strip(),
-        "supabaseKey": os.environ.get("SUPABASE_PUBLISHABLE_KEY", "").strip(),   # public by design
+        "supabaseKey": os.environ.get("SUPABASE_PUBLISHABLE_KEY", "").strip(),
         "liveSites": sum(1 for s in registry.SITES if s["status"] == "tested"),
         "fields": fields.public_list(),
     }
-    return render_template("site.html", config=config)
+
+
+@app.route("/")
+def site():
+    """Landing page and Google sign-in (static/site.js). A signed-in visitor is sent on to /app."""
+    return render_template("site.html", config=public_config())
+
+
+@app.route("/app")
+def user_app():
+    """The internship dashboard for signed-in users, filled from Supabase (static/app_radar.js in
+    user mode). Signed out, the page sends the visitor back to /. Who sees which listing is decided
+    by Supabase's row-level security, not here."""
+    config = dict(public_config(), mode="user")
+    return render_template("index.html", user_mode=True, config=config,
+                           sites_text=str(config["liveSites"] or "many"))
 
 
 @app.route("/admin")
@@ -92,7 +106,8 @@ def admin():
     """The search / scam-check dashboard: this laptop only."""
     if not (is_local_request() or has_admin_token()):
         return "The admin dashboard opens only on the laptop that runs InReal.", 403
-    return render_template("index.html")
+    return render_template("index.html", user_mode=False, config={},
+                           sites_text=str(public_config()["liveSites"] or "many"))
 
 @app.route("/api/internships")
 def get_internships():

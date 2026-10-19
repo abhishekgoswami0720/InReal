@@ -1,0 +1,143 @@
+/* InReal theme: warm gradient, frosted glass panels. Shared by the landing page (site.html) and the dashboard (index.html). */
+/* Warm Vibrant Yellow & Translucent Frosted Glass Palette */
+:root {
+  --bg-amber-warmth: radial-gradient(circle at 10% 10%, rgba(251, 191, 36, 0.16) 0%, transparent 45%),
+                     radial-gradient(circle at 90% 15%, rgba(249, 115, 22, 0.12) 0%, transparent 40%),
+                     radial-gradient(circle at 50% 85%, rgba(13, 148, 136, 0.10) 0%, transparent 50%),
+                     #FFFDF7;
+}
+
+body {
+  background: var(--bg-amber-warmth);
+  background-attachment: fixed;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: #0F172A;
+}
+
+/* Glassmorphism Frosted Panels with Crisp 14px / 16px Corners */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 2px 6px -2px rgba(15, 23, 42, 0.02);
+  border-radius: 16px;
+}
+
+/* Modern Professional Job Cards (14px radius, clean shadow) */
+.glass-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.04), 0 2px 4px -1px rgba(15, 23, 42, 0.02);
+  border-radius: 14px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  transform: translateY(-3px);
+  border-color: #CBD5E1;
+  box-shadow: 0 16px 32px -8px rgba(15, 23, 42, 0.08), 0 4px 8px -2px rgba(15, 23, 42, 0.03);
+}
+
+/* Flat Avatar Graphic Box (Corporate logo wrapper) */
+.company-logo-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+  flex-shrink: 0;
+}
+
+/* Translucent Interactive Buttons */
+.glass-btn {
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  transition: all 0.16s ease;
+}
+.glass-btn:hover {
+  background: #F8FAFC;
+  border-color: #94A3B8;
+  color: #0F172A;
+}
+.glass-btn:active {
+  background: #F1F5F9;
+}
+
+.glass-btn-primary {
+  background: #0F172A;
+  color: #FFFFFF;
+  border: 1px solid #0F172A;
+  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.25);
+}
+.glass-btn-primary:hover {
+  background: #1E293B;
+  color: #FFFFFF;
+  border-color: #1E293B;
+}
+
+/* Filter Select Dropdowns */
+.filter-select {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+}
+.filter-select:hover {
+  border-color: #CBD5E1;
+  background: #F8FAFC;
+}
+.filter-select:focus {
+  border-color: #F97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+}
+
+/* Segmented Control Pill Group (Apple iOS style) */
+.pill-segmented-group {
+  background: #F1F5F9;
+  padding: 3px;
+  border-radius: 10px;
+  display: inline-flex;
+  gap: 2px;
+  border: 1px solid #E2E8F0;
+}
+
+.pill-segmented-item {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.pill-segmented-item:hover {
+  color: #0F172A;
+}
+.pill-segmented-item.active {
+  background: #FFFFFF;
+  color: #0F172A;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.6); }
