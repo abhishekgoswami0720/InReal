@@ -27,7 +27,7 @@ MODERATION_FIELDS = ["moderation_status", "scam_risk", "moderation_reasons", "mo
 # If any of these change, the listing is a different post and must be moderated again
 CONTENT_FIELDS = ["company_name", "role_title", "stipend", "apply_link", "description"]
 MODERATION_STATUSES = {"approved", "review", "blocked", "expired"}   # "checking" is set only by a claim
-DESCRIPTION_LIMIT = 3000
+DESCRIPTION_LIMIT = 6000   # 19 Oct: a fee can sit near the end of a long post
 # Sites whose search page gives only a snippet; the full text comes from the post page (sites/details.py)
 SNIPPET_SOURCES = {"Talent.com", "SimplyHired", "Careerjet"}
 

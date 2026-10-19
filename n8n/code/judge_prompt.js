@@ -74,6 +74,25 @@ function findingsLine(item) {
   return parts.length ? parts.join(" | ") : "none";
 }
 
+// The judge reads the first HEAD characters of a post. Further down, only lines about money,
+// contact or documents are added (up to TAIL characters), so a fee hidden at the end of a long
+// post is still seen without doubling the tokens of every call (eval_judge, 19 Oct 2026: a
+// "laptop kit ₹3,200" line at character 1,942 was missed when the judge got only 1,800).
+const HEAD = 1800, TAIL = 900;
+const RISKY_LINE = /(₹|\brs\.?\s?\d|\binr\b|fee|fees|pay|payment|paid|deposit|refund|charge|purchase|buy|kit|registration|register|enrol|enroll|course|training|certificate|whatsapp|telegram|gmail|yahoo|aadhaar|aadhar|\bpan\b|bank|otp|upi|wallet|commission|incentive|recruit|refer|seat|slot|limited|urgent|immediately)/i;
+
+function postText(description) {
+  const text = String(description || "");
+  if (text.length <= HEAD) return text || "(no description was available)";
+  const later = [];
+  let used = 0;
+  for (const line of text.slice(HEAD).split(/\n|(?<=[.!?])\s+/)) {
+    const l = line.trim();
+    if (l && RISKY_LINE.test(l) && used + l.length <= TAIL) { later.push(l); used += l.length; }
+  }
+  return text.slice(0, HEAD) + " [...]" + (later.length ? "\nLater in the post (lines about money, contact or documents):\n" + later.join("\n") : "");
+}
+
 function postBlock(item) {
   const listing = item.listing;
   return [
@@ -82,7 +101,7 @@ function postBlock(item) {
     `Company: ${listing.company_name}`,
     `Stipend: ${listing.stipend || "not stated"}`,
     `Source: ${listing.source_platform}`,
-    `Text: ${String(listing.description || "(no description was available)").slice(0, 1800)}`,
+    `Text: ${postText(listing.description)}`,
     `Automated findings: ${findingsLine(item)}`,
   ].join("\n");
 }

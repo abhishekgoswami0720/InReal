@@ -19,7 +19,7 @@ from loguru import logger
 
 from sites._common import get, html_to_text
 
-DETAIL_TEXT_LIMIT = 4000
+DETAIL_TEXT_LIMIT = 6000
 
 
 def _postings(data):
