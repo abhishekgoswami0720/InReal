@@ -26,7 +26,7 @@ app = Flask(__name__)
 # request is never mistaken for a local one.
 PROXY_HEADERS = ("Cf-Connecting-Ip", "Cf-Ray", "X-Forwarded-For", "X-Forwarded-Host", "Forwarded", "X-Real-Ip")
 LOOPBACK = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
-PROTECTED = {"/api/scrape", "/api/clear", "/api/alerts/dismiss", "/api/session/new", "/api/autopilot/run"}
+PROTECTED = {"/api/scrape", "/api/clear", "/api/alerts/dismiss", "/api/session/new"}
 
 
 def is_local_request() -> bool:
@@ -255,16 +255,6 @@ def manual_scrape_running() -> bool:
 def autopilot_status():
     import autopilot
     return jsonify({**autopilot.STATE, **{k: v for k, v in autopilot.settings().items() if k != "on"}})
-
-
-@app.route("/api/autopilot/run", methods=["POST"])
-def autopilot_run():
-    """Start a round now (laptop only)."""
-    import autopilot
-    if autopilot.busy() or manual_scrape_running():
-        return jsonify({"status": "busy"}), 409
-    threading.Thread(target=autopilot.run_round, args=(manual_scrape_running,), daemon=True).start()
-    return jsonify({"status": "started"})
 
 
 _last_chain = {"t": 0.0}
