@@ -504,7 +504,7 @@
       <div class="flex items-start justify-between pb-3 border-b border-slate-200">
         <div>
           <h3 id="profile-title" class="text-base font-bold text-slate-900">Set up your profile</h3>
-          <p class="text-[11px] text-slate-500 mt-0.5">We search the sites you pick for your field, and only show internships that fit you. Saved in this browser.</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">We search the sites you pick for your field, and only show internships that fit you. {{ 'Saved to your account.' if user_mode else 'Saved in this browser.' }}</p>
         </div>
         <button id="close-profile-btn" type="button" class="hidden w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500" aria-label="Close">
           <i class="ph ph-x text-base"></i>
