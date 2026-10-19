@@ -716,6 +716,15 @@ function bindEventHandlers() {
 
   // Detail Drawer Interactions
   document.getElementById('close-drawer-btn')?.addEventListener('click', closeDetailDrawer);
+  // Logo = home. Already on the home page: back to the top with panels closed, WITHOUT a reload
+  // (a page load starts a new session and would empty the list of the current search).
+  document.getElementById('brand-home')?.addEventListener('click', (e) => {
+    if (location.pathname !== '/' || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    closeDetailDrawer();
+    document.getElementById('filter-menu')?.classList.add('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
   document.getElementById('detail-drawer-overlay')?.addEventListener('click', (e) => {
     if (e.target === document.getElementById('detail-drawer-overlay')) {
       closeDetailDrawer();
