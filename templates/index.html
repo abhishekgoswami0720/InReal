@@ -375,7 +375,7 @@
   </main>
 
   <!-- Translucent Slide-Over Detail Drawer -->
-  <div id="detail-drawer-overlay" class="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 hidden transition-opacity duration-200">
+  <div id="detail-drawer-overlay" class="fixed inset-0 bg-slate-900/30 modal-blur z-50 hidden transition-opacity duration-200">
     <div id="detail-drawer" class="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white border-l border-slate-200 p-6 shadow-2xl flex flex-col transform translate-x-full transition-transform duration-200 ease-out overflow-y-auto">
       
       <div class="flex items-center justify-between pb-4 border-b border-slate-200">
@@ -452,7 +452,7 @@
   </div>
 
   <!-- Search Internships dialog: field, sites and regions for one search -->
-  <div id="scrape-config-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+  <div id="scrape-config-modal" class="fixed inset-0 bg-slate-900/30 modal-blur z-50 hidden flex items-center justify-center p-4">
     <div class="glass-panel max-w-md w-full p-6 shadow-2xl">
       <div class="flex items-center justify-between pb-3 border-b border-slate-200">
         <div>
@@ -500,7 +500,7 @@
   </div>
 
   <!-- Sign-up / profile: asked before the first visit, editable from the header -->
-  <div id="profile-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[55] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+  <div id="profile-modal" class="fixed inset-0 bg-slate-900/45 modal-blur z-[55] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="profile-title">
     <div class="glass-panel bg-white max-w-xl w-full shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
       <div class="px-6 pt-5 pb-3 flex items-start justify-between gap-3">
         <div>
@@ -530,7 +530,7 @@
           </div>
           <fieldset>
             <legend class="font-bold text-slate-700 mb-1.5">Where are you right now?</legend>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2"><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="1"> 1st year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="2"> 2nd year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="3"> 3rd year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="4"> 4th year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="5"> 5th year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="grad"> Graduated</label></div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2"><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="1"> 1st year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="2"> 2nd year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="3"> 3rd year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="4"> 4th year</label><label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900"><input type="radio" name="study_year" value="grad"> Graduated</label></div>
           </fieldset>
           <fieldset>
             <legend class="font-bold text-slate-700 mb-1.5">Work experience</legend>
