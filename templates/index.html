@@ -640,8 +640,26 @@
     <div id="scan-check" class="hidden shrink-0 mt-3 pt-3 border-t border-slate-200 text-xs font-semibold"></div>
   </div>
 
+  <!-- First-time profile: one question per screen (static/onboarding.js) -->
+  <div id="onboarding" class="ob-bg fixed inset-0 z-[80]" hidden role="dialog" aria-modal="true" aria-labelledby="ob-q">
+    <div class="absolute top-0 left-0 right-0 h-1.5 bg-slate-200/70"><div data-ob-bar class="h-full bg-orange-500 transition-all duration-500" style="width:0%"></div></div>
+    <div class="absolute top-5 left-5 sm:left-8 flex items-center gap-2.5">
+      <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="34" height="34" class="w-9 h-9 rounded-xl shadow-sm">
+      <span class="text-xl font-extrabold tracking-tight text-slate-900">In<span class="text-orange-500">Real</span></span>
+    </div>
+    <button type="button" data-ob="close" hidden aria-label="Close" class="absolute top-5 right-5 sm:right-8 w-10 h-10 rounded-xl hover:bg-white/70 text-slate-500 text-2xl leading-none">×</button>
+    <div class="h-full overflow-y-auto flex items-center justify-center px-5 sm:px-10 py-24">
+      <div data-ob-stage class="w-full max-w-2xl"></div>
+    </div>
+    <div class="absolute bottom-5 right-5 sm:right-8 flex rounded-xl overflow-hidden shadow-md border border-slate-200 bg-white">
+      <button type="button" data-ob="prev" aria-label="Previous question" class="w-11 h-10 text-slate-600 hover:bg-orange-50 disabled:opacity-30 border-r border-slate-200">▲</button>
+      <button type="button" data-ob="down" aria-label="Next question" class="w-11 h-10 text-slate-600 hover:bg-orange-50 disabled:opacity-30">▼</button>
+    </div>
+  </div>
+
   <script src="{{ url_for('static', filename='background.js') }}"></script>
   <script src="{{ url_for('static', filename='profile_options.js') }}"></script>
   <script src="{{ url_for('static', filename='app_radar.js') }}"></script>
+  <script src="{{ url_for('static', filename='onboarding.js') }}"></script>
 </body>
 </html>

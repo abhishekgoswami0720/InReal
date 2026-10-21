@@ -1071,7 +1071,8 @@ async function initProfile() {
   });
 
   updateProfileUI();
-  if (!requiredDone(profile)) openProfileModal(true);   // right away, before anything else on the page
+  // right away, before anything else on the page: one question per screen (onboarding.js)
+  if (!requiredDone(profile)) (typeof openOnboarding === 'function' ? openOnboarding() : openProfileModal(true));
 }
 
 function bindProfileForm() {
