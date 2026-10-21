@@ -1650,8 +1650,17 @@ function saveProfileToAccount(p) {
                 study_year: p.study_year || null, roles: p.roles || [], skills: (p.skills || []).slice(0, 15),
                 work_mode: p.work_mode || null, max_duration: p.max_duration || null,
                 min_stipend: (p.min_stipend === null || p.min_stipend === undefined || p.min_stipend === '') ? null : Number(p.min_stipend) };
-  sb.from('profiles').update(row).eq('id', sbUserId).then(({ error }) => {
-    if (error) showToast('error', 'Profile saved only in this browser', error.message);
+  // .select() so a missing row (0 rows updated, which is not an error) is noticed: the row is
+  // made again (ensure_profile) and the save repeated once (21 Oct: rows deleted by hand)
+  const send = () => sb.from('profiles').update(row).eq('id', sbUserId).select('id');
+  send().then(async ({ data, error }) => {
+    if (!error && data && data.length) return;
+    if (!error) {
+      await sb.rpc('ensure_profile');
+      ({ data, error } = await send());
+      if (!error && data && data.length) return;
+    }
+    showToast('error', 'Profile saved only in this browser', error ? error.message : 'Your account could not be updated. Sign out and in again.');
   });
 }
 
@@ -1673,11 +1682,15 @@ async function requireSignIn() {
 
   const meta = user.user_metadata || {};
   sbUserId = user.id;
-  const { data: account } = await sb.from('profiles')
-    .select('name,avatar_url,is_admin,field,experience,companies,sources,regions,study_year,roles,skills,work_mode,min_stipend,max_duration')
-    .eq('id', user.id).maybeSingle();
-  // The profile lives in the account: a new browser or an incognito window gets it back instead
-  // of the first-visit form (19 Oct). A profile only in this browser is copied up once.
+  const COLS = 'name,avatar_url,is_admin,field,experience,companies,sources,regions,study_year,roles,skills,work_mode,min_stipend,max_duration';
+  let { data: account, error: accountError } = await sb.from('profiles').select(COLS).eq('id', user.id).maybeSingle();
+  if (!accountError && !account) {   // the row is missing (deleted by hand): make it again
+    await sb.rpc('ensure_profile');
+    ({ data: account, error: accountError } = await sb.from('profiles').select(COLS).eq('id', user.id).maybeSingle());
+  }
+  // The account is the truth: what it says wins over the copy in this browser, also when it was
+  // emptied (21 Oct: a reset account was refilled from the browser). The browser copy is used only
+  // when the account could not be read at all.
   if (account && account.field) {
     writeProfile({
       name: account.name || meta.full_name || '',
@@ -1693,8 +1706,8 @@ async function requireSignIn() {
       min_stipend: account.min_stipend,
       max_duration: account.max_duration || null,
     });
-  } else if (profile && profile.owner === user.id) {
-    saveProfileToAccount(profile);          // filled in this browser before the account had it
+  } else if (!account && profile && profile.owner === user.id) {
+    // account unreachable right now: keep working from this browser's copy
   } else {
     profile = null;                         // another account's, or none: this one fills the form
     try { localStorage.removeItem(PROFILE_KEY); } catch (e) { /* private window */ }

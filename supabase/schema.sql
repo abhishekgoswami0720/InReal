@@ -115,3 +115,18 @@ end $$;
 revoke execute on function private.listing_timestamps() from public, anon, authenticated;
 create trigger listings_timestamps before insert or update on public.listings
   for each row execute function private.listing_timestamps();
+
+-- A signed-in user whose profiles row is missing (deleted by hand) gets it back on the next visit
+-- (migration ensure_profile). Only for the caller's own id; nothing happens if the row exists.
+create or replace function public.ensure_profile() returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if (select auth.uid()) is null then return; end if;
+  insert into public.profiles (id, name, email, avatar_url)
+  select u.id, coalesce(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name'),
+         u.email, u.raw_user_meta_data->>'avatar_url'
+  from auth.users u where u.id = (select auth.uid())
+  on conflict (id) do nothing;
+end; $$;
+revoke execute on function public.ensure_profile() from public, anon;
+grant execute on function public.ensure_profile() to authenticated;
