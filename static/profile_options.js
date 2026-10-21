@@ -98,3 +98,88 @@ window.PROFILE_SKILLS = {
   hr_ops: ['Recruitment', 'MS Excel', 'Communication', 'Onboarding', 'HR Operations', 'Sourcing'],
   law: ['Legal Research', 'Drafting', 'Corporate Law', 'Contract Law', 'Litigation', 'MS Word'],
 };
+
+// Every skill the form can suggest while typing: each field's list plus common extras
+window.ALL_SKILLS = (() => {
+  const extra = ['Artificial Intelligence', 'Data Science', 'Generative AI', 'Large Language Models', 'Prompt Engineering',
+    'Scikit-learn', 'Keras', 'Hugging Face', 'OpenCV', 'NumPy', 'Matplotlib', 'Data Analysis', 'Data Cleaning', 'Machine Learning Ops',
+    'TypeScript', 'Next.js', 'Express.js', 'Django', 'Flask', 'FastAPI', 'Spring Boot', 'Kotlin', 'Swift', 'Android', 'iOS',
+    'React Native', 'Firebase', 'PostgreSQL', 'MySQL', 'Redis', 'Docker', 'Kubernetes', 'Linux', 'Google Cloud', 'Azure', 'DevOps',
+    'CI/CD', 'Go', 'Rust', 'C', 'C#', '.NET', 'PHP', 'Laravel', 'Angular', 'Vue.js', 'Redux', 'Tailwind CSS', 'Bootstrap', 'GraphQL',
+    'Selenium', 'Manual Testing', 'Automation Testing', 'Jest', 'Cybersecurity', 'Ethical Hacking', 'Networking', 'Blockchain',
+    'Solidity', 'Unity', 'Game Development', 'Data Structures', 'Algorithms', 'Object-Oriented Programming', 'System Design',
+    'Excel VBA', 'Google Sheets', 'Looker Studio', 'Business Analysis', 'Product Management', 'Communication', 'Public Speaking',
+    'Leadership', 'Teamwork', 'Problem Solving', 'Market Research', 'Copy Editing', 'Adobe Premiere Pro', 'Blender', '3D Modelling',
+    'Adobe XD', 'Sketch', 'Photography', 'Lab Safety', 'PCR', 'Cell Culture', 'HPLC', 'Clinical Trials', 'Pharmacovigilance',
+    'Revit', 'STAAD Pro', 'Ansys Fluent', 'Verilog', 'VHDL', 'Raspberry Pi', 'Power Systems', 'SAP', 'Zoho', 'Payroll',
+    'Negotiation', 'Customer Service', 'Data Entry', 'Content Strategy', 'Instagram Marketing', 'Performance Marketing', 'Google Analytics'];
+  const seen = new Map();
+  Object.values(window.PROFILE_SKILLS).flat().concat(extra).forEach(s => { if (!seen.has(s.toLowerCase())) seen.set(s.toLowerCase(), s); });
+  return [...seen.values()];
+})();
+
+// Suggestions under a skill text box while typing. opts.have() lists the skills already picked,
+// opts.pick(name) adds one. Returns nothing; the box gets acHandleKey(e) -> true when the
+// dropdown used the key (arrows, Enter on a suggestion, Escape), so other key handlers skip it.
+window.attachSkillAutocomplete = function (input, opts) {
+  if (!input || input.dataset.ac) return;
+  input.dataset.ac = '1';
+  input.setAttribute('autocomplete', 'off');
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  const wrap = document.createElement('div');
+  wrap.style.position = 'relative';
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+  const list = document.createElement('div');
+  list.className = 'ac-list';
+  list.setAttribute('role', 'listbox');
+  list.hidden = true;
+  wrap.appendChild(list);
+  let items = [], active = -1;
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const mark = (s, q) => {
+    const i = s.toLowerCase().indexOf(q.toLowerCase());
+    return i < 0 ? esc(s) : esc(s.slice(0, i)) + '<b>' + esc(s.slice(i, i + q.length)) + '</b>' + esc(s.slice(i + q.length));
+  };
+  function update() {
+    const q = input.value.trim();
+    if (!q) { list.hidden = true; items = []; active = -1; return; }
+    const ql = q.toLowerCase();
+    const have = new Set((opts.have() || []).map(x => x.toLowerCase()));
+    // starts with it, then a word starts with it, then (3+ letters typed) contains it: "py" -> Python, not Copywriting
+    const rank = s => { const l = s.toLowerCase(); return l.startsWith(ql) ? 0 : l.split(/[\s./-]+/).some(w => w.startsWith(ql)) ? 1 : (ql.length >= 3 && l.includes(ql)) ? 2 : 9; };
+    const found = window.ALL_SKILLS.filter(s => !have.has(s.toLowerCase()) && rank(s) < 9)
+      .sort((a, b) => rank(a) - rank(b) || a.length - b.length).slice(0, 6);
+    items = found.map(s => ({ name: s, html: mark(s, q) }));
+    if (!found.some(s => s.toLowerCase() === ql) && !have.has(ql)) items.push({ name: q, html: `Add “${esc(q)}”`, custom: true });
+    active = items.length ? 0 : -1;
+    render();
+  }
+  function render() {
+    list.innerHTML = items.map((it, k) => `<button type="button" role="option" data-k="${k}" aria-selected="${k === active}" class="ac-item${k === active ? ' on' : ''}${it.custom ? ' custom' : ''}">${it.html}</button>`).join('');
+    list.hidden = !items.length;
+  }
+  function choose(k) {
+    const it = items[k];
+    if (!it) return false;
+    list.hidden = true; items = []; active = -1;
+    opts.pick(it.name);
+    return true;
+  }
+  input.addEventListener('input', update);
+  input.addEventListener('focus', update);
+  input.addEventListener('blur', () => setTimeout(() => { list.hidden = true; }, 150));
+  list.addEventListener('mousedown', e => {   // mousedown: before the box loses focus
+    const b = e.target.closest('[data-k]');
+    if (b) { e.preventDefault(); choose(Number(b.dataset.k)); }
+  });
+  input.acHandleKey = (e) => {
+    if (list.hidden || !items.length) return false;
+    if (e.key === 'ArrowDown') { active = (active + 1) % items.length; render(); return true; }
+    if (e.key === 'ArrowUp') { active = (active - 1 + items.length) % items.length; render(); return true; }
+    if (e.key === 'Enter' && active >= 0) return choose(active);
+    if (e.key === 'Escape') { list.hidden = true; return true; }
+    return false;
+  };
+};

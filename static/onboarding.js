@@ -161,6 +161,10 @@ function obRender(dir) {
   box.querySelector('[data-ob="close"]').hidden = !requiredDone(profile);
   box.querySelector('[data-ob="prev"]').disabled = OB.phase !== 'required' && OB.phase !== 'optional' || OB.i === 0;
   box.querySelector('[data-ob="down"]').disabled = OB.phase !== 'required' && OB.phase !== 'optional';
+  const skillBox = stage.querySelector('[data-ob-skill]');
+  if (skillBox && window.attachSkillAutocomplete) {
+    attachSkillAutocomplete(skillBox, { have: () => OB.answers.skills || [], pick: obAddSkill });
+  }
   const focus = stage.querySelector('[data-ob-text], [data-ob-skill]');
   if (focus) setTimeout(() => focus.focus(), 50); else stage.querySelector('#ob-q')?.setAttribute('tabindex', '-1');
 }
@@ -240,6 +244,7 @@ function bindOnboarding() {
   });
   document.addEventListener('keydown', e => {
     if (box.hidden) return;
+    if (e.target.acHandleKey && e.target.acHandleKey(e)) { e.preventDefault(); e.stopPropagation(); return; }   // suggestion list
     const typing = e.target.matches && e.target.matches('input');
     if (e.key === 'Enter') {
       e.preventDefault();

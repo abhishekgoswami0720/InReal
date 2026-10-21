@@ -200,3 +200,11 @@ body {
 @keyframes ob-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
 .ob-screen.shake { animation: ob-shake .3s ease 2; }
 @media (prefers-reduced-motion: reduce) { .ob-in, .ob-in-back, .ob-screen.shake { animation: none; } }
+
+/* Skill suggestions while typing (profile_options.js: attachSkillAutocomplete) */
+.ac-list { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; background: #fff; border: 1px solid #E2E8F0; border-radius: 14px; box-shadow: 0 16px 36px -12px rgba(15, 23, 42, .25); padding: 6px; display: flex; flex-direction: column; }
+.ac-list[hidden] { display: none; }
+.ac-item { text-align: left; padding: 9px 12px; border-radius: 9px; font-size: 14px; font-weight: 500; color: #334155; }
+.ac-item b { color: #C2410C; font-weight: 800; }
+.ac-item.on, .ac-item:hover { background: #FFF7ED; color: #0F172A; }
+.ac-item.custom { color: #64748B; font-style: italic; }
