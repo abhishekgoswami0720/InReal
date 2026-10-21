@@ -1231,7 +1231,8 @@ function showProfileStep(n) {
     btn.querySelector('.pstep-dot').textContent = done ? '✓' : String(k);
   });
   document.getElementById('profile-back').classList.toggle('invisible', profileStep === 1);
-  document.getElementById('profile-skip').classList.toggle('hidden', profileMandatory);
+  // "Skip for now" belongs to the optional sections (3-5) only; 1 and 2 are never skipped
+  document.getElementById('profile-skip').classList.toggle('hidden', profileMandatory || profileStep <= 2);
   const next = document.getElementById('profile-next');
   next.textContent = profileMandatory
     ? (profileStep === 1 ? 'Next' : 'Save and continue')
