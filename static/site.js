@@ -178,26 +178,161 @@ $('spot-cards').addEventListener('click', e => {
 });
 $('spot-next').addEventListener('click', () => { spot.i += 1; newSpotRound(); });
 
-// ---------- How the check works: steps appear as they scroll in ----------
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// ---------- How the check works: one post's journey, scrubbed by your scroll ----------
+// The section is tall and its inner box sticks; how far you have scrolled through it (0 to 1)
+// sets every position on the stage, so scrolling back plays the story in reverse.
 function watchSteps() {
-  const steps = document.querySelectorAll('.step');
-  if (!('IntersectionObserver' in window)) { steps.forEach(s => s.classList.add('in')); return; }
-  const io = new IntersectionObserver(entries => {
-    entries.forEach(en => {
-      if (!en.isIntersecting) return;
-      en.target.classList.add('in');
-      const n = en.target.dataset.step;
-      document.querySelectorAll('[data-dot]').forEach(d => d.classList.toggle('on', Number(d.dataset.dot) <= Number(n)));
+  const sec = $('how'), stage = $('how-stage');
+  if (!sec || !stage) return;
+  const wrap = stage.parentElement, sticky = sec.querySelector('.how-sticky'), head = sec.querySelector('.how-head');
+  const q = s => stage.querySelector(s), qa = s => [...stage.querySelectorAll(s)];
+  const chips = qa('.hs-chip'), A = q('[data-card="a"]'), B = q('[data-card="b"]'), C = q('[data-card="c"]');
+  const scan = q('.hs-scan'), flag = q('.hs-flag'), quote = q('.hs-quote'), hiddenTag = q('.hs-hidden');
+  const pillsBox = q('.hs-pills'), pills = qa('.hs-pill'), stamp = q('.hs-stamp'), burst = q('.hs-burst');
+  const sparks = qa('.hs-spark'), apply = q('.hs-apply'), status = q('.hs-status-text'), hint = q('.hs-hint');
+  const items = [...sec.querySelectorAll('.how-steps li')], rail = sec.querySelector('.how-rail');
+  const mobileDesc = sec.querySelector('.how-mobile-desc');
+  const W = 520, H = 420;
+
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const seg = (t, a, b) => clamp((t - a) / (b - a));
+  const out = t => 1 - Math.pow(1 - t, 3);
+  const back = t => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const pose = (el, x, y, r, s, o) => { el.style.transform = `translate(${x}px, ${y}px) rotate(${r}deg) scale(${s})`; el.style.opacity = o; };
+  const sites = Number(CFG.liveSites) || 0;
+
+  const LABEL = ['Scam wording', 'Links & contacts', 'AI reviewer'];
+  const BAD = [['bad', 'Known scam wording'], ['ok', 'Links look normal'], ['bad', 'AI quoted: asks for money']];
+  const GOOD = ['No scam wording', 'Links look normal', 'Nothing to object to'];
+  const setPill = (i, state, text) => {
+    const p = pills[i];
+    if (p.dataset.state !== state) p.dataset.state = state;
+    const b = p.querySelector('b');
+    if (b.textContent !== text) b.textContent = text;
+  };
+  // fan of the three cards once collected: [x, y, rotate, scale]
+  const FAN = { c: [-30, -16, -7, .92], b: [26, -8, 5, .96], a: [0, 0, 0, 1] };
+
+  function fit() {
+    const avail = wrap.clientWidth;
+    // big screens may grow the stage up to 1.3x; phones share the screen with the steps above it
+    const room = sticky.clientHeight - (window.innerWidth < 1024 ? head.offsetHeight + 40 : 48);
+    let s = Math.min(1.3, avail / W, room / H);
+    s = Math.max(.45, s);
+    stage.style.transform = `scale(${s})`;
+    stage.style.left = Math.max(0, (wrap.clientWidth - W * s) / 2) + 'px';
+    wrap.style.height = H * s + 'px';
+  }
+
+  let lastStep = 0;
+  function frame() {
+    ticking = false;
+    const run = sec.offsetHeight - sticky.offsetHeight;
+    let p = clamp((72 - sec.getBoundingClientRect().top) / Math.max(1, run));
+    if (reduceMotion) p = p < .34 ? .33 : p < .7 ? .69 : 1;   // jump between finished scenes, no motion in between
+
+    const s1 = seg(p, .02, .32), s2 = seg(p, .36, .68), s3 = seg(p, .72, .96);
+    const step = p < .34 ? 1 : p < .7 ? 2 : 3;
+
+    // left column: which step is on, and the orange rail
+    if (step !== lastStep) {
+      items.forEach((li, i) => { li.classList.toggle('on', i + 1 === step); li.classList.toggle('done', i + 1 < step); });
+      if (mobileDesc) mobileDesc.textContent = items[step - 1].querySelector('.how-desc').textContent;
+      stage.dataset.scene = step;
+      lastStep = step;
+    }
+    rail.style.setProperty('--rail', p.toFixed(3));
+    hint.style.opacity = 1 - seg(p, .01, .06);
+
+    // 1 · Collect: site chips orbit, then get pulled into the middle and become posts
+    chips.forEach((el, i) => {
+      const a = (i / chips.length) * Math.PI * 2 - Math.PI / 2 + .2 + p * 1.4;
+      const e = out(seg(s1, .04 + i * .045, .48 + i * .045));
+      const x = lerp(260 + Math.cos(a) * 212, 260, e), y = lerp(205 + Math.sin(a) * 150, 160, e);
+      el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${1 - .8 * e})`;
+      el.style.opacity = 1 - seg(e, .7, 1);
     });
-  }, { threshold: 0.35, rootMargin: '0px 0px -10% 0px' });
-  steps.forEach(s => io.observe(s));
+    const arrive = (t) => [out(t), (1 - out(t)) * 60, .8 + .2 * out(t)];
+    const [tc, yc, kc] = arrive(seg(s1, .5, .8)), [tb, yb, kb] = arrive(seg(s1, .6, .9)), [ta, ya, ka] = arrive(seg(s1, .7, 1));
+
+    // 3 · Apply (computed early: it moves B and C)
+    const m = out(seg(s3, 0, .3));
+    pose(C, lerp(FAN.c[0], -14, m), lerp(FAN.c[1], -26, m) + yc, lerp(FAN.c[2], -3, m), lerp(FAN.c[3], .88, m) * kc, tc * (1 - .55 * m));
+    const k = seg(s3, .5, .62), shake = k > 0 && k < 1 ? Math.sin(k * Math.PI * 7) * 6 * (1 - k) : 0;
+    pose(B, lerp(FAN.b[0], 0, m) + shake, lerp(FAN.b[1], 0, m) + yb, lerp(FAN.b[2], 0, m), lerp(FAN.b[3], 1.05, m) * kb, tb);
+    B.style.zIndex = s3 > 0 ? 6 : 3;
+    B.classList.toggle('passed', s3 >= .5);
+
+    // 2 · Check: scanner sweeps the front post, the fee line lights up, the quote pops, the post drops out
+    const d = seg(s2, .72, 1);
+    pose(A, -50 * d, ya + 320 * d * d, -18 * d, ka, ta * (1 - seg(d, .55, 1)));
+    A.style.filter = d > 0 ? `grayscale(${d})` : '';
+    A.classList.toggle('flagged', s2 >= .42);
+    const sc = seg(s2, .04, .46);
+    scan.style.top = (sc * 112) + '%';
+    scan.style.opacity = sc > 0 && sc < 1 ? 1 : 0;
+    flag.style.setProperty('--flag', (seg(s2, .3, .42) * 100).toFixed(1) + '%');
+    const qt = seg(s2, .44, .58), qb = back(qt);
+    quote.style.opacity = seg(qt, 0, .4) * (1 - seg(s2, .74, .86));
+    quote.style.transform = `translate(${(1 - qb) * -30}px, ${(1 - qb) * 30}px) scale(${.5 + .5 * qb})`;
+    hiddenTag.style.opacity = seg(s2, .6, .68);
+
+    // the three check pills
+    pillsBox.style.opacity = seg(p, .3, .36);
+    pillsBox.style.transform = `translateY(${(1 - out(seg(p, .3, .36))) * 20}px)`;
+    if (s3 > 0) {
+      pills.forEach((_, i) => {
+        const a = .08 + i * .08;
+        setPill(i, s3 < a ? '' : s3 < a + .07 ? 'run' : 'ok', s3 < a + .07 ? LABEL[i] : GOOD[i]);
+      });
+    } else {
+      const at = [.2, .3, .5];
+      pills.forEach((_, i) => {
+        if (s2 < at[i] - .09) setPill(i, '', LABEL[i]);
+        else if (s2 < at[i]) setPill(i, 'run', LABEL[i]);
+        else setPill(i, BAD[i][0], BAD[i][1]);
+      });
+    }
+
+    // the stamp slams, the card shakes, a ring and sparks burst out, then the apply button
+    const st = seg(s3, .38, .5), so = out(st);
+    stamp.style.opacity = seg(st, 0, .25);
+    stamp.style.transform = `scale(${2.8 - 1.8 * so}) rotate(${-24 + 16 * so}deg)`;
+    const b = out(seg(s3, .5, .78)), live = b > 0 && b < 1;
+    burst.style.opacity = live ? 1 - b : 0;
+    burst.style.transform = `scale(${.3 + 2.4 * b})`;
+    sparks.forEach((el, i) => {
+      const ang = (i / sparks.length) * Math.PI * 2 + .3, dist = 14 + 96 * b;
+      el.style.opacity = live ? 1 - b : 0;
+      el.style.transform = `translate(${Math.cos(ang) * dist}px, ${Math.sin(ang) * dist}px) rotate(${b * 260}deg)`;
+    });
+    const ap = seg(s3, .66, .8);
+    apply.style.opacity = seg(ap, 0, .4);
+    apply.style.transform = `scale(${.6 + .4 * back(ap)})`;
+    apply.classList.toggle('glow', s3 >= .86);
+
+    // status line
+    let text;
+    if (step === 1) text = sites ? `Reading ${Math.round(sites * seg(s1, .04, .9))} of ${sites} job sites` : 'Reading job sites';
+    else if (step === 2) text = s2 < .44 ? 'Running three checks' : s2 < .72 ? 'Evidence found in the post' : 'Hidden: it asks for money';
+    else text = s3 < .5 ? 'Checking the next post' : 'Passed. Linked to the original post';
+    if (status.textContent !== text) status.textContent = text;
+  }
+
+  let ticking = false;
+  const request = () => { if (!ticking) { ticking = true; requestAnimationFrame(frame); } };
+  window.addEventListener('scroll', request, { passive: true });
+  window.addEventListener('resize', () => { fit(); request(); });
+  fit();
+  frame();
 }
 
 // Header links: glide to the section, then a glow ring shows where you landed
-const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function arriveAt(section) {
   const target = section.id === 'how' ? section.querySelector('h2') || section : section;
-  const ring = section.id === 'how' ? section.firstElementChild : section;
+  const ring = section.id === 'how' ? section.querySelector('.how-head') || section : section;
   const top = section.getBoundingClientRect().top + window.scrollY - 88;   // below the sticky header
   window.scrollTo({ top, behavior: reduceMotion ? 'auto' : 'smooth' });
   let last = -1, still = 0;
