@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#FFFDF7">
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <title>InReal · Internships checked for scams</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="alternate icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
@@ -88,6 +90,8 @@
           <i class="ph ph-magnifying-glass text-base text-orange-400"></i>
           <span class="hidden sm:inline">Search Internships</span>
         </button>
+
+        <button type="button" data-theme-toggle class="theme-toggle" aria-label="Switch to dark theme" title="Switch to dark theme"><i class="ph ph-moon" aria-hidden="true"></i><i class="ph ph-sun" aria-hidden="true"></i></button>
 
         <!-- Profile avatar: initials of the name, opens the profile -->
         <button id="edit-profile-btn" type="button" title="Set up profile" aria-label="Set up profile"

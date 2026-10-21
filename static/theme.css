@@ -208,3 +208,127 @@ body {
 .ac-item b { color: #C2410C; font-weight: 800; }
 .ac-item.on, .ac-item:hover { background: #FFF7ED; color: #0F172A; }
 .ac-item.custom { color: #64748B; font-style: italic; }
+
+/* ───────────────────────── Theme switch button (static/theme.js) ───────────────────────── */
+.theme-toggle { position: relative; width: 40px; height: 40px; flex: none; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; overflow: hidden;
+  background: #FFFFFF; border: 1px solid #CBD5E1; color: #334155; transition: background .2s, border-color .2s, color .2s, transform .15s; }
+.theme-toggle:hover { border-color: #F97316; color: #C2410C; transform: rotate(-12deg); }
+.theme-toggle:active { transform: scale(.92); }
+.theme-toggle i { position: absolute; font-size: 18px; transition: transform .5s cubic-bezier(.34, 1.56, .64, 1), opacity .3s; }
+.theme-toggle .ph-sun { transform: translateY(26px) rotate(-90deg); opacity: 0; }
+html.dark .theme-toggle .ph-moon { transform: translateY(-26px) rotate(90deg); opacity: 0; }
+html.dark .theme-toggle .ph-sun { transform: none; opacity: 1; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+@media (prefers-reduced-motion: reduce) { .theme-toggle i { transition: none; } }
+
+/* ───────────────────────── Dark theme ─────────────────────────
+   The pages are written with Tailwind's light colours; under html.dark the same classes are
+   repainted here, so no markup needs a second set of classes. */
+html.dark {
+  color-scheme: dark;
+  --bg-amber-warmth: radial-gradient(circle at 10% 10%, rgba(251, 191, 36, 0.10) 0%, transparent 45%),
+                     radial-gradient(circle at 90% 15%, rgba(249, 115, 22, 0.10) 0%, transparent 40%),
+                     radial-gradient(circle at 50% 85%, rgba(13, 148, 136, 0.10) 0%, transparent 50%),
+                     #0B0F17;
+}
+html.dark body { color: #E2E8F0; }
+html.dark .text-\[\#0F172A\] { color: #E2E8F0; }
+
+/* components */
+html.dark .glass-panel { background: rgba(19, 25, 36, 0.86); border-color: rgba(51, 65, 85, 0.7); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .5); }
+html.dark .glass-card { background: #141A25; border-color: #263042; box-shadow: 0 4px 14px -4px rgba(0, 0, 0, .5); }
+html.dark .glass-card:hover { border-color: #3B4A61; box-shadow: 0 16px 32px -10px rgba(0, 0, 0, .6); }
+html.dark .company-logo-box { background: #1A2230; border-color: #2A3548; }
+html.dark .glass-btn { background: #161D29; border-color: #334155; color: #E2E8F0; }
+html.dark .glass-btn:hover { background: #1E2735; border-color: #64748B; color: #fff; }
+html.dark .glass-btn:active { background: #232D3D; }
+html.dark .glass-btn-primary { background: #F8FAFC; border-color: #F8FAFC; color: #0F172A; box-shadow: 0 2px 10px -2px rgba(0, 0, 0, .6); }
+html.dark .glass-btn-primary:hover { background: #E2E8F0; border-color: #E2E8F0; color: #0F172A; }
+html.dark .filter-select { background: #161D29; border-color: #2A3548; color: #E2E8F0; }
+html.dark .filter-select:hover { background: #1E2735; border-color: #3B4A61; }
+html.dark .pill-segmented-group { background: #111722; border-color: #263042; }
+html.dark .pill-segmented-item { color: #94A3B8; }
+html.dark .pill-segmented-item:hover { color: #F1F5F9; }
+html.dark .pill-segmented-item.active { background: #1E2735; color: #F8FAFC; }
+html.dark .theme-toggle { background: #161D29; border-color: #334155; color: #FBBF24; }
+html.dark .theme-toggle:hover { border-color: #FBBF24; color: #FDE68A; }
+html.dark .profile-ring { background: conic-gradient(#F97316 calc(var(--pct) * 1%), #263042 0); }
+html.dark .profile-ring.done { background: conic-gradient(#F97316 100%, #F97316 0); }
+html.dark .pstep { color: #94A3B8; }
+html.dark .pstep:hover:not([disabled]) { background: #1A2230; color: #F1F5F9; }
+html.dark .pstep[aria-current="step"] { background: rgba(249, 115, 22, .14); color: #FDBA74; border-color: rgba(249, 115, 22, .4); }
+html.dark .pstep-dot { background: #1E2735; color: #CBD5E1; }
+html.dark .ob-choice { background: #141A25; border-color: #2A3548; color: #F1F5F9; }
+html.dark .ob-choice:hover { background: #1A2230; border-color: #FB923C; }
+html.dark .ob-choice.on { background: rgba(249, 115, 22, .14); border-color: #F97316; color: #FDBA74; }
+html.dark .ob-key { background: #1A2230; border-color: #3B4A61; color: #CBD5E1; }
+html.dark .ac-list { background: #141A25; border-color: #2A3548; box-shadow: 0 16px 36px -12px rgba(0, 0, 0, .7); }
+html.dark .ac-item { color: #CBD5E1; }
+html.dark .ac-item b { color: #FB923C; }
+html.dark .ac-item.on, html.dark .ac-item:hover { background: rgba(249, 115, 22, .12); color: #fff; }
+html.dark ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, .5); }
+
+/* surfaces */
+html.dark .bg-white { background-color: #141A25; }
+html.dark .bg-white\/95, html.dark .bg-white\/85 { background-color: rgba(13, 18, 27, .88); }
+html.dark .hover\:bg-white:hover { background-color: #1A2230; }
+html.dark .hover\:bg-white\/70:hover { background-color: rgba(30, 39, 53, .7); }
+html.dark .hover\:bg-white\/20:hover { background-color: rgba(255, 255, 255, .08); }
+html.dark .bg-slate-50 { background-color: #10151F; }
+html.dark .bg-slate-50\/60 { background-color: rgba(16, 21, 31, .6); }
+html.dark .bg-slate-100, html.dark .hover\:bg-slate-100:hover { background-color: #1C2433; }
+html.dark .bg-slate-200\/70, html.dark .hover\:bg-slate-200:hover { background-color: #263042; }
+html.dark .bg-slate-300 { background-color: #334155; }
+html.dark .bg-slate-400 { background-color: #475569; }
+html.dark .bg-slate-900, html.dark .bg-slate-900.text-white { background-color: #F1F5F9; color: #0F172A; }
+html.dark .bg-slate-900 .text-white { color: #0F172A; }
+html.dark .bg-slate-900\/30, html.dark .bg-slate-900\/40, html.dark .bg-slate-900\/45 { background-color: rgba(0, 0, 0, .55); }
+
+/* text */
+html.dark .text-slate-900, html.dark .text-slate-800, html.dark .hover\:text-slate-900:hover, html.dark .hover\:text-slate-800:hover { color: #F1F5F9; }
+html.dark .text-slate-700, html.dark .hover\:text-slate-700:hover { color: #E2E8F0; }
+html.dark .text-slate-600 { color: #CBD5E1; }
+html.dark .text-slate-500 { color: #94A3B8; }
+html.dark .text-slate-400 { color: #7C8BA1; }
+html.dark .text-slate-300 { color: #475569; }
+html.dark .placeholder-slate-400::placeholder, html.dark input::placeholder, html.dark textarea::placeholder { color: #64748B; }
+
+/* borders and rings */
+html.dark .border-slate-200, html.dark .border-slate-200\/80, html.dark .border-slate-200\/60 { border-color: #263042; }
+html.dark .border-slate-100 { border-color: #1E2735; }
+html.dark .border-slate-300 { border-color: #334155; }
+html.dark .border-white { border-color: #141A25; }
+html.dark .divide-slate-100 > * + *, html.dark .divide-slate-200 > * + * { border-color: #1E2735; }
+html.dark .ring-white { --tw-ring-color: #0B0F17; }
+
+/* orange */
+html.dark .bg-orange-50, html.dark .hover\:bg-orange-50:hover { background-color: rgba(249, 115, 22, .10); }
+html.dark .bg-orange-100 { background-color: rgba(249, 115, 22, .18); }
+html.dark .text-orange-900, html.dark .text-orange-800 { color: #FDBA74; }
+html.dark .text-orange-700, html.dark .text-orange-600, html.dark .hover\:text-orange-700:hover, html.dark .hover\:text-orange-600:hover { color: #FB923C; }
+html.dark .border-orange-200, html.dark .border-orange-300 { border-color: rgba(249, 115, 22, .38); }
+
+/* green, red, amber, blue, purple */
+html.dark .bg-emerald-50, html.dark .bg-emerald-50\/60 { background-color: rgba(16, 185, 129, .12); }
+html.dark .bg-emerald-100 { background-color: rgba(16, 185, 129, .2); }
+html.dark .text-emerald-900, html.dark .text-emerald-800, html.dark .text-emerald-700 { color: #6EE7B7; }
+html.dark .text-emerald-600 { color: #34D399; }
+html.dark .border-emerald-200 { border-color: rgba(16, 185, 129, .35); }
+html.dark .bg-rose-50, html.dark .bg-rose-50\/60, html.dark .hover\:bg-rose-100:hover { background-color: rgba(244, 63, 94, .12); }
+html.dark .text-rose-900, html.dark .text-rose-800, html.dark .text-rose-700 { color: #FDA4AF; }
+html.dark .text-rose-600, html.dark .text-rose-500, html.dark .hover\:text-rose-600:hover, html.dark .hover\:text-rose-500:hover { color: #FB7185; }
+html.dark .border-rose-200, html.dark .border-rose-300, html.dark .hover\:border-rose-300:hover { border-color: rgba(244, 63, 94, .38); }
+html.dark .bg-amber-50 { background-color: rgba(245, 158, 11, .12); }
+html.dark .text-amber-900, html.dark .text-amber-800, html.dark .text-amber-700 { color: #FCD34D; }
+html.dark .text-amber-600 { color: #FBBF24; }
+html.dark .border-amber-200 { border-color: rgba(245, 158, 11, .35); }
+html.dark .bg-blue-50 { background-color: rgba(59, 130, 246, .14); }
+html.dark .text-blue-700, html.dark .text-blue-600 { color: #93C5FD; }
+html.dark .bg-purple-50, html.dark .bg-violet-50 { background-color: rgba(139, 92, 246, .14); }
+html.dark .text-purple-700, html.dark .text-violet-700 { color: #C4B5FD; }
+html.dark .border-violet-200 { border-color: rgba(139, 92, 246, .35); }
+
+/* the soft gradient panels (hero, Spot the scam, lock card) */
+html.dark .bg-gradient-to-r.from-amber-50\/80 { background-image: linear-gradient(to right, rgba(245, 158, 11, .10), rgba(19, 25, 36, .9), rgba(249, 115, 22, .10)); }
+html.dark .bg-gradient-to-br.from-white\/90 { background-image: linear-gradient(to bottom right, rgba(19, 25, 36, .9), rgba(19, 25, 36, .9), rgba(244, 63, 94, .08)); }
+@media (min-width: 640px) { html.dark .from-white\/10.to-white\/70 { background-image: linear-gradient(to bottom, rgba(11, 15, 23, .1), rgba(11, 15, 23, .75)); } }

@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#FFFDF7">
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <title>InReal · Internships checked for scams</title>
   <meta name="description" content="Internships from many job sites in one place, each post checked for fees, task scams and document requests before you see it.">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
@@ -148,6 +150,39 @@
     @keyframes shake { 0%, 100% { transform: none; } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
     .shake { animation: shake .35s ease 2; }
 
+    /* Dark theme for the parts styled on this page (the rest is in theme.css) */
+    html.dark .nav-link.active { color: #FB923C; }
+    html.dark .spot-card:not([disabled]):hover { border-color: #FB923C; box-shadow: 0 16px 32px -12px rgba(0, 0, 0, .6); }
+    html.dark .spot-card mark { background: rgba(244, 63, 94, .25); color: #FECDD3; }
+    html.dark .how-rail { background: #263042; }
+    html.dark .how-steps .step-dot { background: #1C2433; color: #94A3B8; border-color: #0B0F17; }
+    html.dark .how-steps li.done .step-dot { background: rgba(249, 115, 22, .25); color: #FDBA74; }
+    html.dark .how-steps li.on .step-dot { background: #F97316; color: #fff; }
+    html.dark .how-title { color: #F1F5F9; }
+    html.dark .how-desc, html.dark .how-mobile-desc { color: #CBD5E1; }
+    html.dark .how-stage { background: rgba(17, 22, 32, .8); border-color: #263042; box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .8); }
+    html.dark .how-stage::before { background-image: radial-gradient(rgba(100, 116, 139, .35) 1px, transparent 1px); }
+    html.dark .hs-status { background: #F1F5F9; color: #0F172A; }
+    html.dark .hs-hint { color: #64748B; }
+    html.dark .hs-chip > span { background: #1A2230; border-color: #2F3B50; color: #F1F5F9; }
+    html.dark .hs-chip-more > span { background: #F97316; border-color: #F97316; color: #fff; }
+    html.dark .hs-card { background: #161D29; border-color: #2A3548; color: #CBD5E1; box-shadow: 0 22px 44px -22px rgba(0, 0, 0, .8); }
+    html.dark .hs-card.flagged { border-color: #E11D48; }
+    html.dark .hs-card.passed { border-color: #10B981; }
+    html.dark .hs-t { color: #F8FAFC; }
+    html.dark .hs-m { color: #94A3B8; }
+    html.dark .hs-l { background: #232D3D; }
+    html.dark .hs-flag { color: #FECDD3; background-image: linear-gradient(rgba(244, 63, 94, .35), rgba(244, 63, 94, .35)); }
+    html.dark .hs-quote, html.dark .hs-quote::after { background: #F8FAFC; }
+    html.dark .hs-quote { color: #9F1239; }
+    html.dark .hs-quote b { color: #0F172A; }
+    html.dark .hs-stamp { background: #0B0F17; color: #34D399; border-color: #10B981; }
+    html.dark .hs-apply { background: #F8FAFC; color: #0F172A; }
+    html.dark .hs-pill { background: #161D29; border-color: #2A3548; color: #94A3B8; }
+    html.dark .hs-pill[data-state="run"] { border-color: #C2410C; color: #FDBA74; }
+    html.dark .hs-pill[data-state="bad"] { background: rgba(244, 63, 94, .14); border-color: rgba(244, 63, 94, .5); color: #FDA4AF; }
+    html.dark .hs-pill[data-state="ok"] { background: rgba(16, 185, 129, .14); border-color: rgba(16, 185, 129, .5); color: #6EE7B7; }
+
     @media (prefers-reduced-motion: reduce) {
       .marquee-track { animation: none; }
       .marquee { overflow-x: auto; }
@@ -169,11 +204,12 @@
         <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="40" height="40" class="w-10 h-10 rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-105">
         <span class="text-2xl font-extrabold tracking-tight text-slate-900">In<span class="text-orange-500">Real</span></span>
       </a>
-      <nav aria-label="Main" class="flex items-center gap-2">
+      <nav aria-label="Main" class="flex items-center gap-1.5 sm:gap-2">
         <a href="#spot" data-nav class="nav-link hidden lg:inline-block px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900">Spot the scam</a>
         <a href="#how" data-nav class="nav-link hidden md:inline-block px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900">How the check works</a>
-        <button type="button" data-signin="login" class="glass-btn px-3.5 sm:px-4 py-2.5">Log in</button>
-        <button type="button" data-signin="signup" class="glass-btn glass-btn-primary px-3.5 sm:px-4 py-2.5 flex items-center gap-1.5"><i class="ph ph-user-plus text-base text-orange-400"></i>Sign up free</button>
+        <button type="button" data-theme-toggle class="theme-toggle" aria-label="Switch to dark theme" title="Switch to dark theme"><i class="ph ph-moon" aria-hidden="true"></i><i class="ph ph-sun" aria-hidden="true"></i></button>
+        <button type="button" data-signin="login" class="glass-btn px-3 sm:px-4 py-2.5 whitespace-nowrap">Log in</button>
+        <button type="button" data-signin="signup" class="glass-btn glass-btn-primary px-3 sm:px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap"><i class="ph ph-user-plus text-base text-orange-400 hidden sm:inline"></i>Sign up<span class="hidden sm:inline"> free</span></button>
       </nav>
     </div>
   </header>
