@@ -212,7 +212,7 @@ InReal/
 │   └── theme.css          # Shared theme
 ├── tests/                 # pytest suite with saved HTML fixtures
 ├── run_public.bat         # Optional: share a read-only public link (Cloudflare tunnel)
-└── autopilot.py, scheduler.py   # Old automatic runs. Not started by the app; don't use.
+└── autopilot.py           # Old automatic run. Not started by the app; don't use.
 ```
 
 </details>
