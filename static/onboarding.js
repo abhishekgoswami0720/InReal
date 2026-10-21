@@ -58,9 +58,10 @@ function openOnboarding() {
     companies: (p.companies || []).join(', '), regions: (p.regions && p.regions.length) ? p.regions.slice() : ['india', 'usa', 'europe', 'remote', 'worldwide'],
   };
   const qs = obQuestions();
-  const firstMissing = qs.findIndex((q, k) => k < OB_REQUIRED && !obValid(q));
-  OB.phase = firstMissing === -1 ? 'offer' : 'required';
-  OB.i = firstMissing === -1 ? OB_REQUIRED : firstMissing;
+  const allRequired = qs.slice(0, OB_REQUIRED).every(obValid);
+  // always from question 1 (the name, filled in from Google: one Enter), never from the middle
+  OB.phase = allRequired ? 'offer' : 'required';
+  OB.i = allRequired ? OB_REQUIRED : 0;
   OB.locked = !requiredDone(profile);
   obEl().hidden = false;
   document.body.style.overflow = 'hidden';
