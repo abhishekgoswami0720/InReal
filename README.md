@@ -1,39 +1,96 @@
 <div align="center">
 
-<img src="static/logo.svg" alt="InReal logo" width="84" />
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/banner-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/readme/banner-light.svg"><img alt="InReal: internships you can trust. Posts from 23 sites are checked and the scams are hidden." src="docs/readme/banner-light.svg" width="100%"></picture>
 
-# InReal
-
-**Internships from 23 sites in one search, with every post checked for scams before you see it.**
-
-<br/>
+**Internships from 23 sites in one search. Every post is checked for scams before you see it.**
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-waitress-000000?logo=flask&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-Chromium-2EAD33?logo=playwright&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Auth%20%2B%20Postgres-3ECF8E?logo=supabase&logoColor=white)
 ![n8n](https://img.shields.io/badge/n8n-scam%20check-EA4B71?logo=n8n&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-142%20passing-2ea043)
 ![License](https://img.shields.io/badge/License-MIT-blue)
-
-[How it works](#how-it-works) · [Features](#features) · [Quick start](#quick-start) · [Configuration](#configuration) · [Project layout](#project-layout) · [Testing](#testing) · [Credits](#credits)
 
 </div>
 
----
-
-## Why InReal
-
-Students searching for internships open ten tabs, see the same post three times, and every so often
-hit a "work from home, pay ₹999 registration" post that looks real. InReal does the opening for you:
-you pick the sites, it collects the posts, and an AI check removes the ones asking for money,
-task-for-money schemes and mass "internship" programmes. What's left is matched to your profile.
-
-> **Nothing runs on its own.** The app scrapes only when you press **Search Internships**, and only
-> the sites you ticked. There is no background or scheduled scraping.
+<p align="center"><img src="docs/readme/screen-landing.png" alt="InReal home page: Internships you can trust, from 23 sites in one place" width="100%"></p>
 
 ---
 
-## How it works
+## The problem
+
+Looking for an internship means opening ten tabs, seeing the same post three times, and every so often
+landing on one that says *"work from home, pay ₹999 registration"*. It looks real. It isn't.
+
+**InReal does the searching and the checking for you.** You pick the sites, it collects the posts, and
+it hides the ones that ask you for money, sell you a course dressed up as an internship, or pay you
+for "tasks". What's left is sorted to match your profile.
+
+---
+
+## Where the internships come from
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/sources-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/readme/sources-light.svg"><img alt="23 sites: 11 Indian job boards, 10 big-tech and worldwide career pages, 2 remote-only boards" src="docs/readme/sources-light.svg" width="100%"></picture></p>
+
+---
+
+## How a post gets checked
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/check-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/readme/check-light.svg"><img alt="Three checks: a rule check for scam words, a comparison with 49 known scam patterns, and an AI judge that must quote the line that proves a scam" src="docs/readme/check-light.svg" width="100%"></picture></p>
+
+The AI never gets the final word on its own. If it says *"scam"* but can't point to the exact line in
+the post that proves it, the post is **not** hidden. Good internships don't disappear because the AI
+had a hunch.
+
+### What counts as a scam
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/scam-types-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/readme/scam-types-light.svg"><img alt="8 kinds of scam: asks you to pay (12 patterns), paid course sold as an internship (7), pays for online tasks (7), wants ID or OTP early (5), moves you to WhatsApp or Telegram (5), too-good promises (5), rushes you (4), pay from recruiting others (4)" src="docs/readme/scam-types-light.svg" width="100%"></picture></p>
+
+These come from [`moderation/scam_patterns.json`](moderation/scam_patterns.json): 49 phrases seen in
+real Indian internship scams, plus 15 honest versions of the same topics (*"we never charge a fee"*,
+*"selection is through a technical interview"*). A post is compared with both by meaning, not exact
+words, so a reworded scam still matches, and a post that *warns* about fees isn't mistaken for one that asks for them.
+
+---
+
+## Can you spot the scam?
+
+The home page has a 30-second game. One of these two posts is a scam. Which one?
+
+<p align="center"><img src="docs/readme/screen-spot-the-scam.png" alt="Spot the scam game: a Python developer intern post next to a 'pay ₹999 registration fee' post" width="100%"></p>
+
+<sub>Answer: the one on the right. It asks for a ₹999 "registration fee" and wants you on WhatsApp only. Real internships never charge you to join.</sub>
+
+---
+
+## Made for you, not for everyone
+
+<p align="center"><img src="docs/readme/screen-onboarding.png" alt="Onboarding: one question per screen, starting with 'First, what's your name?'" width="70%"></p>
+
+- **Sign in with Google.** No password.
+- **Answer a few questions,** one per screen: your field, your year, the roles and skills you want.
+- **Your list sorts itself:** companies you like first, then your role, then your skills.
+  Posts below your minimum stipend or outside your work mode are hidden.
+- **Your profile is saved to your account,** so it follows you to any browser.
+
+---
+
+## Good to know
+
+- **Sites change their pages.** A scraper can break without warning; `test_sites.py` and `SELECTOR_TRACKER.md` are how breakage is found and fixed.
+- **The scam check is not perfect.** It blocks only on quoted evidence, so a cleverly worded scam can reach *review*. Always check the company before paying anything, and never pay to get an internship.
+- **Google sign-in is in testing mode,** so only accounts added as test users can sign in until the app is published.
+- **Runs on one computer.** Scraping and n8n run locally; there is no hosted deployment yet.
+
+---
+
+## For developers
+
+<details>
+<summary><b>How the pipeline works</b></summary>
+
+<br>
 
 ```mermaid
 flowchart LR
@@ -56,11 +113,12 @@ flowchart LR
 4. **Publish.** Verdicts come back to `/api/moderation/verdict` and are pushed to Supabase straight away (plus a sweep every 15 minutes), so signed-in users see them.
 5. **Tidy up.** Posts older than 3 days are pruned when a new search starts. Posts still being checked are never pruned.
 
----
+</details>
 
-## Features
+<details>
+<summary><b>Pages</b></summary>
 
-### Pages
+<br>
 
 | Route | Who | What's there |
 |---|---|---|
@@ -68,31 +126,12 @@ flowchart LR
 | `/app` | Signed-in users | The dashboard: search, results, bookmarks, profile. Signed-in users are sent here from `/`. |
 | `/admin` | This computer only | The admin dashboard, reachable from `localhost` only. |
 
-### Profile and matching
+</details>
 
-- **Onboarding** opens right after the first sign-in, one question at a time (Typeform style: letter keys pick, <kbd>Enter</kbd> moves on).
-- **Five sections:** *About you* and *Experience & field* are required. *Roles & skills*, *Preferences* and *Companies & regions* are optional and unlock in order.
-- **Skill suggestions** appear as you type, from about 180 skills across the 12 fields, and you can still add your own.
-- **Completion ring** around the logo shows how much of the profile is filled.
-- **Matching:** results are ranked by preferred companies, then role, then skill overlap. Posts below your minimum stipend, outside your work mode or longer than your maximum duration are hidden. Posts that don't state these values are kept, not hidden.
-- The profile is saved to your account in Supabase, so a different account on the same browser starts clean.
+<details>
+<summary><b>Quick start</b></summary>
 
-### Coverage
-
-**12 fields:** AI / Machine Learning · Software & Web Development · Data Analytics · Medicine & Healthcare · Pharma & Biotech · Mechanical, Electrical & Civil · Finance & Accounting · Marketing & Sales · Design & Video · Content & Media · HR & Operations · Law
-
-**23 tested sites:**
-
-| India | Remote | Worldwide |
-|---|---|---|
-| Internshala, Unstop, Naukri, Shine, Foundit, Apna, AICTE (Govt), Cutshort, Talent.com India, Careerjet India, SimplyHired India | Remotive, We Work Remotely | LinkedIn, Microsoft, Google, Meta, Apple, NVIDIA, Amazon, Intel, Adobe, Salesforce |
-
-The registry (`sites/registry.py`) lists 60 sites in total; only the 23 marked `tested` are offered in the search.
-Selector notes for each site are in [`SELECTOR_TRACKER.md`](SELECTOR_TRACKER.md).
-
----
-
-## Quick start
+<br>
 
 **You need:** Python 3.10+, a Supabase project, and (for the scam check) n8n plus an Azure OpenAI deployment.
 
@@ -120,9 +159,12 @@ Then:
    ```
    Open **http://localhost:5000**. Use `localhost`, not `127.0.0.1`; the app redirects `127.0.0.1` because Google sign-in is tied to one address.
 
----
+</details>
 
-## Configuration
+<details>
+<summary><b>Configuration</b></summary>
+
+<br>
 
 All keys live in `.env`, which is git-ignored. **Never commit it**, and never put the secret key in browser code.
 
@@ -138,9 +180,12 @@ All keys live in `.env`, which is git-ignored. **Never commit it**, and never pu
 | `GEMINI_API_KEY` | Optional alternative to Azure for embeddings / judge |
 | `AUTO_UPDATE`, `AUTO_EVERY_HOURS`, `AUTO_FIELDS`, `AUTO_LIMIT` | **Not used.** Left over from the removed autopilot; keep `AUTO_UPDATE=off`. |
 
----
+</details>
 
-## Project layout
+<details>
+<summary><b>Project layout</b></summary>
+
+<br>
 
 ```text
 InReal/
@@ -170,9 +215,12 @@ InReal/
 └── autopilot.py, scheduler.py   # Old automatic runs. Not started by the app; don't use.
 ```
 
----
+</details>
 
-## Testing
+<details>
+<summary><b>Testing</b></summary>
+
+<br>
 
 ```bash
 python -m pytest tests -q                                # full suite, no network needed
@@ -184,26 +232,40 @@ python test_sites.py naukri foundit                      # live check of chosen 
 `tests/test_no_auto_scrape.py` guards the main rule: `/api/scrape` refuses a request without picked
 sites, scrapes only the sites given, and the app never starts the autopilot.
 
----
+</details>
 
-## Sharing a public link
+<details>
+<summary><b>Sharing a public link</b></summary>
+
+<br>
 
 `run_public.bat` (Windows) starts the app and a temporary Cloudflare link to it. Visitors get a
 **read-only** view; scraping and the scam check keep running on your computer. Google sign-in on that
 link works only if you add the `trycloudflare.com` address to Supabase's redirect URLs.
 
+</details>
+
+<details>
+<summary><b>All 23 sites and 12 fields</b></summary>
+
+<br>
+
+**12 fields:** AI / Machine Learning · Software & Web Development · Data Analytics · Medicine & Healthcare · Pharma & Biotech · Mechanical, Electrical & Civil · Finance & Accounting · Marketing & Sales · Design & Video · Content & Media · HR & Operations · Law
+
+**23 tested sites:**
+
+| India | Remote | Worldwide |
+|---|---|---|
+| Internshala, Unstop, Naukri, Shine, Foundit, Apna, AICTE (Govt), Cutshort, Talent.com India, Careerjet India, SimplyHired India | Remotive, We Work Remotely | LinkedIn, Microsoft, Google, Meta, Apple, NVIDIA, Amazon, Intel, Adobe, Salesforce |
+
+The registry (`sites/registry.py`) lists 60 sites in total; only the 23 marked `tested` are offered in the search.
+Selector notes for each site are in [`SELECTOR_TRACKER.md`](SELECTOR_TRACKER.md).
+
+</details>
+
 ---
 
-## Known limits
-
-- **Sites change their pages.** A scraper can break without warning; `test_sites.py` and `SELECTOR_TRACKER.md` are how breakage is found and fixed.
-- **The scam check is not perfect.** It blocks only on quoted evidence, so a cleverly worded scam can reach *review*. Always check the company before paying anything, and never pay to get an internship.
-- **Google sign-in is in testing mode,** so only accounts added as test users can sign in until the app is published.
-- **Runs on one computer.** Scraping and n8n run locally; there is no hosted deployment yet.
-
----
-
-## Credits
+## Who built it
 
 **InReal** is built by **Team Chiranjeevi** (CodeX 3.0, PIET Panipat, Oct 2026) and maintained by
 [Abhishek Goswami](https://github.com/abhishekgoswami0720).
@@ -212,7 +274,7 @@ It started as a fork of the open-source **AI/ML Internship Radar** (MIT licence)
 this repository is that original code, unchanged; every later commit is our work: rebuilt scrapers,
 the scam check, Supabase accounts, the profile and the new interface.
 
-## License
+### License
 
 [MIT](LICENSE). Copyright for the original code stays with the authors of AI/ML Internship Radar.
 
