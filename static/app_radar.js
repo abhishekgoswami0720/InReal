@@ -1095,7 +1095,14 @@ function bindProfileForm() {
   document.getElementById('profile-skill-add').addEventListener('click', () => {
     const inp = document.getElementById('profile-skill-input'); addSkill(inp.value); inp.value = ''; inp.focus(); showProfileStep(3);
   });
+  if (window.attachSkillAutocomplete) {
+    attachSkillAutocomplete(document.getElementById('profile-skill-input'), {
+      have: () => draftSkills,
+      pick: (s) => { addSkill(s); const inp = document.getElementById('profile-skill-input'); inp.value = ''; inp.focus(); showProfileStep(3); },
+    });
+  }
   document.getElementById('profile-skill-input').addEventListener('keydown', e => {
+    if (e.target.acHandleKey && e.target.acHandleKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
     if (e.key !== 'Enter') return;
     e.preventDefault(); e.stopPropagation();
     addSkill(e.target.value); e.target.value = ''; showProfileStep(3);
