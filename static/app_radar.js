@@ -1223,10 +1223,12 @@ function showProfileStep(n) {
   document.querySelectorAll('#profile-form > section').forEach(sec => { sec.hidden = Number(sec.dataset.section) !== profileStep; });
   document.querySelectorAll('#profile-steps .pstep').forEach(btn => {
     const k = Number(btn.dataset.step);
-    btn.toggleAttribute('disabled', k > reachableUpTo(draft) || (profileMandatory && k > 2));
-    btn.classList.toggle('done', sectionDone(draft, k));
+    const locked = k > reachableUpTo(draft) || (profileMandatory && k > 2);
+    const done = !locked && sectionDone(draft, k);   // a locked section shows its number, never a tick
+    btn.toggleAttribute('disabled', locked);
+    btn.classList.toggle('done', done);
     if (k === profileStep) btn.setAttribute('aria-current', 'step'); else btn.removeAttribute('aria-current');
-    btn.querySelector('.pstep-dot').textContent = sectionDone(draft, k) ? '✓' : String(k);
+    btn.querySelector('.pstep-dot').textContent = done ? '✓' : String(k);
   });
   document.getElementById('profile-back').classList.toggle('invisible', profileStep === 1);
   document.getElementById('profile-skip').classList.toggle('hidden', profileMandatory);
