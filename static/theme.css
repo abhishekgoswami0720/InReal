@@ -184,3 +184,19 @@ body {
 
 /* Behind any dialog: the page blurs (Tailwind 3 has no backdrop-blur-xs, so it was never blurred) */
 .modal-blur { -webkit-backdrop-filter: blur(8px) saturate(120%); backdrop-filter: blur(8px) saturate(120%); }
+
+/* First-time profile, one question per screen (static/onboarding.js) */
+.ob-bg { background: var(--bg-amber-warmth); }
+.ob-choice { background: #fff; border-color: #E2E8F0; color: #0F172A; transition: border-color .15s, background .15s, transform .1s; }
+.ob-choice:hover { border-color: #FDBA74; background: #FFFBF5; }
+.ob-choice:active { transform: scale(.99); }
+.ob-choice.on { background: #FFF7ED; border-color: #F97316; color: #9A3412; }
+.ob-key { width: 26px; height: 26px; flex: none; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; color: #475569; background: #fff; }
+.ob-choice.on .ob-key { background: #F97316; color: #fff; border-color: #F97316; }
+@keyframes ob-in { from { opacity: 0; transform: translateY(46px); } to { opacity: 1; transform: none; } }
+@keyframes ob-in-back { from { opacity: 0; transform: translateY(-46px); } to { opacity: 1; transform: none; } }
+.ob-in { animation: ob-in .5s cubic-bezier(.16, 1, .3, 1); }
+.ob-in-back { animation: ob-in-back .5s cubic-bezier(.16, 1, .3, 1); }
+@keyframes ob-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.ob-screen.shake { animation: ob-shake .3s ease 2; }
+@media (prefers-reduced-motion: reduce) { .ob-in, .ob-in-back, .ob-screen.shake { animation: none; } }
