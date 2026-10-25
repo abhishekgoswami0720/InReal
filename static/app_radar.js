@@ -877,9 +877,77 @@ function bindEventHandlers() {
 // The post text keeps one line per paragraph, heading or "• " point (sites/_common.html_to_text).
 // Short title-like lines followed by a paragraph or a list become headings; "Label: value" lines get
 // a bold label; "• " lines become a list. Posts saved as one long line still show as one paragraph.
+// Posts that arrive as one long paragraph (no line breaks, headings or points — AICTE and some
+// company pages) are split into sentences and grouped by what each sentence is about. Only the
+// post's own words are used: nothing is added or reworded, just the order and the layout.
+const PROSE_SECTIONS = [
+  ['work', 'What you\'ll do', /\b(interns? will|you will|you'll|will (contribute|work|assist|help|develop|build|design|be (responsible|working|involved))|work (may|will) (involve|include)|responsibilit|day[- ]to[- ]day|your (role|tasks?)|tasks? (include|involve))/i],
+  ['who', 'Who can apply', /\b(eligib|candidates? (should|must|need|with)|applicants? (should|must)|must (have|be)|should (be|have)|familiar(ity)? with|knowledge of|proficien|required|requirements?|qualifications?|pursuing|degree in|currently enrolled|skills? (in|required)|experience (in|with) )/i],
+  ['perks', 'Stipend & perks', /\b(stipend|certificate|ppo|pre[- ]placement|perks?|benefits?|salary|allowance|paid|letter of recommendation|lor)\b/i],
+  ['notes', 'Good to know', /\b(access to|approval|security procedures?|please note|note:|disclaimer|is intended for|not (an? )?offensive|confidential|subject to)\b/i],
+];
+const LIST_LEAD = /^(.{0,80}?\b(?:involve|involves|include|includes|including|familiar with|familiarity with|knowledge of|such as|skills in|experience (?:with|in)|proficiency in|exposure to|combines))\s+(.+?)[.!]?$/i;
+
+function splitSentences(text) {
+  const safe = String(text).replace(/\b(e\.g|i\.e|etc|vs|Pvt|Ltd|Inc|Co|No|Dr|Mr|Ms|Mrs|St|approx)\./gi, m => m.replace('.', '\u0000'));
+  return safe.split(/(?<=[.!?])\s+(?=["“(]?[A-Z0-9])/).map(s => s.replace(/\u0000/g, '.').trim()).filter(Boolean);
+}
+
+function sentenceAsList(s) {
+  const m = s.match(LIST_LEAD);
+  if (!m) return null;
+  let items = m[2].split(/,\s*/);
+  if (items.length < 2) return null;
+  const last = items.pop();
+  const tail = last.split(/\s+(?:and|&)\s+(?!.*\s+(?:and|&)\s+)/);
+  items = items.concat(tail.length === 2 && items.length >= 1 ? tail : [last]);
+  items = items.map(x => x.replace(/^(and|or)\s+/i, '').trim()).filter(Boolean);
+  // a list of things, not a sentence that goes on ("…, Git and REST APIs is required")
+  if (items.length < 3 || items.some(x => x.split(/\s+/).length > 9 || /\b(is|are|was|were|will|should|must|can)\b/i.test(x))) return null;
+  const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
+  return `<p class="font-medium text-slate-700">${escapeHtml(m[1])}:</p><ul class="list-disc pl-4 space-y-0.5">${items.map(x => `<li>${escapeHtml(cap(x))}</li>`).join('')}</ul>`;
+}
+
+function structureProse(text) {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return null;
+  const groups = { intro: [], work: [], who: [], perks: [], notes: [] };
+  sentences.forEach(s => {
+    const hit = PROSE_SECTIONS.find(([, , re]) => re.test(s));
+    groups[hit ? hit[0] : 'intro'].push(s);
+  });
+  const filled = Object.values(groups).filter(g => g.length).length;
+  if (filled < 2) {   // nothing to group: short paragraphs of two sentences each are still easier to read
+    let html = '';
+    for (let i = 0; i < sentences.length; i += 2) html += `<p>${escapeHtml(sentences.slice(i, i + 2).join(' '))}</p>`;
+    return html;
+  }
+  const block = (list, asPoints) => {
+    if (asPoints && list.length > 1) {
+      return `<ul class="list-disc pl-4 space-y-1">${list.map(s => `<li>${sentenceAsList(s) ? sentenceAsList(s) : escapeHtml(s)}</li>`).join('')}</ul>`;
+    }
+    return list.map(s => sentenceAsList(s) || `<p>${escapeHtml(s)}</p>`).join('');
+  };
+  let html = '';
+  if (groups.intro.length) {
+    for (let i = 0; i < groups.intro.length; i += 2) html += `<p>${escapeHtml(groups.intro.slice(i, i + 2).join(' '))}</p>`;
+  }
+  PROSE_SECTIONS.forEach(([key, title]) => {
+    if (!groups[key].length) return;
+    html += `<h5 class="font-bold text-slate-800 pt-2">${title}</h5>` + block(groups[key], key === 'work' || key === 'who');
+  });
+  return html;
+}
+
 function describeHtml(desc) {
   const BULLET = /^[•·▪●◦\-*]\s+/;
   const lines = String(desc || '').split(/\n+/).map(l => l.trim()).filter(Boolean);
+  // one block of prose with no points: group its sentences (see structureProse)
+  const prose = lines.filter(l => !BULLET.test(l));
+  if (lines.length <= 3 && !lines.some(l => BULLET.test(l)) && prose.join(' ').length > 350) {
+    const html = structureProse(prose.join(' '));
+    if (html) return html;
+  }
   const words = (line) => line.split(/\s+/).length;
   const titleCase = (line) => line.split(/\s+/).every(w => /^[A-Z0-9&(]/.test(w) || /^(and|or|of|the|to|for|in|on|at|a|an|we|you)$/i.test(w));
   const isHeading = (line, next) => {
@@ -904,6 +972,9 @@ function describeHtml(desc) {
       html += `<p class="font-medium text-slate-700">${escapeHtml(line)}</p>`;
     } else if (label && !/[.!?]\s/.test(label[1])) {
       html += `<p><span class="font-semibold text-slate-700">${escapeHtml(label[1])}:</span> ${escapeHtml(label[2])}</p>`;
+    } else if (line.length > 420) {
+      const parts = splitSentences(line);
+      for (let k = 0; k < parts.length; k += 2) html += `<p>${escapeHtml(parts.slice(k, k + 2).join(' '))}</p>`;
     } else {
       html += `<p>${escapeHtml(line)}</p>`;
     }
