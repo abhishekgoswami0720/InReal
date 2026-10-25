@@ -21,6 +21,7 @@ const sb = (USER_MODE && window.supabase && CFG.supabaseUrl && CFG.supabaseKey)
 let BOOKMARK_KEY = 'inreal_bookmarks';
 let bookmarks = JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]');
 let activeDrawerJob = null;
+let scrapeRunning = false;   // a search is scraping the sites right now (/api/scrape/status)
 let canEdit = true;
 // The search on screen: Search Internships starts a new one and the list shows only its results
 const VIEW_KEY = 'inreal_view_run';
@@ -357,6 +358,34 @@ function renderListings(items) {
     const inScope = (viewRun && !showAllSaved) ? allInternships.filter(r => r.last_run === viewRun) : allInternships;
     const inReview = inScope.filter(r => r.moderation_status === 'review').length;
     const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').includes(profile.field));
+    const runRows = (viewRun && !showAllSaved && !showBookmarkedOnly) ? allInternships.filter(r => r.last_run === viewRun) : [];
+    const runChecked = runRows.filter(r => ['approved', 'review', 'blocked', 'expired'].includes(r.moderation_status)).length;
+    const runChecking = runRows.filter(r => ['', 'checking'].includes(r.moderation_status || '')).length;
+    const runHeld = runRows.filter(r => r.moderation_status === 'held').length;
+    if (viewRun && !showAllSaved && !showBookmarkedOnly && !freshVisit && !runChecked) {
+      // nothing judged yet in this search: the filters are not the reason, say what is happening
+      if (scrapeRunning) {
+        title = 'Searching the sites…';
+        text = runRows.length
+          ? `${runRows.length} found so far. When the search ends, the first 10 go through the scam check and show up here by themselves.`
+          : 'When the search ends, the first 10 internships go through the scam check and show up here by themselves.';
+      } else if (runChecking) {
+        title = `Checking ${runChecking} internship${runChecking === 1 ? '' : 's'} for scams…`;
+        text = 'Usually under a minute. They show up here by themselves.';
+      } else if (runHeld) {
+        title = `${runHeld} found, not checked yet`;
+        text = 'Use "Load 5 more" below to put them through the scam check.';
+      } else {
+        title = 'No new internships this time';
+        text = 'The sites had nothing new for this field. Try more sites, another region or another field.';
+        search = canEdit;
+      }
+      if (h) h.textContent = title;
+      if (t) t.textContent = text;
+      btn('empty-search-btn', search); btn('empty-recent-btn', false); btn('empty-reset-btn', false);
+      if (emptyState) { emptyState.classList.remove('hidden'); emptyState.classList.add('flex'); }
+      return;
+    }
     if (showBookmarkedOnly) {
       title = 'No saved internships yet';
       text = 'Tap the bookmark on any post to keep it here.';
@@ -375,7 +404,7 @@ function renderListings(items) {
       const waiting = inScope.filter(r => r.moderation_status === 'held').length;
       title = inScope.length ? 'Nothing verified from this search yet' : 'Searching…';
       text = inScope.length
-        ? (waiting ? 'Use "Check next 5" below to put the next posts through the scam check.' : 'The posts found are still being checked. This list fills in by itself.')
+        ? (waiting ? 'Use "Load 5 more" below to put the next posts through the scam check.' : 'The posts found are still being checked. This list fills in by itself.')
         : 'Posts show up here as each site finishes.';
       recent = true;
     } else {
@@ -574,6 +603,11 @@ async function pollScraperStatus() {
     const res = await fetch('/api/scrape/status');
     const data = await res.json();
     const isRunning = data.status === 'running' || data.status === 'queued';
+    if (isRunning !== scrapeRunning) {
+      scrapeRunning = isRunning;
+      applyFiltersAndRender();
+      updateHeldUI(lastModCounts || {});
+    }
     handleScrapeProgress(data.progress, isRunning);
 
     const dot = document.getElementById('ping-dot');
@@ -1579,19 +1613,23 @@ function updateHeldUI(c) {
     : (c.pending || 0) + (c.checking || 0);
   if (loadMoreBusy && inFlight === 0) loadMoreBusy = false;   // the 5 have been judged
   // the bar belongs to a search on screen; it stays out of the way otherwise
-  const showBar = canEdit && !showBookmarkedOnly && !showAllSaved && !!viewRun && !freshVisit;
+  // first the search, then the automatic first 10; the button comes after (25 Oct)
+  const runRows = viewRun ? allInternships.filter(r => r.last_run === viewRun) : [];
+  const firstBatchBusy = !loadMoreBusy && inFlight > 0;
+  const showBar = canEdit && !showBookmarkedOnly && !showAllSaved && !!viewRun && !freshVisit
+    && !scrapeRunning && !firstBatchBusy && runRows.length > 0;
   if (bar) bar.classList.toggle('hidden', !showBar);
   const title = document.getElementById('queue-title'), sub = document.getElementById('queue-sub');
   if (title && sub) {
     if (loadMoreBusy) { title.innerHTML = `Checking ${inFlight} post${inFlight === 1 ? '' : 's'}…`; sub.textContent = 'The ones that pass join the end of the list in about half a minute.'; }
     else if (held) { title.innerHTML = `<span id="held-count">${held}</span> more found`; sub.textContent = 'They join the list after the scam check.'; }
-    else { title.innerHTML = '<span id="held-count">0</span> waiting'; sub.textContent = 'Everything found so far has been checked. Search the same sites again for new posts.'; }
+    else { title.innerHTML = 'That\'s everything found'; sub.textContent = 'Search the same sites again for newer posts.'; }
   }
   btn.classList.toggle('hidden', !held && !loadMoreBusy);
   const label = btn.querySelector('span');
   btn.disabled = loadMoreBusy || held === 0;
   btn.classList.toggle('opacity-60', btn.disabled);
-  label.textContent = loadMoreBusy ? 'Checking…' : 'Check next 5';
+  label.textContent = loadMoreBusy ? 'Checking…' : 'Load 5 more';
 }
 
 document.addEventListener('DOMContentLoaded', () => {

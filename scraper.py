@@ -214,8 +214,9 @@ def collapse_copies(results):
 
 HELD = {}   # source -> new listings left for "Search more" in the current run
 RUN_TAG = {"value": ""}   # tag of the current search (set by the dashboard)
-# New listings are saved as "held" (not sent to the scam check). Nothing goes to n8n until the
-# student clicks "Load more" (5 at a time). INITIAL_RELEASE > 0 would send that many straight away.
+# New listings are saved as "held" (not sent to the scam check while sites are still being searched).
+# When a new search ends, app.release_first_batch sends the first 10 by itself; after that the
+# student clicks "Load 5 more". INITIAL_RELEASE > 0 would instead send that many as each site finishes.
 INITIAL_RELEASE = 0
 _release = {"left": INITIAL_RELEASE}
 import threading as _threading
