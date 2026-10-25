@@ -209,6 +209,9 @@ function renderOverviewStats(shown, base) {
   if (totalEl) totalEl.innerText = total;
   if (paidEl) paidEl.innerText = paidCount;
   if (newEl) newEl.innerText = newCount || '0';
+  document.getElementById('stat-new-wrap')?.classList.toggle('hidden', !newCount);
+  const countLine = document.getElementById('list-count');
+  if (countLine) countLine.parentElement.classList.toggle('invisible', !total);
 
   const countAll = document.getElementById('count-all');
   const countIndia = document.getElementById('count-india');
@@ -304,12 +307,39 @@ function applyFiltersAndRender() {
   renderListings(filtered);
 }
 
-function skillChip(item) {
+// Company initials in a colour picked from the name, so each company looks the same everywhere
+const LOGO_COLORS = ['#F97316', '#0EA5E9', '#10B981', '#8B5CF6', '#E11D48', '#F59E0B', '#14B8A6', '#6366F1', '#EC4899', '#0F766E'];
+function logoFor(name) {
+  const clean = String(name || '').replace(/<[^>]*>/g, '').trim();
+  const words = clean.split(/\s+/).filter(w => /[a-z0-9]/i.test(w));
+  const initials = (words.length > 1 ? words[0][0] + words[1][0] : (words[0] || '?').slice(0, 2)).toUpperCase();
+  let h = 0;
+  for (const ch of clean.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return { initials: escapeHtml(initials), color: LOGO_COLORS[h % LOGO_COLORS.length] };
+}
+const isWide = () => window.matchMedia('(min-width: 1280px)').matches;
+
+function stipendTag(item) {
+  const s = String(item.stipend || '').trim();
+  if (!s) return '';
+  if (isUnpaid(item)) return '<span class="jb-tag jb-tag-unpaid">Unpaid</span>';
+  return `<span class="jb-tag jb-tag-money"><i class="ph ph-currency-inr"></i>${escapeHtml(s.replace(/\s*a month$/i, ' / month'))}</span>`;
+}
+function verdictTag(item) {
+  const st = item.moderation_status || '';
+  if (st === 'approved') return '<span class="jb-tag jb-tag-ok"><i class="ph ph-shield-check"></i>Verified</span>';
+  if (st === 'review') return '<span class="jb-tag jb-tag-warn"><i class="ph ph-eye"></i>Needs a look</span>';
+  if (st === 'blocked') return '<span class="jb-tag jb-tag-bad"><i class="ph ph-prohibit"></i>Likely scam</span>';
+  if (st === 'expired') return '<span class="jb-tag jb-tag-wait"><i class="ph ph-link-break"></i>Closed</span>';
+  return '<span class="jb-tag jb-tag-wait"><i class="ph ph-hourglass"></i>Being checked</span>';
+}
+function skillTag(item) {
+  if (!profile) return '';
   const hits = matchedSkills(item, profile);
   if (!hits.length) return '';
-  const all = (profile.skills || []).length;
-  return `<span class="px-1.5 py-0.2 bg-orange-50 text-orange-700 font-bold border border-orange-200 rounded text-[10px] ml-1 flex items-center gap-0.5" title="Your skills in this post: ${escapeHtml(hits.join(', '))}"><i class="ph ph-lightning"></i> ${hits.length}/${all} SKILLS</span>`;
+  return `<span class="jb-tag jb-tag-skill" title="Your skills in this post: ${escapeHtml(hits.join(', '))}"><i class="ph ph-lightning"></i>${hits.length} of your skills</span>`;
 }
+function skillChip(item) { return skillTag(item); }
 
 function renderListings(items) {
   const container = document.getElementById('listings-container');
@@ -318,138 +348,113 @@ function renderListings(items) {
 
   if (items.length === 0) {
     container.innerHTML = '';
+    showDetailPlaceholder();
     const h = document.querySelector('#empty-state h3'), t = document.querySelector('#empty-state p');
-    if (freshVisit && !showAllSaved && !showBookmarkedOnly) {
-      if (h) h.textContent = 'Start a search';
-      if (t) t.textContent = 'Click "Search Internships" to search the sites for your field. Results appear as each site finishes. To see what was already checked in the last few days, click "Show recent results" above the list.';
-      if (emptyState) { emptyState.classList.remove('hidden'); emptyState.classList.add('flex'); }
-      return;
-    }
-    const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').includes(profile.field));
-    if (false) {
-      const inView = allInternships.filter(r => r.last_run === viewRun);
-      if (h) h.textContent = inView.length ? 'Nothing verified from this search yet' : 'New search started';
-      if (t) t.textContent = inView.length
-        ? `${inView.filter(r => r.moderation_status === 'held').length} found and waiting. Click "Load 5 more" below to scam-check the next 5.`
-        : 'Internships appear here as each site finishes. Then click "Load 5 more" to scam-check them.';
-      return;
-    }
-    // Say so when posts were checked but the Scam check filter (Verified only) is hiding them
+    const btn = (id, on) => document.getElementById(id)?.classList.toggle('hidden', !on);
+    const filtersOn = activeRoleType !== 'all' || activeLocation !== 'all' || activeStipend !== 'all' || activeSource !== 'all'
+      || activeModeration !== 'verified' || !!(document.getElementById('search-input')?.value || '').trim();
+    let title, text, search = false, recent = false, reset = false;
     const inScope = (viewRun && !showAllSaved) ? allInternships.filter(r => r.last_run === viewRun) : allInternships;
     const inReview = inScope.filter(r => r.moderation_status === 'review').length;
-    if (activeModeration === 'verified' && inReview && !fieldEmpty) {
+    const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').includes(profile.field));
+    if (showBookmarkedOnly) {
+      title = 'No saved internships yet';
+      text = 'Tap the bookmark on any post to keep it here.';
+    } else if (freshVisit && !showAllSaved) {
+      title = 'Start a search';
+      text = 'Pick the sites to search. Posts show up here as each site finishes and passes the scam check.';
+      search = canEdit; recent = true;
+    } else if (activeModeration === 'verified' && inReview && !filtersOn) {
+      title = 'Nothing verified yet';
+      text = `${inReview} post${inReview === 1 ? ' was' : 's were'} checked but need${inReview === 1 ? 's' : ''} a second look. Set "Scam check" in Filters to "Verified + needs a look" to see ${inReview === 1 ? 'it' : 'them'}.`;
+    } else if (filtersOn) {
+      title = 'Nothing matches these filters';
+      text = 'Try another location or stipend, or clear the filters.';
+      reset = true;
+    } else if (viewRun && !showAllSaved) {
       const waiting = inScope.filter(r => r.moderation_status === 'held').length;
-      if (h) h.textContent = 'None verified yet: the checked posts need a second look';
-      if (t) t.textContent = `${inReview} post${inReview === 1 ? ' was' : 's were'} checked and put in Review, so the Verified-only filter hides ${inReview === 1 ? 'it' : 'them'}. `
-        + `To see ${inReview === 1 ? 'it' : 'them'}, open Filters and set Scam check to "Verified + needs a look". The reason is in each post's View Details.`
-        + (waiting ? ` ${waiting} more are waiting for "Load 5 more".` : '');
-      if (emptyState) { emptyState.classList.remove('hidden'); emptyState.classList.add('flex'); }
-      return;
+      title = inScope.length ? 'Nothing verified from this search yet' : 'Searching…';
+      text = inScope.length
+        ? (waiting ? 'Use "Check next 5" below to put the next posts through the scam check.' : 'The posts found are still being checked. This list fills in by itself.')
+        : 'Posts show up here as each site finishes.';
+      recent = true;
+    } else {
+      title = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'Nothing here yet';
+      text = 'Search the sites for your field. New posts show up as each site finishes.';
+      search = canEdit;
     }
-    if (h) h.textContent = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'No Matching Opportunities Found';
-    if (t) t.textContent = fieldEmpty ? 'Search the sites for your field with "Search Internships". New ones appear as each site finishes.'
-                                      : 'Try broadening your search keywords or resetting region and stipend filters.';
-    if (emptyState) {
-      emptyState.classList.remove('hidden');
-      emptyState.classList.add('flex');
-    }
+    if (h) h.textContent = title;
+    if (t) t.textContent = text;
+    btn('empty-search-btn', search); btn('empty-recent-btn', recent); btn('empty-reset-btn', reset);
+    if (emptyState) { emptyState.classList.remove('hidden'); emptyState.classList.add('flex'); }
     return;
   }
 
-  if (emptyState) {
-    emptyState.classList.add('hidden');
-    emptyState.classList.remove('flex');
-  }
+  if (emptyState) { emptyState.classList.add('hidden'); emptyState.classList.remove('flex'); }
 
+  const selected = activeDrawerJob && activeDrawerJob.id;
   container.innerHTML = items.map((item) => {
-    const isBookmarked = bookmarks.includes(item.id);
-    const skills = (item.required_skills || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
-    const logoSvg = getCompanyLogoSvg(item.company_name);
-
+    const saved = bookmarks.includes(item.id);
+    const logo = logoFor(item.company_name);
+    const id = escapeHtml(item.id);
+    const meta = [
+      item.company_name ? `<span class="font-bold text-slate-700">${escapeHtml(item.company_name)}</span>` : '',
+      `<span><i class="ph ph-map-pin"></i>${escapeHtml(item.location || 'Location not stated')}</span>`,
+      item.duration ? `<span><i class="ph ph-clock"></i>${escapeHtml(item.duration)}</span>` : '',
+    ].filter(Boolean).join('');
     return `
-      <article 
-        class="glass-card p-5 sm:p-6 flex flex-col justify-between cursor-pointer group"
-        onclick="openDetailDrawer('${escapeHtml(item.id)}')"
-      >
-        <div>
-          <!-- Top Row: Real Company Logo + Subtle Source Tag with colored dot + Bookmark -->
-          <div class="flex items-start justify-between gap-3 mb-3.5">
-            <div class="flex items-center gap-3 min-w-0 flex-1">
-              <!-- Genuine Square-Rounded Company Logo -->
-              <div class="company-logo-box shrink-0" title="${escapeHtml(item.company_name || 'Organization')}">
-                ${logoSvg}
-              </div>
-
-              <div class="min-w-0">
-                <!-- Subtle Source Badge with colored dot (wraps instead of running under the bookmark) -->
-                <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-semibold text-slate-500">
-                  <span class="w-1.5 h-1.5 rounded-full ${dotColor(item)}"></span>
-                  <span>${escapeHtml(item.source_platform || 'Direct Portal')}</span>
-                  ${isNewToday(item) ? '<span class="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 rounded text-[10px] ml-1">NEW</span>' : ''}
-                  ${moderationChip(item)}
-                  ${isPreferred(item) ? '<span class="px-1.5 py-0.2 bg-violet-50 text-violet-700 font-bold border border-violet-200 rounded text-[10px] ml-1 flex items-center gap-0.5"><i class="ph ph-star"></i> YOUR PICK</span>' : ''}
-                  ${skillChip(item)}
-                  ${item.trust_flags ? `<span class="px-1.5 py-0.2 bg-amber-50 text-amber-700 font-bold border border-amber-200 rounded text-[10px] ml-1 flex items-center gap-0.5" title="${escapeHtml(item.trust_flags)}"><i class="ph ph-warning"></i> NOTE</span>` : ''}
-                </div>
-                <div class="text-xs font-bold text-slate-800 mt-0.5">${escapeHtml(item.company_name || 'Company')}</div>
-              </div>
-            </div>
-
-            <button 
-              type="button" 
-              class="w-8 h-8 shrink-0 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 transition"
-              onclick="event.stopPropagation(); toggleBookmark('${escapeHtml(item.id)}')"
-              title="Bookmark opportunity"
-            >
-              <i class="ph ${isBookmarked ? 'ph-fill ph-bookmark text-rose-500' : 'ph-bookmark'} text-base"></i>
-            </button>
+      <article class="jb-card${selected === item.id ? ' is-selected' : ''}" data-id="${id}" tabindex="0" role="button"
+        aria-label="${escapeHtml(item.role_title || 'Internship')} at ${escapeHtml(item.company_name || 'company')}"
+        onclick="openDetailDrawer('${id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailDrawer('${id}')}">
+        <div class="jb-logo" style="background:${logo.color}" aria-hidden="true">${logo.initials}</div>
+        <div class="min-w-0">
+          <h3 class="jb-card-title">${escapeHtml(item.role_title || 'Internship')}</h3>
+          <div class="jb-card-meta">${meta}</div>
+          <div class="jb-tags">
+            ${isNewToday(item) ? '<span class="jb-tag jb-tag-new">New</span>' : ''}
+            ${stipendTag(item)}
+            ${verdictTag(item)}
+            ${isPreferred(item) ? '<span class="jb-tag jb-tag-pick"><i class="ph ph-star"></i>Your pick</span>' : ''}
+            ${skillTag(item)}
+            ${item.trust_flags ? `<span class="jb-tag jb-tag-warn" title="${escapeHtml(item.trust_flags)}"><i class="ph ph-warning"></i>Note</span>` : ''}
           </div>
-
-          <!-- Role Title -->
-          <h3 class="text-base font-bold text-slate-900 leading-snug line-clamp-2 group-hover:text-orange-600 transition-colors mt-2">
-            ${escapeHtml(item.role_title || 'Internship Opportunity')}
-          </h3>
-          
-          <!-- Location and Duration -->
-          <div class="text-xs text-slate-500 mt-1.5 flex items-center gap-2 font-medium">
-            <span class="flex items-center gap-1"><i class="ph ph-map-pin text-slate-400"></i> ${escapeHtml(item.location || 'Location not stated')}</span>
-            <span>&bull;</span>
-            <span>${escapeHtml(item.duration || 'Duration not stated')}</span>
-          </div>
-
-          <!-- Uniform Neutral Tech Stack Pills -->
-          <div class="flex flex-wrap gap-1.5 mt-4">
-            ${skills.map(skill => `<span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[11px] font-semibold border border-slate-200/60">${escapeHtml(skill)}</span>`).join('')}
-          </div>
+          <div class="jb-source">${escapeHtml(item.source_platform || '')}</div>
         </div>
-
-        <!-- Footer: Clean Stipend Readout & Consistent Dark CTA -->
-        <div class="pt-4 mt-5 border-t border-slate-100 flex items-center justify-between text-xs">
-          <div>
-            <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Stipend</div>
-            <div class="font-extrabold text-slate-900 text-sm mt-0.5">${escapeHtml(item.stipend || 'Not stated')}</div>
-          </div>
-          <div>
-            <!-- Consistent Sleek Dark Slate Button Across All Cards -->
-            <span class="px-3 py-1.5 bg-slate-900 text-white font-semibold rounded-lg group-hover:bg-orange-600 transition flex items-center gap-1 text-xs">
-              <span>View Details</span>
-              <i class="ph ph-arrow-right text-xs"></i>
-            </span>
-          </div>
-        </div>
-      </article>
-    `;
+        <button type="button" class="jb-save${saved ? ' on' : ''}" aria-pressed="${saved}" aria-label="${saved ? 'Remove from saved' : 'Save'}"
+          onclick="event.stopPropagation(); toggleBookmark('${id}')">
+          <i class="ph ${saved ? 'ph-fill ph-bookmark-simple' : 'ph-bookmark-simple'}"></i>
+        </button>
+      </article>`;
   }).join('');
+
+  // wide screens: the panel always shows a post (the one open, else the best match)
+  if (isWide()) {
+    const keep = selected && items.some(i => i.id === selected);
+    if (!keep) openDetailDrawer(items[0].id, { quiet: true });
+  }
+}
+
+function showDetailPlaceholder() {
+  activeDrawerJob = null;
+  document.getElementById('detail-empty')?.classList.remove('hidden');
 }
 
 // ==========================================
 // 4. Slide-Over Detail Drawer
 // ==========================================
-function openDetailDrawer(id) {
+function openDetailDrawer(id, opts) {
   const item = allInternships.find(i => i.id === id);
   if (!item) return;
+  const quiet = opts && opts.quiet;
 
   activeDrawerJob = item;
+  document.getElementById('detail-empty')?.classList.add('hidden');
+  document.querySelectorAll('.jb-card.is-selected').forEach(c => c.classList.remove('is-selected'));
+  document.querySelector(`.jb-card[data-id="${CSS.escape(String(id))}"]`)?.classList.add('is-selected');
+  const logoBox = document.getElementById('drawer-logo');
+  if (logoBox) { const lg = logoFor(item.company_name); logoBox.innerHTML = lg.initials; logoBox.style.background = lg.color; }
+  const body = document.getElementById('detail-body');
+  if (body) body.scrollTop = 0;
   document.getElementById('drawer-role-title').innerText = item.role_title || 'Opportunity';
   document.getElementById('drawer-company-name').innerText = item.company_name || '';
   document.getElementById('drawer-location').innerText = item.location || 'Location not stated';
@@ -458,7 +463,7 @@ function openDetailDrawer(id) {
   document.getElementById('drawer-deadline').innerText = item.application_deadline || 'Not stated';
   document.getElementById('drawer-source').innerText = item.source_platform || '';
   document.getElementById('drawer-date').innerText = item.date_scraped || '';
-  document.getElementById('drawer-org-badge').innerText = item.org_type || 'Company';
+  document.getElementById('drawer-org-badge').innerText = item.org_type || (item.source_platform ? `Posted on ${item.source_platform}` : '');
 
   const applyLink = document.getElementById('drawer-apply-link');
   applyLink.href = safeUrl(item.apply_link);
@@ -466,7 +471,7 @@ function openDetailDrawer(id) {
   // n8n verdict with its reasons
   const modBox = document.getElementById('drawer-mod-box');
   const view = MOD_VIEWS[item.moderation_status || ''] || MOD_VIEWS[''];
-  modBox.className = `p-3 rounded-lg border text-xs ${view.box}`;
+  modBox.className = `p-3.5 rounded-xl border text-xs ${view.box}`;
   const risk = item.scam_risk !== '' && item.scam_risk != null && !isNaN(Number(item.scam_risk)) ? ` · scam risk ${Math.round(Number(item.scam_risk) * 100)}%` : '';
   document.getElementById('drawer-mod-title').innerText = `${view.label}${risk}`;
   const reasons = String(item.moderation_reasons || '').split(' | ').map(r => r.trim()).filter(Boolean);
@@ -515,6 +520,7 @@ function openDetailDrawer(id) {
   }
 
   updateDrawerBookmarkIcon();
+  if (quiet || isWide()) return;   // wide screens: the panel is already beside the list
 
   const overlay = document.getElementById('detail-drawer-overlay');
   const drawer = document.getElementById('detail-drawer');
@@ -533,7 +539,8 @@ function updateDrawerBookmarkIcon() {
   const btn = document.getElementById('drawer-bookmark-btn');
   if (!btn || !activeDrawerJob) return;
   const isBookmarked = bookmarks.includes(activeDrawerJob.id);
-  btn.innerHTML = `<i class="ph ${isBookmarked ? 'ph-fill ph-bookmark text-rose-500' : 'ph-bookmark text-slate-600'} text-base"></i>`;
+  btn.innerHTML = `<i class="ph ${isBookmarked ? 'ph-fill ph-bookmark-simple text-rose-500' : 'ph-bookmark-simple'} text-lg"></i>`;
+  btn.setAttribute('aria-label', isBookmarked ? 'Remove from saved' : 'Save');
 }
 
 // ==========================================
@@ -610,6 +617,7 @@ function bindEventHandlers() {
   document.getElementById('mod-filter')?.addEventListener('change', (e) => {
     activeModeration = e.target.value;
     applyFiltersAndRender();
+    updateViewNote();
   });
 
   // Dropdown 1: Role Type
@@ -668,17 +676,10 @@ function bindEventHandlers() {
     });
   });
 
-  // Saved Bookmarks Button
-  document.getElementById('filter-bookmarks-btn')?.addEventListener('click', () => {
-    showBookmarkedOnly = !showBookmarkedOnly;
-    const btn = document.getElementById('filter-bookmarks-btn');
-    if (showBookmarkedOnly) {
-      btn.classList.add('bg-rose-50', 'text-rose-600', 'border-rose-200');
-    } else {
-      btn.classList.remove('bg-rose-50', 'text-rose-600', 'border-rose-200');
-    }
-    applyFiltersAndRender();
-  });
+  // Show: this search / last 3 days / saved
+  document.querySelectorAll('.jb-view').forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.view)));
+  document.getElementById('empty-recent-btn')?.addEventListener('click', () => setView('recent'));
+  document.getElementById('empty-search-btn')?.addEventListener('click', () => document.getElementById('trigger-scrape-btn')?.click());
 
   // Reset Filters Function
   const resetAll = () => {
@@ -705,8 +706,6 @@ function bindEventHandlers() {
     const modSelect = document.getElementById('mod-filter');
     if (modSelect) modSelect.value = 'verified';
     
-    const bookmarkBtn = document.getElementById('filter-bookmarks-btn');
-    if (bookmarkBtn) bookmarkBtn.classList.remove('bg-rose-50', 'text-rose-600', 'border-rose-200');
 
     const allTab = document.querySelector('#location-tabs [data-val="all"]');
     if (allTab) {
@@ -721,6 +720,7 @@ function bindEventHandlers() {
     }
 
     applyFiltersAndRender();
+    updateViewNote();
   };
 
   document.getElementById('reset-filters-btn')?.addEventListener('click', resetAll);
@@ -735,7 +735,7 @@ function bindEventHandlers() {
     if (location.pathname !== link.pathname || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
     closeDetailDrawer();
-    document.getElementById('filter-menu')?.classList.add('hidden');
+    setFilterMenu(false);
     goHome();
   });
   document.getElementById('detail-drawer-overlay')?.addEventListener('click', (e) => {
@@ -1365,17 +1365,21 @@ function updateProfileUI() {
   const initials = (profile.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
   if (avatar && !avatar.dataset.photo) avatar.innerHTML = initials ? escapeHtml(initials) : '<i class="ph ph-user text-lg"></i>';
   if (box) {
-    const exp = { '0': '0 years experience (unpaid shown)', '1-2': '1–2 years experience (paid only)', '3+': '3+ years experience (paid only)' }[profile.experience] || '';
-    const picks = (profile.companies || []).length ? ` · Preferred: ${profile.companies.map(escapeHtml).join(', ')}` : '';
-    const prefs = [
-      Number(profile.min_stipend) > 0 ? `₹${Number(profile.min_stipend).toLocaleString('en-IN')}+ / month` : '',
-      profile.work_mode === 'remote' ? 'remote only' : profile.work_mode === 'office' ? 'office / hybrid' : '',
-      profile.max_duration && profile.max_duration !== 'any' ? `up to ${profile.max_duration} months` : '',
-      (profile.skills || []).length ? `ranked by your ${profile.skills.length} skills` : '',
-    ].filter(Boolean).map(t => ` · ${t}`).join('');
-    box.innerHTML = `<i class="ph ph-user-focus text-base text-orange-500"></i>
-      <span>Showing <b class="text-slate-900">${escapeHtml(field)}</b> internships · ${exp}${prefs}${picks}</span>
-      <button type="button" class="ml-auto text-orange-600 hover:underline" onclick="openProfileModal(false)">Edit profile</button>`;
+    const year = profile.study_year ? `${profile.study_year}${{ 1: 'st', 2: 'nd', 3: 'rd' }[profile.study_year] || 'th'} year` : '';
+    const exp = { '0': 'No experience yet', '1-2': '1–2 years experience', '3+': '3+ years experience' }[profile.experience] || '';
+    const lines = [
+      (profile.roles || []).length ? `Roles: ${profile.roles.slice(0, 3).map(escapeHtml).join(', ')}${profile.roles.length > 3 ? '…' : ''}` : '',
+      (profile.skills || []).length ? `${profile.skills.length} skills used for ranking` : 'Add skills to rank posts better',
+      Number(profile.min_stipend) > 0 ? `₹${Number(profile.min_stipend).toLocaleString('en-IN')}+ a month` : '',
+      profile.work_mode === 'remote' ? 'Remote only' : profile.work_mode === 'office' ? 'Office / hybrid' : '',
+      profile.max_duration && profile.max_duration !== 'any' ? `Up to ${profile.max_duration} months` : '',
+      (profile.companies || []).length ? `Preferred: ${profile.companies.slice(0, 3).map(escapeHtml).join(', ')}` : '',
+    ].filter(Boolean);
+    box.innerHTML = `<div class="jb-label">Ranked for you</div>
+      <div class="text-sm font-extrabold text-slate-900 leading-snug">${escapeHtml(field)}</div>
+      <div class="text-xs text-slate-500 font-semibold mt-0.5">${[year, exp].filter(Boolean).join(' · ')}</div>
+      <ul class="mt-2.5 space-y-1 text-xs text-slate-600 font-medium">${lines.map(l => `<li class="flex gap-1.5"><i class="ph ph-check text-orange-500 mt-0.5"></i><span>${l}</span></li>`).join('')}</ul>
+      <button type="button" class="mt-3 w-full glass-btn py-2 text-xs flex items-center justify-center gap-1.5" onclick="openProfileModal(false)"><i class="ph ph-pencil-simple"></i>Edit profile</button>`;
     box.classList.remove('hidden');
   }
 }
@@ -1399,7 +1403,7 @@ function setFilterMenu(open) {
   if (!menu || !btn) return;
   menu.classList.toggle('hidden', !open);
   btn.setAttribute('aria-expanded', String(open));
-  if (open) menu.querySelector('select')?.focus();
+  if (open) menu.querySelector('button, select')?.focus();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1410,7 +1414,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setFilterMenu(false);
     document.getElementById('filter-menu-btn')?.focus();
   });
-  document.addEventListener('click', (e) => { if (wrap && !wrap.contains(e.target)) setFilterMenu(false); });
+  document.addEventListener('click', (e) => {
+    if (wrap && !wrap.contains(e.target) && !e.target.closest('#filter-menu-btn')) setFilterMenu(false);
+  });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setFilterMenu(false); });
   updateFilterCount();
 });
@@ -1565,16 +1571,27 @@ function updateHeldUI(c) {
   const n = document.getElementById('held-count');
   if (n) n.textContent = held;
   const btn = document.getElementById('load-more-btn');
+  const bar = document.getElementById('search-more-bar');
   if (!btn) return;
   // only this search's posts: the automatic update's posts go through the same check in the background
   const inFlight = viewRun
     ? allInternships.filter(r => r.last_run === viewRun && ['', 'checking'].includes(r.moderation_status || '')).length
     : (c.pending || 0) + (c.checking || 0);
   if (loadMoreBusy && inFlight === 0) loadMoreBusy = false;   // the 5 have been judged
+  // the bar belongs to a search on screen; it stays out of the way otherwise
+  const showBar = canEdit && !showBookmarkedOnly && !showAllSaved && !!viewRun && !freshVisit;
+  if (bar) bar.classList.toggle('hidden', !showBar);
+  const title = document.getElementById('queue-title'), sub = document.getElementById('queue-sub');
+  if (title && sub) {
+    if (loadMoreBusy) { title.innerHTML = `Checking ${inFlight} post${inFlight === 1 ? '' : 's'}…`; sub.textContent = 'The ones that pass join the end of the list in about half a minute.'; }
+    else if (held) { title.innerHTML = `<span id="held-count">${held}</span> more found`; sub.textContent = 'They join the list after the scam check.'; }
+    else { title.innerHTML = '<span id="held-count">0</span> waiting'; sub.textContent = 'Everything found so far has been checked. Search the same sites again for new posts.'; }
+  }
+  btn.classList.toggle('hidden', !held && !loadMoreBusy);
   const label = btn.querySelector('span');
   btn.disabled = loadMoreBusy || held === 0;
   btn.classList.toggle('opacity-60', btn.disabled);
-  label.textContent = loadMoreBusy ? `Checking ${inFlight}…` : (held ? 'Load 5 more' : 'Nothing waiting');
+  label.textContent = loadMoreBusy ? 'Checking…' : 'Check next 5';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1616,23 +1633,37 @@ function plainReason(r) {
 // ==========================================
 // 17. One search at a time: note above the list, "Show all saved" toggle
 // ==========================================
-function updateViewNote() {
-  const el = document.getElementById('view-note');
-  if (!el) return;
-  if (!viewRun && !freshVisit) { el.classList.add('hidden'); return; }
-  const m = viewRun.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
-  const when = m ? `${m[4]}:${m[5]}` : '';
-  const back = freshVisit ? 'Hide them' : 'Back to my latest search';
-  const now = freshVisit ? 'Nothing searched in this visit yet.' : `Showing results of your latest search${when ? ` (started ${when})` : ''}.`;
-  el.innerHTML = showAllSaved
-    ? `<span>Showing <b class="text-slate-900">every result checked in the last few days</b>, from all searches.</span> <button type="button" class="text-orange-600 hover:underline font-bold" id="view-toggle">${back}</button>`
-    : `<span>${now}</span> <button type="button" class="text-orange-600 hover:underline font-bold" id="view-toggle">Show recent results</button>`;
-  el.classList.remove('hidden');
-  document.getElementById('view-toggle').onclick = () => {
-    showAllSaved = !showAllSaved; displayOrder.clear();
-    applyFiltersAndRender(); updateViewNote();
-  };
+function setView(v) {
+  showBookmarkedOnly = v === 'saved';
+  showAllSaved = v === 'recent';
+  displayOrder.clear();
+  if (window.matchMedia('(max-width: 1023px)').matches) setFilterMenu(false);
+  applyFiltersAndRender(); updateViewNote();
 }
+
+function updateViewNote() {
+  const view = showBookmarkedOnly ? 'saved' : showAllSaved ? 'recent' : 'search';
+  document.querySelectorAll('.jb-view').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === view)));
+  const m = (viewRun || '').match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
+  const when = m ? `${m[4]}:${m[5]}` : '';
+  const title = { search: 'Internships for you', recent: 'Last 3 days', saved: 'Saved' }[view];
+  const check = activeModeration === 'verified' ? ' Every post here passed the scam check.' : '';
+  const sub = {
+    search: freshVisit ? 'Nothing searched yet in this visit.' : `From your search${when ? ` at ${when}` : ''}.${check}`,
+    recent: `Everything checked in the last 3 days, from all searches.${check}`,
+    saved: 'Posts you saved on this account.',
+  }[view];
+  const t = document.getElementById('list-title'), s2 = document.getElementById('list-sub');
+  if (t) t.textContent = title;
+  if (s2) s2.textContent = sub;
+  updateHeldUI(lastModCounts || {});
+}
+// crossing 1280px: the side panel needs a post in it
+let wasWide = isWide();
+window.addEventListener('resize', () => {
+  const wide = isWide();
+  if (wide !== wasWide) { wasWide = wide; if (wide) applyFiltersAndRender(); }
+});
 document.addEventListener('DOMContentLoaded', updateViewNote);
 
 
