@@ -214,9 +214,11 @@ def collapse_copies(results):
 
 HELD = {}   # source -> new listings left for "Search more" in the current run
 RUN_TAG = {"value": ""}   # tag of the current search (set by the dashboard)
-# New listings are saved as "held" (not sent to the scam check while sites are still being searched).
-# When a new search ends, app.release_first_batch sends the first 10 by itself; after that the
-# student clicks "Load 5 more". INITIAL_RELEASE > 0 would instead send that many as each site finishes.
+# New listings are saved as "held". A NEW search sends its first FIRST_SHOW to the scam check by
+# itself, as each site finishes (config["first_show"], set by app.py); everything else waits for
+# "Load 5 more". The command line and "Search more" send nothing by themselves.
+FIRST_SHOW = 10
+PER_SITE_MAX = 15   # new posts kept per site and search; ~2x that are read (sites/budget.py)
 INITIAL_RELEASE = 0
 _release = {"left": INITIAL_RELEASE}
 import threading as _threading
@@ -236,9 +238,11 @@ def process_and_save(source_name: str, raw_listings: list, max_new: int = None):
     res = sync_listings(valid_listings, dropped_ids, max_new, hold=True, run_tag=RUN_TAG["value"])
     released = 0
     with _release_lock:
+        # a new search's first results: as each site finishes, its posts top the batch up to 10,
+        # so the first ones are on screen while the slower sites are still being searched
         if _release["left"] > 0 and res["added"]:
             from output_handler import release_held
-            released = release_held(_release["left"])
+            released = release_held(_release["left"], RUN_TAG["value"])
             _release["left"] -= released
     HELD[source_name] = res.get("held", 0)
     if not valid_listings:
@@ -408,11 +412,19 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
         limit = int(config.get("limit") or 0)
     except (TypeError, ValueError):
         limit = 0
-    per_site = max(3, math.ceil(limit / len(scrapers_to_run))) if limit > 0 else None
+    per_site = min(PER_SITE_MAX, max(3, math.ceil(limit / len(scrapers_to_run)))) if limit > 0 else None
     HELD.clear()
-    _release["left"] = INITIAL_RELEASE
+    _release["left"] = int(config.get("first_show") or INITIAL_RELEASE) if not dry_run else 0
+    from sites import budget
+    if per_site and not dry_run:
+        from output_handler import load_log
+        budget.start(per_site * 2, load_log().get("seen_ids", []))   # a margin for posts the checks drop
+    else:
+        budget.stop()
 
-    workers = 1 if len(scrapers_to_run) == 1 else min(3, len(scrapers_to_run))
+    # Every site at once (25 Oct, was 3 at a time): the fast ones (Cutshort, AICTE, Unstop) finish in
+    # seconds instead of queueing behind Internshala. The Chrome-window sites still take turns.
+    workers = len(scrapers_to_run)
     if workers > 1:
         logger.info(f"⚡ {len(scrapers_to_run)} sites, {workers} at a time")
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -431,6 +443,7 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
                     RUN_PROGRESS["sites"].append({"source": name, "added": 0, "ok": False,
                                                   "error": str(e).splitlines()[0][:160]})
 
+    budget.stop()
     if not dry_run:
         update_run_history(total_added, failed_sources)
         

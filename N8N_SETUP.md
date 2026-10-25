@@ -111,8 +111,8 @@ LLM quote was discounted, and the webhook trigger from the app worked.
   Internshala while Naukri is still being scraped.
 - Each run **claims** up to 120 listings (`pending?claim=1` marks them "checking"), so two runs that overlap
   never check the same listing. A claim that is not finished in 15 minutes is released.
-- Embeddings: chunks of many posts go into one `batchEmbedContents` call (≤90 texts). LLM judge: 8 posts per
-  call, one result per post id, then split and verified post by post.
+- Embeddings: chunks of many posts go into one `batchEmbedContents` call (≤90 texts). LLM judge: 5 posts per
+  call, two calls at once, one result per post id, then split and verified post by post.
 - Dashboard shows **Verified only** by default and reloads as verdicts arrive; the header shows how many are
   being checked or waiting.
 - Measured with a fake Gemini: 106 listings, two overlapping runs, all judged in 25 s. With the real free tier

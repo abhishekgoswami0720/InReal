@@ -33,44 +33,56 @@ def test_the_app_never_starts_the_automatic_update():
     assert "autopilot.start(" not in main
 
 
-def _fake_search(n_per_site):
-    """A stand-in for the scrapers: saves held posts from two sites under the search's tag."""
+
+def test_only_a_new_search_asks_for_its_first_10(monkeypatch):
+    """25 Oct: the list stayed empty behind a button after a search. A new search now sends its
+    first 10 to the scam check by itself; "Search more" (which carries the search's tag) doesn't."""
+    seen = []
+    monkeypatch.setattr(app_mod, "run_scrapers", lambda **kw: seen.append(dict(kw["config"])))
+    c = app_mod.app.test_client()
+    app_mod.scraper_t = None
+    tag = c.post("/api/scrape", json={"sources": ["unstop"], "field": "software"}).get_json()["run_tag"]
+    app_mod.scraper_t.join(2)
+    app_mod.scraper_t = None
+    c.post("/api/scrape", json={"sources": ["unstop"], "field": "software", "run_tag": tag})
+    app_mod.scraper_t.join(2)
+    assert seen[0].get("first_show") == 10 and not seen[1].get("first_show")
+
+
+def test_first_10_go_out_as_sites_finish_and_only_from_this_search(tmp_path, monkeypatch):
     import output_handler as oh
-
-    def run(dry_run=False, config=None, **kw):
-        rows = [{"id": f"{site}-{config['run_tag']}-{i}", "company_name": "Acme", "role_title": "Software Intern",
-                 "apply_link": f"https://example.com/{site}/{i}", "source_platform": site, "description": "x" * 400}
-                for site in ("Unstop", "Shine") for i in range(n_per_site)]
-        oh.sync_listings(rows, [], hold=True, run_tag=config["run_tag"])
-    return run
-
-
-def test_a_new_search_shows_its_first_10_without_a_click(tmp_path, monkeypatch):
-    """25 Oct: the list stayed empty behind a button after a search; now the first 10 go to the
-    scam check when the search ends. "Search more" still waits for "Load 5 more"."""
-    import output_handler as oh
+    import scraper
     monkeypatch.setattr(oh, "CSV_FILE", tmp_path / "internships.csv")
     monkeypatch.setattr(oh, "LOG_FILE", tmp_path / "internships_log.json")
     monkeypatch.setattr("sites.details.fill_details", lambda rows, n: None)
-    sent = []
-    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": sent.append(source))
-    monkeypatch.setattr(app_mod, "run_scrapers", _fake_search(8))
-    c = app_mod.app.test_client()
+    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    monkeypatch.setattr(scraper, "evaluate", lambda src, raw: [(dict(r), True, "") for r in raw])
+    row = lambda i, site: {"id": f"{site}{i}", "company_name": "Acme", "role_title": "Software Intern",
+                           "apply_link": f"https://example.com/{site}/{i}", "source_platform": site, "description": "x" * 400}
+    oh.sync_listings([row(i, "Old") for i in range(5)], [], hold=True, run_tag="earlier")   # another search's posts
+    scraper.RUN_TAG["value"] = "now"
+    scraper._release["left"] = 10
+    try:
+        scraper.process_and_save("cutshort", [row(i, "Cutshort") for i in range(4)])     # fast site: all 4 go now
+        sent = [r for r in oh.read_all_rows() if r["moderation_status"] != "held"]
+        assert len(sent) == 4 and {r["source_platform"] for r in sent} == {"Cutshort"}
+        scraper.process_and_save("unstop", [row(i, "Unstop") for i in range(9)])          # tops the batch up to 10
+        sent = [r for r in oh.read_all_rows() if r["moderation_status"] != "held"]
+        assert len(sent) == 10 and all(r["last_run"] == "now" for r in sent)
+        scraper.process_and_save("shine", [row(i, "Shine") for i in range(5)])            # nothing more by itself
+        assert sum(r["moderation_status"] != "held" for r in oh.read_all_rows()) == 10
+    finally:
+        scraper._release["left"] = 0
+        scraper.RUN_TAG["value"] = ""
 
-    app_mod.scraper_t = None
-    tag = c.post("/api/scrape", json={"sources": ["unstop", "shine"], "field": "software"}).get_json()["run_tag"]
-    app_mod.scraper_t.join(5)
-    rows = [r for r in oh.read_all_rows() if r.get("last_run") == tag]
-    checking = [r for r in rows if r["moderation_status"] != "held"]   # released: waiting for n8n
-    assert len(rows) == 16 and len(checking) == 10
-    assert {r["source_platform"] for r in checking} == {"Unstop", "Shine"}   # mixed, not one site's ten
-    assert sent == ["first results"]
 
-    # "Search more" adds to the same search and sends nothing by itself
-    app_mod.scraper_t = None
-    monkeypatch.setattr(app_mod, "run_scrapers", _fake_search(12))
-    c.post("/api/scrape", json={"sources": ["unstop", "shine"], "field": "software", "run_tag": tag})
-    app_mod.scraper_t.join(5)
-    rows = [r for r in oh.read_all_rows() if r.get("last_run") == tag]
-    assert sum(r["moderation_status"] != "held" for r in rows) == 10 and sent == ["first results"]
-    assert len(rows) == 24   # 8 more per site; the first 16 were found again, not added twice
+def test_a_site_stops_reading_once_it_has_enough():
+    from sites import budget
+    recs = [{"id": f"r{i}"} for i in range(30)]
+    budget.start(10, seen_ids=["r0", "r1"])
+    try:
+        assert budget.take(recs)[0]["id"] == "r2" and len(budget.take(recs)) == 10   # saved ones skipped
+        assert budget.enough(recs[:12]) and not budget.enough(recs[:11])
+    finally:
+        budget.stop()
+    assert budget.take(recs) == recs and not budget.enough(recs)                      # no target: no limit

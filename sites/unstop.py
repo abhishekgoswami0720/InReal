@@ -26,6 +26,7 @@ from playwright_stealth import Stealth
 
 from filters import calculate_match_score
 from scraper_utils import get_playwright_stealth_args, human_delay
+from sites import budget
 
 BASE = "https://unstop.com"
 LIST_PAGE = "https://unstop.com/internships"
@@ -197,7 +198,7 @@ def scrape_unstop():
         # Open the real page first so the site sets its cookies, like a normal visit
         logger.info(f"Opening Unstop: {LIST_PAGE}")
         page.goto(LIST_PAGE, timeout=45000, wait_until="domcontentloaded")
-        human_delay(2.0, 3.5)
+        human_delay(1.0, 1.5)
 
         api_ok = False
         last_page = 1
@@ -217,6 +218,9 @@ def scrape_unstop():
             all_internships.extend(new)
             logger.info(f"Unstop API page {page_num}/{last_page}: {len(records)} open, {len(new)} new")
             page_num += 1
+            # a page has 250 posts of every field; about 1 in 4 fits the field searched
+            if budget.enough(all_internships, factor=4):
+                break
             human_delay(1.0, 2.0)
 
         if not api_ok:

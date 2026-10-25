@@ -26,6 +26,7 @@ from playwright_stealth import Stealth
 
 from filters import calculate_match_score, internship_rejection_reason
 from scraper_utils import get_playwright_stealth_args, human_delay
+from sites import budget
 
 BASE = "https://apna.co"
 SEARCH = BASE + "/jobs?search=true&text={q}&page={page}"
@@ -140,7 +141,10 @@ def scrape_apna():
 
         import fields
         queries = QUERIES if fields.current() == fields.DEFAULT else [f"{t} internship" for t in fields.search_terms()]
+        apna_wanted = lambda r: internship_rejection_reason(r["role_title"], [], "apna") is None
         for q in queries:
+            if budget.enough([r for r in all_internships if apna_wanted(r)]):
+                break   # enough new ones for this search (sites/budget.py)
             for n in range(1, PAGES_PER_QUERY + 1):
                 url = SEARCH.format(q=urllib.parse.quote(q), page=n)
                 try:
@@ -154,15 +158,15 @@ def scrape_apna():
                 seen.update(r["id"] for r in new)
                 all_internships.extend(new)
                 logger.info(f"Apna '{q}' page {n}: {len(records)} cards, {len(new)} new")
-                human_delay(1.5, 2.5)
-                if len(records) < 25:
+                if len(records) < 25 or budget.enough([r for r in all_internships if apna_wanted(r)]):
                     break
+                human_delay(1.5, 2.5)
 
         if not all_internships:
             browser.close()
             raise RuntimeError("Apna: no job cards on any search page")
 
-        wanted = [r for r in all_internships if internship_rejection_reason(r["role_title"], [], "apna") is None][:MAX_DETAILS]
+        wanted = budget.take([r for r in all_internships if apna_wanted(r)])[:MAX_DETAILS]
         logger.info(f"Apna: reading {len(wanted)} job pages for the genuineness checks")
         for rec in wanted:
             try:
@@ -175,4 +179,4 @@ def scrape_apna():
             human_delay(0.5, 1.0)
 
         browser.close()
-    return all_internships
+    return wanted if budget.target() else all_internships

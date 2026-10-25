@@ -3,9 +3,9 @@
 // up to BATCH posts with their stage-0/1 findings as leads to verify. The answer is a fixed
 // JSON schema with one result per post id, and every quote must be copied word for word,
 // because the next node throws away any quote it can't find in THAT post.
-// 300 posts = ~38 calls instead of 300. Works with Azure OpenAI (gpt-4o) or Gemini (Config: judgeProvider).
+// 300 posts = 60 calls instead of 300. Works with Azure OpenAI (gpt-4o) or Gemini (Config: judgeProvider).
 
-const BATCH = 8;
+const BATCH = 5;   // 25 Oct (was 8): smaller calls answer faster and run two at a time
 
 const CATEGORIES = ["upfront_fee", "task_scam", "data_harvest", "off_platform_contact",
   "too_good_to_be_true", "pressure", "training_sale", "mlm", "none"];

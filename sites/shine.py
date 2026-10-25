@@ -25,6 +25,7 @@ from playwright_stealth import Stealth
 
 from filters import calculate_match_score, internship_rejection_reason
 from scraper_utils import get_playwright_stealth_args, human_delay
+from sites import budget
 
 BASE = "https://www.shine.com"
 SEARCH = "https://www.shine.com/job-search/ai-machine-learning-internship-jobs"
@@ -142,6 +143,10 @@ def parse_detail_page(html: str) -> dict:
     return {}
 
 
+def _shine_wanted(r):
+    return internship_rejection_reason(r["role_title"], r["required_skills"].split(", "), "shine") is None
+
+
 def scrape_shine():
     all_internships = []
     seen = set()
@@ -169,13 +174,11 @@ def scrape_shine():
             seen.update(r["id"] for r in new)
             all_internships.extend(new)
             logger.info(f"Shine page {n}: {len(records)} cards, {len(new)} new")
-            if not new:
+            if not new or budget.enough([r for r in all_internships if _shine_wanted(r)]):
                 break
             human_delay(1.5, 3.0)
 
-        wanted = [r for r in all_internships
-                  if internship_rejection_reason(r["role_title"], r["required_skills"].split(", "), "shine") is None]
-        wanted = wanted[:MAX_DETAILS]
+        wanted = budget.take([r for r in all_internships if _shine_wanted(r)])[:MAX_DETAILS]
         logger.info(f"Shine: reading {len(wanted)} job pages for the genuineness checks")
         for rec in wanted:
             try:
@@ -191,4 +194,4 @@ def scrape_shine():
             human_delay(0.5, 1.2)
 
         browser.close()
-    return all_internships
+    return wanted if budget.target() else all_internships

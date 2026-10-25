@@ -23,6 +23,7 @@ from playwright_stealth import Stealth
 
 from filters import calculate_match_score, internship_rejection_reason, stipend_rejection_reason
 from scraper_utils import get_playwright_stealth_args, human_delay
+from sites import budget
 
 BASE = "https://internshala.com"
 URLS = [
@@ -205,6 +206,8 @@ def scrape_internshala():
 
         base_urls, max_pages = urls_for_field()
         for base_url in base_urls:
+            if budget.enough([r for r in all_internships if _wanted(r)]):
+                break   # enough new ones for this search (sites/budget.py)
             for page_num in range(1, max_pages + 1):
                 url = f"{base_url}page-{page_num}/" if page_num > 1 else base_url
                 logger.info(f"Scraping Internshala: {url}")
@@ -223,12 +226,12 @@ def scrape_internshala():
                 all_internships.extend(new)
                 logger.info(f"Internshala page {page_num}: {len(records)} cards, {len(new)} new")
 
-                if is_last or not new:
+                if is_last or not new or budget.enough([r for r in all_internships if _wanted(r)]):
                     break
                 human_delay(1.5, 3.0)
 
         # Detail pages: only for listings that pass the cheap filters
-        wanted = [r for r in all_internships if _wanted(r)]
+        wanted = budget.take([r for r in all_internships if _wanted(r)])
         logger.info(f"Internshala: reading {len(wanted)} detail pages for genuineness checks")
         for i, rec in enumerate(wanted, 1):
             try:
@@ -244,4 +247,5 @@ def scrape_internshala():
 
         browser.close()
 
-    return all_internships
+    # with a target, only the posts whose job page was read (the rest stay unseen for "Search more")
+    return wanted if budget.target() else all_internships

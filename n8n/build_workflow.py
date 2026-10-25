@@ -96,9 +96,9 @@ def build():
             assignment("judgeProvider", "azure", "string"),
             assignment("azureJudgeUrl", "https://inreal1907.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview", "string"),
             assignment("judgeModel", "gemini-3.5-flash-lite", "string"),
-            # 5 per run, picked round-robin across sites by the app: one embedding call + one judge call,
-            # so a run takes ~20 s and the next one starts by itself (13 Oct night; was 120, then 30)
-            assignment("batchLimit", 5, "number"),
+            # 10 per run (25 Oct, was 5): a new search's first 10 are judged in ONE run, two judge calls
+            # side by side, instead of two runs one after the other (13 Oct night: was 120, then 30)
+            assignment("batchLimit", 10, "number"),
             assignment("blockAt", 0.7, "number"),
             assignment("reviewAt", 0.4, "number"),
             # empty = use the thresholds measured by build_index.py
@@ -124,10 +124,12 @@ def build():
         if_node("Stage 1 conclusive?", [1040, 400], "={{ $json.gate.decision }}", ["block"]),
         code_node("Blocked at stage 1", [1280, 220], "_verdict_lib.js", "stage1_verdict.js"),
         code_node("Pack judge mini-batches", [1280, 520], "judge_prompt.js", all_items=True),
-        # gpt-4o deployment: 50k tokens/min; one call of 8 posts is ~6-7k tokens, so 8 s apart
-        http("LLM judge (8 posts per call)", [1500, 520],
+        # gpt-4o deployment: 50k tokens/min. 5 posts per call is ~4-5k tokens; 2 calls at once, 1 s apart
+        # (25 Oct, was 8 posts per call and 8 s apart): 10 posts in ~10 s, at most ~45k tokens a minute
+        # even when a big "Load more" queue runs flat out
+        http("LLM judge (5 posts per call)", [1500, 520],
              f"={{{{ {CFG}.judgeProvider === 'azure' ? {CFG}.azureJudgeUrl : {CFG}.geminiBase + '/v1beta/models/' + {CFG}.judgeModel + ':generateContent' }}}}",
-             method="POST", body_expr="={{ JSON.stringify($json.judgeRequest) }}", judge_cred=True, batch=(1, 8000),
+             method="POST", body_expr="={{ JSON.stringify($json.judgeRequest) }}", judge_cred=True, batch=(2, 1000),
              timeout=60000),
         code_node("Verify evidence + fuse scores", [1720, 520], "_verdict_lib.js", "fuse.js", all_items=True),
         http("Save verdict", [1960, 300], f"={{{{ {CFG}.flaskBase }}}}/api/moderation/verdict",
@@ -139,7 +141,7 @@ def build():
             "**0. Rules** – where the apply link redirects, WhatsApp/Telegram/UPI/free-mail in the post\n"
             "**1. Vector search** – each sentence vs a bank of known scam phrases *and* honest phrases "
             "(moderation/scam_patterns.json). Near-copies of high-risk scams are blocked here.\n"
-            "**2. One-shot LLM judge (gpt-4o on Azure)** – 8 posts per call, fixed JSON schema, must quote each post. Quotes are checked "
+            "**2. One-shot LLM judge (gpt-4o on Azure)** – 5 posts per call (2 at once), fixed JSON schema, must quote each post. Quotes are checked "
             "against the real text and the score is fused with stages 0–1, so the LLM can't block a post alone.\n"
             "Verdicts go back to the dashboard: approved / review / blocked / expired."), 520, 300),
         sticky("Stage 1 note", [360, 620], (
@@ -158,8 +160,8 @@ def build():
         c("Vector search vs scam patterns", "Stage 1 conclusive?"),
         c("Stage 1 conclusive?", "Blocked at stage 1", 0), c("Stage 1 conclusive?", "Pack judge mini-batches", 1),
         c("Blocked at stage 1", "Save verdict"),
-        c("Pack judge mini-batches", "LLM judge (8 posts per call)"),
-        c("LLM judge (8 posts per call)", "Verify evidence + fuse scores"), c("Verify evidence + fuse scores", "Save verdict"),
+        c("Pack judge mini-batches", "LLM judge (5 posts per call)"),
+        c("LLM judge (5 posts per call)", "Verify evidence + fuse scores"), c("Verify evidence + fuse scores", "Save verdict"),
     ]
     connections = {}
     for a, b, out in links:

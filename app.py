@@ -144,20 +144,11 @@ def get_internships():
         print(f"Error reading CSV: {e}")
         return jsonify([])
 
-# A new search shows its first internships without a click: when the scraping ends, the first
-# FIRST_SHOW posts (mixed across the sites searched) go to the scam check by themselves.
+# A new search shows its first internships without a click: as each site finishes, its posts top
+# up a batch of FIRST_SHOW that goes to the scam check by itself (scraper.process_and_save).
 # "Load 5 more" then sends the rest, 5 at a time. "Search more" adds to the same search and
 # waits for "Load 5 more" as before. (25 Oct: the list sat empty behind a "Check next 5" button.)
-FIRST_SHOW = 10
-
-
-def release_first_batch(run_tag: str) -> int:
-    from output_handler import release_held
-    released = release_held(FIRST_SHOW, run_tag)
-    if released:
-        from moderation.notify import notify_n8n
-        notify_n8n("first results")
-    return released
+from scraper import FIRST_SHOW
 
 
 @app.route("/api/scrape", methods=["POST"])
@@ -203,9 +194,9 @@ def trigger_scrape():
             if autopilot.busy():   # never two scrapers at once: they share Chrome and the list
                 print("Queued search dropped: the automatic update did not stop in time")
                 return
-        run_scrapers(dry_run=False, config=cfg)   # calls n8n after each site (moderation/notify.py)
         if new_search:
-            release_first_batch(cfg.get("run_tag", ""))
+            cfg["first_show"] = FIRST_SHOW   # the first 10 go to the scam check as sites finish
+        run_scrapers(dry_run=False, config=cfg)   # calls n8n after each site (moderation/notify.py)
 
     scraper_t = threading.Thread(target=scrape_job, args=(config,), daemon=True)
     scraper_t.start()

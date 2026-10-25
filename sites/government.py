@@ -29,6 +29,7 @@ from loguru import logger
 
 from filters import calculate_match_score
 from scraper_utils import human_delay
+from sites import budget
 
 BASE = "https://internship.aicte-india.org"
 API = BASE + "/api/v1/catalogue/internships?{query}&sort=best&page={page}&pageSize=60"
@@ -118,6 +119,8 @@ def scrape_government():
     searches = SEARCHES if fields.current() == fields.DEFAULT else (
         [f"q={urllib.parse.quote(t)}" for t in fields.search_terms()] + [s for s in SEARCHES if s.startswith("category=")])
     for query in searches:
+        if budget.enough(all_internships, factor=3):
+            break   # enough new ones for this search (sites/budget.py)
         for page in range(1, MAX_PAGES + 1):
             url = API.format(query=query, page=page)
             try:

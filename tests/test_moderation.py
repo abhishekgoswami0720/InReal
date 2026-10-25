@@ -281,20 +281,20 @@ def test_judge_batches_split_per_post():
     items = [{"id": f"x{i}", "stage1": {"categories": []}, "signals": [], "signal_risk": 0,
               "listing": _listing(f"x{i}", SCAM_TEXT if i == 3 else CLEAN_TEXT)} for i in range(10)]
     packed = js("judge_prompt.js", "packJudge", items)
-    assert [len(b["posts"]) for b in packed] == [8, 2]
+    assert [len(b["posts"]) for b in packed] == [5, 5]
     prompt = packed[0]["judgeRequest"]["contents"][-1]["parts"][0]["text"]
-    assert prompt.count("POST x") == 8 and "results" in json.dumps(packed[0]["judgeRequest"]["generationConfig"])
+    assert prompt.count("POST x") == 5 and "results" in json.dumps(packed[0]["judgeRequest"]["generationConfig"])
 
     def answer(batch, drop=None):
         res = [{"id": p["id"], **mock_gemini.judge("Text: " + p["listing"]["description"])} for p in batch["posts"] if p["id"] != drop]
         return {"candidates": [{"content": {"parts": [{"text": json.dumps({"results": res})}]}}]}
 
-    out = js("_verdict_lib.js,fuse.js", "fuseBatches", packed, [answer(packed[0], drop="x5"), {"error": {"code": 500}}],
+    out = js("_verdict_lib.js,fuse.js", "fuseBatches", packed, [answer(packed[0], drop="x4"), {"error": {"code": 500}}],
              {"blockAt": 0.7, "reviewAt": 0.4})
     v = {o["verdict"]["id"]: o["verdict"] for o in out}
     assert len(v) == 10
     assert v["x3"]["parts"]["verified_quotes"] == 1 and v["x0"]["status"] == "approved"
-    assert v["x5"]["decided_by"] == "vector_search" and "no result for this post" in v["x5"]["reasons"][0]
+    assert v["x4"]["decided_by"] == "vector_search" and "no result for this post" in v["x4"]["reasons"][0]
     assert v["x9"]["decided_by"] == "vector_search"                       # whole second call failed
 
 

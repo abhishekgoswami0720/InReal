@@ -364,14 +364,13 @@ function renderListings(items) {
     const runHeld = runRows.filter(r => r.moderation_status === 'held').length;
     if (viewRun && !showAllSaved && !showBookmarkedOnly && !freshVisit && !runChecked) {
       // nothing judged yet in this search: the filters are not the reason, say what is happening
-      if (scrapeRunning) {
-        title = 'Searching the sites…';
-        text = runRows.length
-          ? `${runRows.length} found so far. When the search ends, the first 10 go through the scam check and show up here by themselves.`
-          : 'When the search ends, the first 10 internships go through the scam check and show up here by themselves.';
-      } else if (runChecking) {
+      if (runChecking) {
         title = `Checking ${runChecking} internship${runChecking === 1 ? '' : 's'} for scams…`;
-        text = 'Usually under a minute. They show up here by themselves.';
+        text = scrapeRunning ? 'They show up here in a few seconds. The slower sites are still being searched.'
+                             : 'They show up here in a few seconds.';
+      } else if (scrapeRunning) {
+        title = 'Searching the sites…';
+        text = 'The first internships show up here as soon as the fastest sites finish and pass the scam check.';
       } else if (runHeld) {
         title = `${runHeld} found, not checked yet`;
         text = 'Use "Load 5 more" below to put them through the scam check.';
@@ -1025,6 +1024,7 @@ function dotColor(item) {
 
 // Reload the cards whenever n8n has judged more listings (it runs while scraping continues)
 let lastJudged = -1;
+let modPollMs = 5000;
 async function pollModeration() {
   try {
     const c = await fetch('/api/moderation/status').then(r => r.json());
@@ -1035,8 +1035,9 @@ async function pollModeration() {
     const q = document.getElementById('mod-queue');
     if (q) q.innerText = waiting ? `${c.checking} being checked · ${c.pending} waiting` : '';
     if (judged !== lastJudged) { lastJudged = judged; loadData(); }
+    modPollMs = waiting ? 1500 : 5000;   // verdicts on their way: look often so they show up at once
   } catch (e) { /* app restarting */ }
-  setTimeout(pollModeration, 5000);
+  setTimeout(pollModeration, modPollMs);
 }
 
 
