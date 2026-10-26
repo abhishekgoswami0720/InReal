@@ -34,6 +34,7 @@ let showAllSaved = false;
 let freshVisit = true;
 // The search on screen, exactly as it was asked for: "Search more" repeats it on the same sites only
 let lastSearch = null;
+let restoredRun = '';   // the search remembered from an earlier visit, until the first loadData checks it
 function startNewView(tag) {
   if (!tag) return;
   viewRun = tag; showAllSaved = false; freshVisit = false;
@@ -166,6 +167,7 @@ function startDashboard() {
   // a refresh keeps the last search of this browser on screen (26 Oct: the list went empty and the
   // results were only under "Last 3 days"); loadData drops it if it has been pruned
   freshVisit = !viewRun;
+  restoredRun = viewRun;   // checked once, by the first loadData
   if (viewRun && profile) lastSearch = { field: profile.field, sources: (profile.sources || []).slice(), regions: (profile.regions || []).slice(), run_tag: viewRun };
   updateViewNote();
   startSession();
@@ -186,10 +188,16 @@ async function loadData() {
     const res = await fetch('/api/internships');
     const data = await res.json();
     allInternships = data || [];
-    if (viewRun && !allInternships.some(r => r.last_run === viewRun)) {   // that search was pruned
-      viewRun = ''; freshVisit = true; lastSearch = null;
-      try { localStorage.removeItem(VIEW_KEY); } catch (e) {}
-      updateViewNote();
+    // A search remembered from an earlier visit may have been pruned: forget it. Only on the first
+    // load after the page opens (26 Oct: this ran during a new search too, before its first site was
+    // saved, so the page forgot the search and stayed on "Nothing searched yet" the whole time)
+    if (restoredRun) {
+      if (viewRun === restoredRun && !allInternships.some(r => r.last_run === viewRun) && !scrapeRunning) {
+        viewRun = ''; freshVisit = true; lastSearch = null;
+        try { localStorage.removeItem(VIEW_KEY); } catch (e) {}
+        updateViewNote();
+      }
+      restoredRun = '';
     }
     announceNewlyVerified(allInternships);
 
