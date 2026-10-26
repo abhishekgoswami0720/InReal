@@ -21,6 +21,7 @@ const sb = (USER_MODE && window.supabase && CFG.supabaseUrl && CFG.supabaseKey)
 let BOOKMARK_KEY = 'inreal_bookmarks';
 let bookmarks = JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]');
 let activeDrawerJob = null;
+let hiddenByProfile = 0;   // posts the profile's rules hide right now (applyFiltersAndRender)
 let scrapeRunning = false;   // a search is scraping the sites right now (/api/scrape/status)
 let canEdit = true;
 // The search on screen: Search Internships starts a new one and the list shows only its results
@@ -69,17 +70,32 @@ function durationMonths(item) {
   if (!m) return null;
   return /week/i.test(m[2]) ? Number(m[1]) / 4.3 : Number(m[1]);
 }
+// The profile's rules show up as chips under Filters (26 Oct: they hid 34 of 36 posts while the
+// Filters panel said nothing was on). A chip's ✕ switches that rule off for this visit only.
+const prefsOff = { stipend: false, mode: false, duration: false, paid: false };
+function profileRules(p) {
+  if (!p) return [];
+  const out = [];
+  if (p.experience && p.experience !== '0') out.push({ key: 'paid', label: 'Paid only' });
+  if (Number(p.min_stipend || 0) > 0) out.push({ key: 'stipend', label: `₹${Number(p.min_stipend).toLocaleString('en-IN')}+ a month` });
+  if (p.work_mode === 'remote') out.push({ key: 'mode', label: 'Remote only' });
+  if (p.work_mode === 'office') out.push({ key: 'mode', label: 'Office / hybrid only' });
+  if (p.max_duration && p.max_duration !== 'any') out.push({ key: 'duration', label: `Up to ${p.max_duration} months` });
+  return out;
+}
+const activeProfileRules = () => profileRules(profile).filter(r => !prefsOff[r.key]);
+
 function failsPreferences(item, p) {
-  const min = Number(p.min_stipend || 0);
+  const min = prefsOff.stipend ? 0 : Number(p.min_stipend || 0);
   if (min > 0) {
     if (isUnpaid(item)) return true;
     const num = Number(item.stipend_numeric || 0);
     const inr = !item.stipend_currency || /inr|₹|rs/i.test(String(item.stipend_currency));
     if (num > 0 && inr && num < min) return true;
   }
-  if (p.work_mode === 'remote' && !isRemotePost(item)) return true;
-  if (p.work_mode === 'office' && isRemotePost(item)) return true;
-  if (p.max_duration && p.max_duration !== 'any') {
+  if (!prefsOff.mode && p.work_mode === 'remote' && !isRemotePost(item)) return true;
+  if (!prefsOff.mode && p.work_mode === 'office' && isRemotePost(item)) return true;
+  if (!prefsOff.duration && p.max_duration && p.max_duration !== 'any') {
     const months = durationMonths(item);
     if (months && months > Number(p.max_duration) + 0.01) return true;
   }
@@ -147,8 +163,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function startDashboard() {
   initProfile();
-  try { localStorage.removeItem('inreal_view_run'); } catch (e) {}
-  viewRun = '';
+  // a refresh keeps the last search of this browser on screen (26 Oct: the list went empty and the
+  // results were only under "Last 3 days"); loadData drops it if it has been pruned
+  freshVisit = !viewRun;
+  if (viewRun && profile) lastSearch = { field: profile.field, sources: (profile.sources || []).slice(), regions: (profile.regions || []).slice(), run_tag: viewRun };
+  updateViewNote();
   startSession();
   pollScraperStatus();
   pollAlerts();
@@ -167,6 +186,11 @@ async function loadData() {
     const res = await fetch('/api/internships');
     const data = await res.json();
     allInternships = data || [];
+    if (viewRun && !allInternships.some(r => r.last_run === viewRun)) {   // that search was pruned
+      viewRun = ''; freshVisit = true; lastSearch = null;
+      try { localStorage.removeItem(VIEW_KEY); } catch (e) {}
+      updateViewNote();
+    }
     announceNewlyVerified(allInternships);
 
     populateSourceFilter(allInternships);
@@ -232,7 +256,7 @@ function applyFiltersAndRender() {
   const searchInput = document.getElementById('search-input');
   const searchQuery = (searchInput ? searchInput.value : '').toLowerCase().trim();
 
-  const matches = (item, ignoreLocation) => {
+  const matches = (item, ignoreLocation, ignoreProfile) => {
     // only this visit's search (saved posts are always reachable through "Saved")
     if (!showAllSaved && !showBookmarkedOnly) {
       if (freshVisit) return false;
@@ -241,8 +265,8 @@ function applyFiltersAndRender() {
     if (showBookmarkedOnly && !bookmarks.includes(item.id)) return false;
 
     // The student's profile: only their field, and unpaid posts only for 0 years of experience
-    if (profile) {
-      if (profile.experience !== '0' && isUnpaid(item)) return false;
+    if (profile && !ignoreProfile) {
+      if (profile.experience !== '0' && !prefsOff.paid && isUnpaid(item)) return false;
       if (failsPreferences(item, profile)) return false;
     }
 
@@ -303,7 +327,9 @@ function applyFiltersAndRender() {
   const score = new Map(filtered.map(item => [item.id, matchScore(item)]));
   filtered.sort((a, b) => (score.get(b.id) - score.get(a.id))
                           || (displayOrder.get(a.id) - displayOrder.get(b.id)));
+  hiddenByProfile = profile ? allInternships.filter(item => matches(item, false, true)).length - filtered.length : 0;
   renderOverviewStats(filtered, base);
+  renderProfileRules();
   updateFilterCount();
   renderListings(filtered);
 }
@@ -395,6 +421,10 @@ function renderListings(items) {
     } else if (activeModeration === 'verified' && inReview && !filtersOn) {
       title = 'Nothing verified yet';
       text = `${inReview} post${inReview === 1 ? ' was' : 's were'} checked but need${inReview === 1 ? 's' : ''} a second look. Set "Scam check" in Filters to "Verified + needs a look" to see ${inReview === 1 ? 'it' : 'them'}.`;
+    } else if (hiddenByProfile && !filtersOn) {
+      title = `Your profile hides all ${hiddenByProfile} of them`;
+      text = `Your preferences (${activeProfileRules().map(r => r.label).join(', ')}) leave nothing to show. Turn them off here for now, or change them in your profile.`;
+      reset = true;
     } else if (filtersOn) {
       title = 'Nothing matches these filters';
       text = 'Try another location or stipend, or clear the filters.';
@@ -461,6 +491,33 @@ function renderListings(items) {
     if (!keep) openDetailDrawer(items[0].id, { quiet: true });
   }
 }
+
+function renderProfileRules() {
+  const box = document.getElementById('profile-rules');
+  const rules = profileRules(profile);
+  if (box) {
+    box.classList.toggle('hidden', !rules.length);
+    document.getElementById('profile-rule-chips').innerHTML = rules.map(r => prefsOff[r.key]
+      ? `<button type="button" class="jb-rule off" data-rule="${r.key}" title="Turn this back on">${escapeHtml(r.label)}</button>`
+      : `<button type="button" class="jb-rule" data-rule="${r.key}" title="Turn off for now (your profile stays the same)">${escapeHtml(r.label)}<i class="ph ph-x"></i></button>`).join('');
+  }
+  const note = document.getElementById('hidden-note');
+  if (note) {
+    note.classList.toggle('hidden', !hiddenByProfile);
+    note.innerHTML = hiddenByProfile
+      ? ` · <b class="text-slate-700">${hiddenByProfile}</b> hidden by your profile <button type="button" class="text-orange-600 font-bold hover:underline" data-show-all-rules>Show them</button>` : '';
+  }
+}
+function setProfileRules(off) {
+  profileRules(profile).forEach(r => { prefsOff[r.key] = off; });
+  displayOrder.clear();
+  applyFiltersAndRender();
+}
+document.addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-rule]');
+  if (chip) { prefsOff[chip.dataset.rule] = !prefsOff[chip.dataset.rule]; displayOrder.clear(); applyFiltersAndRender(); return; }
+  if (e.target.closest('[data-show-all-rules]')) setProfileRules(true);
+});
 
 function showDetailPlaceholder() {
   activeDrawerJob = null;
@@ -722,6 +779,7 @@ function bindEventHandlers() {
     activeStipend = 'all';
     activeSource = 'all';
     activeRoleType = 'all';
+    profileRules(profile).forEach(r => { prefsOff[r.key] = true; });   // shows everything; the profile itself is unchanged
     showBookmarkedOnly = false;
     
     const roleSelect = document.getElementById('role-type-filter');
@@ -1496,7 +1554,7 @@ function updateProfileUI() {
 // ==========================================
 function updateFilterCount() {
   const n = [activeRoleType !== 'all', activeLocation !== 'all', activeStipend !== 'all',
-             activeSource !== 'all', activeModeration !== 'verified'].filter(Boolean).length;
+             activeSource !== 'all', activeModeration !== 'verified'].filter(Boolean).length + activeProfileRules().length;
   const badge = document.getElementById('filter-count');
   if (!badge) return;
   badge.textContent = n;

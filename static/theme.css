@@ -370,6 +370,12 @@ html.dark .bg-gradient-to-br.from-white\/90 { background-image: linear-gradient(
 .jb-chip.pill-segmented-item:hover { border-color: #FDBA74; color: #0F172A; }
 .jb-chip.pill-segmented-item.active { background: #0F172A; border-color: #0F172A; color: #fff; box-shadow: none; }
 
+.jb-rule { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px 6px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #FFF7ED; color: #9A3412; border: 1px solid #FED7AA; transition: background .15s, opacity .15s; }
+.jb-rule i { font-size: 12px; opacity: .7; }
+.jb-rule:hover { background: #FFEDD5; }
+.jb-rule.off { background: transparent; color: #94A3B8; border-style: dashed; border-color: #CBD5E1; text-decoration: line-through; padding-right: 11px; }
+html.dark .jb-rule { background: rgba(249, 115, 22, .14); color: #FDBA74; border-color: rgba(249, 115, 22, .4); }
+html.dark .jb-rule.off { background: transparent; color: #64748B; border-color: #334155; }
 .jb-searchbar { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-radius: 14px; background: #fff; border: 1px solid #E2E8F0; box-shadow: 0 2px 8px -4px rgba(15, 23, 42, .08); transition: border-color .15s, box-shadow .15s; }
 .jb-searchbar:focus-within { border-color: #F97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, .15); }
 
