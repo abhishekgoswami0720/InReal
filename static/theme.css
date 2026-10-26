@@ -336,9 +336,10 @@ html.dark .bg-gradient-to-br.from-white\/90 { background-image: linear-gradient(
 /* ───────────────────────── Dashboard: job-board layout (templates/index.html) ─────────────────────────
    Phones: one column, filters open from a button, the post slides in.
    1024px+: filters on the left.  1280px+: the open post stays beside the list. */
-.jb { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; --side: 250px; --detail: minmax(380px, 440px); }
-@media (min-width: 1024px) { .jb { grid-template-columns: var(--side) minmax(0, 1fr); gap: 24px; transition: grid-template-columns .3s cubic-bezier(.16, 1, .3, 1); } }
-@media (min-width: 1280px) { .jb { --side: 240px; grid-template-columns: var(--side) minmax(0, 1fr) var(--detail); } }
+.jb { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; --side-open: 250px; --side: var(--side-open); --detail: 420px; }
+/* plain lengths on both ends, so the browser animates the width (minmax() would jump) */
+@media (min-width: 1024px) { .jb { grid-template-columns: var(--side) minmax(0, 1fr); gap: 24px; transition: grid-template-columns .45s cubic-bezier(.65, 0, .35, 1); } }
+@media (min-width: 1280px) { .jb { --side-open: 240px; grid-template-columns: var(--side) minmax(0, 1fr) var(--detail); } }
 /* folded panels: a 44px strip each (Power BI style), remembered per browser (app_radar.js: panels) */
 @media (min-width: 1024px) { .jb.side-collapsed { --side: 44px; } }
 @media (min-width: 1280px) { .jb.detail-collapsed { --detail: 44px; } }
@@ -474,15 +475,29 @@ html.dark .jb-fact-v { color: #F8FAFC; }
 .jb-rail-label { writing-mode: vertical-rl; letter-spacing: .04em; }
 .jb-fold { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #64748B; font-size: 15px; transition: background .15s, color .15s; flex: none; }
 .jb-fold:hover { background: #F1F5F9; color: #0F172A; }
+/* Folding: the column narrows while the panel's content slides out and fades (it keeps its own
+   width, so it is clipped instead of squeezed); then the strip fades in. Opening runs it backwards. */
 @media (min-width: 1024px) {
   .jb-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #64748B; }
-  .jb.side-collapsed .jb-filters { display: none !important; }
-  .jb.side-collapsed .jb-side > .jb-rail { display: flex; min-height: 220px; }
+  .jb-side { overflow-x: hidden; }
+  .jb-filters { width: var(--side-open); transition: opacity .3s ease .15s, transform .45s cubic-bezier(.16, 1, .3, 1) .1s, visibility 0s; }
+  .jb.side-collapsed .jb-side { overflow: hidden; }
+  .jb.side-collapsed .jb-filters { opacity: 0; transform: translateX(-36px); visibility: hidden; pointer-events: none;
+    transition: opacity .18s ease, transform .35s cubic-bezier(.65, 0, .35, 1), visibility 0s .35s; }
+  .jb-side > .jb-rail { display: flex; position: absolute; top: 0; left: 0; z-index: 2; min-height: 220px; opacity: 0; visibility: hidden; transform: translateX(-12px) scale(.96);
+    transition: opacity .15s ease, transform .2s ease, visibility 0s .2s; }
+  .jb.side-collapsed .jb-side > .jb-rail { opacity: 1; visibility: visible; transform: none;
+    transition: opacity .3s ease .3s, transform .4s cubic-bezier(.16, 1, .3, 1) .3s, visibility 0s; }
 }
 @media (min-width: 1280px) {
   .jb-fold-detail, .jb-detail-empty-head .jb-fold { display: inline-flex; }
-  .jb.detail-collapsed .jb-detail > :not(.jb-rail) { display: none !important; }
-  .jb.detail-collapsed .jb-detail > .jb-rail { display: flex; height: 100%; border: 0; border-radius: 0; }
+  .jb-detail > #detail-body, .jb-detail > #detail-actions, .jb-detail > #detail-empty { width: 420px; }
+  .jb-detail > :not(.jb-rail) { transition: opacity .3s ease .15s, transform .45s cubic-bezier(.16, 1, .3, 1) .1s; }
+  .jb.detail-collapsed .jb-detail > :not(.jb-rail) { opacity: 0; transform: translateX(40px); pointer-events: none;
+    transition: opacity .18s ease, transform .35s cubic-bezier(.65, 0, .35, 1); }
+  .jb-detail > .jb-rail { display: flex; position: absolute; inset: 0; z-index: 2; width: 100%; border: 0; border-radius: 0; opacity: 0; visibility: hidden;
+    transition: opacity .15s ease, visibility 0s .15s; }
+  .jb.detail-collapsed .jb-detail > .jb-rail { opacity: 1; visibility: visible; transition: opacity .3s ease .3s, visibility 0s; }
 }
 .jb-detail-empty-head { position: absolute; top: 12px; left: 18px; right: 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #94A3B8; }
 .jb-detail-empty { position: relative; }
@@ -496,4 +511,4 @@ html.dark .jb-rail:hover { background: #1A2230; border-color: #FB923C; color: #F
 html.dark .jb-fold:hover { background: #1C2433; color: #F1F5F9; }
 html.dark .jb-ghost { border-color: #334155; }
 html.dark .jb-ghost i { background: #1C2433; }
-@media (prefers-reduced-motion: reduce) { .jb { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .jb, .jb-filters, .jb-side > .jb-rail, .jb-detail > * { transition: none !important; } }
