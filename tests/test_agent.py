@@ -112,3 +112,10 @@ def test_quotes_count_whatever_way_the_page_address_is_written():
           {"source": "https://acme-labs.example/about", "quote": "Acme Labs never asks for money"}]
     good = A.verified_evidence(ev, src)
     assert [e["quote"] for e in good] == [ev[0]["quote"], ev[1]["quote"], ev[2]["quote"]]
+
+
+def test_the_link_check_can_be_quoted_as_written():
+    out = {"url": "https://forms.gle/abc123", "final_url": "https://forms.gle/abc123", "final_domain": "forms.gle",
+           "http_status": 404, "link_state": "dead", "summary": "Final URL: forms.gle, HTTP status: 404, link state: dead"}
+    ev = [{"source": "https://forms.gle/abc123", "quote": "Final URL: forms.gle, HTTP status: 404, link state: dead"}]
+    assert A.verified_evidence(ev, A.collect_sources([out])) == ev

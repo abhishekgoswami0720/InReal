@@ -106,7 +106,11 @@ def tool_search(query: str) -> dict:
 def tool_open_link(url: str) -> dict:
     from moderation.link_check import resolve
     out = resolve(url)
-    return {k: out.get(k) for k in ("url", "final_url", "final_domain", "chain", "http_status", "link_state", "closed_phrase")}
+    res = {k: out.get(k) for k in ("url", "final_url", "final_domain", "chain", "http_status", "link_state", "closed_phrase")}
+    # one plain line the agent can quote word for word (26 Oct: it retold the JSON in its own words)
+    res["summary"] = (f"Final URL: {out.get('final_domain') or out.get('final_url')}, HTTP status: {out.get('http_status')}, "
+                      f"link state: {out.get('link_state')}" + (f", page says: {out['closed_phrase']}" if out.get("closed_phrase") else ""))
+    return res
 
 
 # ---------------------------------------------------------------- evidence check and decision
@@ -139,7 +143,7 @@ def collect_sources(tool_outputs: list) -> dict:
             add([hit.get("url")], f"{hit.get('title', '')} {hit.get('snippet', '')}")
         if out.get("final_url"):
             add([out.get("url"), out.get("final_url")],
-                " ".join(str(out.get(k) or "") for k in ("final_url", "final_domain", "link_state", "closed_phrase")))
+                " ".join(str(out.get(k) or "") for k in ("summary", "final_url", "final_domain", "link_state", "closed_phrase")))
     return {u: norm(t) for u, t in seen.items() if u}
 
 
