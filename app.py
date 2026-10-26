@@ -29,8 +29,25 @@ LOOPBACK = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
 PROTECTED = {"/api/scrape", "/api/clear", "/api/alerts/dismiss", "/api/session/new"}
 
 
-def is_local_request() -> bool:
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
+# Asked only by the laptop's own tools: tunnel visitors don't need the run log or autopilot state
+LOCAL_ONLY_READS = {"/api/logs", "/api/autopilot"}
+
+
+def _host_name() -> str:
+    """The Host header without its port: 'localhost', '127.0.0.1', '[::1]'."""
+    host = (request.host or "").lower()
+    return host.split("]")[0] + "]" if host.startswith("[") else host.split(":")[0]
+
+
+def _from_loopback() -> bool:
     return request.remote_addr in LOOPBACK and not any(request.headers.get(h) for h in PROXY_HEADERS)
+
+
+def is_local_request() -> bool:
+    # The Host must be the laptop's own name too. Without that, a website using DNS rebinding
+    # (evil.com pointed at 127.0.0.1) would reach the app from the browser as a "local" visitor.
+    return _from_loopback() and _host_name() in LOCAL_HOSTS
 
 
 def has_admin_token() -> bool:
@@ -40,13 +57,113 @@ def has_admin_token() -> bool:
     return bool(token) and hmac.compare_digest(sent, token)
 
 
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024   # no request body here needs more than a few KB
+app.config["JSON_SORT_KEYS"] = False
+
+
+def _refuse(message, code=403):
+    return jsonify({"status": "error", "message": message}), code
+
+
+@app.before_request
+def guard_hosts():
+    """DNS rebinding: a request that reaches the laptop directly (no tunnel in front) must name the
+    laptop itself. Extra names (a LAN setup) go in INREAL_ALLOWED_HOSTS, comma separated."""
+    if not _from_loopback():
+        return None
+    extra = {h.strip().lower() for h in os.environ.get("INREAL_ALLOWED_HOSTS", "").split(",") if h.strip()}
+    if _host_name() not in LOCAL_HOSTS | extra:
+        return _refuse("Unknown host name.", 400)
+    return None
+
+
+@app.before_request
+def guard_cross_site():
+    """CSRF: any website open in the same browser can send a plain form or image request to
+    localhost:5000. Browsers say where a request came from (Sec-Fetch-Site, Origin), and a page
+    on another site cannot add our X-InReal header without the browser asking first, which this
+    app never allows. Scripts and n8n (no browser headers) carry on as before."""
+    if not request.path.startswith("/api/"):
+        return None
+    site = request.headers.get("Sec-Fetch-Site", "")
+    if site in ("cross-site", "same-site"):
+        return _refuse("Requests from other websites are not allowed.")
+    origin = request.headers.get("Origin", "")
+    if origin and origin != "null":
+        from urllib.parse import urlparse
+        if (urlparse(origin).netloc or "").lower() != (request.host or "").lower():
+            return _refuse("Requests from other websites are not allowed.")
+    elif origin == "null":
+        return _refuse("Requests from other websites are not allowed.")
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        from_browser = bool(site or origin or request.headers.get("Sec-Fetch-Mode"))
+        if from_browser and request.headers.get("X-InReal") != "1" and not has_admin_token():
+            return _refuse("Missing the app's request header. Reload the page and try again.")
+    return None
+
+
 @app.before_request
 def guard_writes():
     path = request.path.rstrip("/")
     needs_admin = path.startswith("/api/moderation/") and path != "/api/moderation/status"
     needs_admin |= path in PROTECTED and request.method == "POST"
+    needs_admin |= path in LOCAL_ONLY_READS
     if needs_admin and not (is_local_request() or has_admin_token()):
-        return jsonify({"status": "error", "message": "This is a read-only public view. Run scrapes from the laptop."}), 403
+        return _refuse("This is a read-only public view. Run scrapes from the laptop.")
+    # claim=1 hands posts to the checker and changes their state: never from a plain GET in a browser
+    if path == "/api/moderation/pending" and request.args.get("claim") == "1" and request.headers.get("Sec-Fetch-Mode"):
+        return _refuse("Claiming posts is for the scam checker, not the browser.")
+    return None
+
+
+def _csp() -> str:
+    supa = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+    connect = ["'self'"] + ([supa, supa.replace("https://", "wss://", 1)] if supa.startswith("https://") else [])
+    return "; ".join([
+        "default-src 'self'",
+        # inline handlers need 'unsafe-inline'; 'unsafe-eval' stays until the Tailwind play CDN is replaced
+        # by a built CSS file (it could not be checked from here whether that script evaluates code).
+        # The real locks are below: no framing, no plugins, no <base> or form hijack, and the page can
+        # only send data to this app and Supabase.
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+        "font-src 'self' data: https://fonts.gstatic.com https://unpkg.com",
+        "img-src 'self' data: blob: https:",
+        "connect-src " + " ".join(connect),
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "object-src 'none'",
+    ])
+
+
+@app.after_request
+def security_headers(resp):
+    h = resp.headers
+    h.setdefault("X-Content-Type-Options", "nosniff")
+    h.setdefault("X-Frame-Options", "DENY")
+    h.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+    h.setdefault("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
+    if resp.mimetype == "text/html":
+        h.setdefault("Content-Security-Policy", _csp())
+    if request.path.startswith("/api/"):
+        h.setdefault("Cache-Control", "no-store")
+    if request.headers.get("X-Forwarded-Proto") == "https" or request.is_secure:
+        h.setdefault("Strict-Transport-Security", "max-age=31536000")
+    h.pop("Server", None)
+    return resp
+
+
+@app.errorhandler(413)
+def too_large(_e):
+    return _refuse("Request too large.", 413)
+
+
+@app.errorhandler(500)
+def server_error(_e):
+    # no stack traces or file paths to the browser; the details are in the console
+    return _refuse("Something went wrong on the server.", 500)
 
 
 @app.before_request
@@ -344,8 +461,8 @@ def get_logs():
             lines = f.readlines()
             # Return last N lines
             return jsonify({"logs": [l.strip() for l in lines[-75:]]})
-    except Exception as e:
-        return jsonify({"logs": [f"Error reading logs: {e}"]})
+    except Exception:
+        return jsonify({"logs": ["The log file could not be read."]})
 
 
 @app.route("/api/alerts")
@@ -358,8 +475,8 @@ def get_alerts():
         data = json.loads(alert_file.read_text(encoding="utf-8"))
         if data.get("resolved"):
             return jsonify({"alert": None})
-        # Auto-expire alerts older than 120 seconds
-        ts_str = data.get("timestamp", "")
+        # no time limit: the alert asks for an action in the Chrome window (it is cleared when the
+        # next search starts or "Done" is clicked)
         return jsonify({"alert": data})
     except Exception:
         return jsonify({"alert": None})
@@ -412,7 +529,8 @@ def clear_data():
             
         return jsonify({"status": "success", "message": "All past data has been securely deleted. You have a fresh slate!"})
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print(f"Clear failed: {e}")
+        return jsonify({"status": "error", "message": "Could not delete the data files (is one open in another program?)."}), 500
 
 
 def _hold_old_listings():
@@ -475,4 +593,4 @@ if __name__ == "__main__":
         host = os.environ.get("HOST", "127.0.0.1")
         shown = "localhost" if host in ("127.0.0.1", "0.0.0.0") else host
         print(f"InReal running on http://{shown}:{port}  (waitress, debug off)")
-        serve(app, host=host, port=port, threads=8)
+        serve(app, host=host, port=port, threads=8, ident="InReal")

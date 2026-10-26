@@ -146,13 +146,45 @@ def site():
     srv.shutdown()
 
 
-def test_link_check(site):
+def test_link_check(site, monkeypatch):
+    # a private address is refused for real (next test); here the test server on 127.0.0.1 stands in
+    import moderation.safe_http as sh
+    monkeypatch.setattr(sh, "public_host", lambda u: u.startswith(("http://127.0.0.1", "https://")))
     r = resolve(site + "/short")
     assert r["link_state"] == "ok" and r["final_url"].endswith("/job") and len(r["chain"]) == 2
     assert resolve(site + "/gone")["link_state"] == "dead"
     closed = resolve(site + "/old")
     assert closed["link_state"] == "closed" and "no longer accepting" in closed["closed_phrase"]
     assert resolve("not a url")["link_state"] == "invalid"
+
+
+def test_link_check_refuses_private_addresses(site):
+    """SSRF: a post's apply link must not make the laptop open itself, the router or cloud metadata."""
+    from moderation.safe_http import public_host
+    for bad in (site + "/job", "http://localhost:5000/api/clear", "http://192.168.1.1/", "http://10.0.0.5/",
+                "http://169.254.169.254/latest/meta-data/", "http://[::1]/", "http://[::ffff:127.0.0.1]/",
+                "http://100.64.0.1/", "http://0.0.0.0/", "file:///etc/passwd", "ftp://example.com/",
+                "http://good.com@127.0.0.1/", "http://2130706433/"):
+        assert not public_host(bad), bad
+        assert resolve(bad)["link_state"] == "invalid", bad
+    assert public_host("https://8.8.8.8/")
+
+
+def test_link_check_checks_every_redirect(site, monkeypatch):
+    """A public page that redirects into the home network is stopped before the second request."""
+    import moderation.safe_http as sh
+    asked = []
+    class R:
+        is_redirect = True
+        headers = {"location": "http://127.0.0.1:5000/api/clear"}
+        status_code = 302
+        def close(self): pass
+    def fake_get(url, **kw):
+        asked.append(url); assert kw["allow_redirects"] is False; return R()
+    monkeypatch.setattr(sh.requests, "get", fake_get)
+    monkeypatch.setattr(sh, "public_host", lambda u: "127.0.0.1" not in u)
+    out = resolve("https://jobs.example.com/apply")
+    assert out["link_state"] == "invalid" and asked == ["https://jobs.example.com/apply"]
 
 
 # ---------- n8n Code-node logic (run with node) ----------

@@ -470,8 +470,7 @@ function renderListings(items) {
     ].filter(Boolean).join('');
     return `
       <article class="jb-card${selected === item.id ? ' is-selected' : ''}" data-id="${id}" tabindex="0" role="button"
-        aria-label="${escapeHtml(item.role_title || 'Internship')} at ${escapeHtml(item.company_name || 'company')}"
-        onclick="openDetailDrawer('${id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetailDrawer('${id}')}">
+        aria-label="${escapeHtml(item.role_title || 'Internship')} at ${escapeHtml(item.company_name || 'company')}">
         <div class="jb-logo" style="background:${logo.color}" aria-hidden="true">${logo.initials}</div>
         <div class="min-w-0">
           <h3 class="jb-card-title">${escapeHtml(item.role_title || 'Internship')}</h3>
@@ -486,8 +485,7 @@ function renderListings(items) {
           </div>
           <div class="jb-source">${escapeHtml(item.source_platform || '')}</div>
         </div>
-        <button type="button" class="jb-save${saved ? ' on' : ''}" aria-pressed="${saved}" aria-label="${saved ? 'Remove from saved' : 'Save'}"
-          onclick="event.stopPropagation(); toggleBookmark('${id}')">
+        <button type="button" class="jb-save${saved ? ' on' : ''}" aria-pressed="${saved}" aria-label="${saved ? 'Remove from saved' : 'Save'}" data-save>
           <i class="ph ${saved ? 'ph-fill ph-bookmark-simple' : 'ph-bookmark-simple'}"></i>
         </button>
       </article>`;
@@ -499,6 +497,23 @@ function renderListings(items) {
     if (!keep) openDetailDrawer(items[0].id, { quiet: true });
   }
 }
+
+// Cards open and save through one listener reading data-id. (26 Oct security pass: the id used to be
+// pasted into onclick="openDetailDrawer('…')", and the browser turns &#39; back into a quote before
+// running it, so a post id with a quote in it could run its own script.)
+document.addEventListener('click', (e) => {
+  const card = e.target.closest('.jb-card[data-id]');
+  if (!card) return;
+  if (e.target.closest('[data-save]')) { e.stopPropagation(); toggleBookmark(card.dataset.id); return; }
+  openDetailDrawer(card.dataset.id);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const card = e.target.closest && e.target.closest('.jb-card[data-id]');
+  if (!card || e.target !== card) return;
+  e.preventDefault();
+  openDetailDrawer(card.dataset.id);
+});
 
 function renderProfileRules() {
   const box = document.getElementById('profile-rules');
@@ -1560,14 +1575,14 @@ function updateProfileUI() {
   const initials = (profile.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
   if (avatar && !avatar.dataset.photo) avatar.innerHTML = initials ? escapeHtml(initials) : '<i class="ph ph-user text-lg"></i>';
   if (box) {
-    const year = profile.study_year ? `${profile.study_year}${{ 1: 'st', 2: 'nd', 3: 'rd' }[profile.study_year] || 'th'} year` : '';
+    const year = profile.study_year ? `${escapeHtml(profile.study_year)}${{ 1: 'st', 2: 'nd', 3: 'rd' }[profile.study_year] || 'th'} year` : '';
     const exp = { '0': 'No experience yet', '1-2': '1–2 years experience', '3+': '3+ years experience' }[profile.experience] || '';
     const lines = [
       (profile.roles || []).length ? `Roles: ${profile.roles.slice(0, 3).map(escapeHtml).join(', ')}${profile.roles.length > 3 ? '…' : ''}` : '',
       (profile.skills || []).length ? `${profile.skills.length} skills used for ranking` : 'Add skills to rank posts better',
       Number(profile.min_stipend) > 0 ? `₹${Number(profile.min_stipend).toLocaleString('en-IN')}+ a month` : '',
       profile.work_mode === 'remote' ? 'Remote only' : profile.work_mode === 'office' ? 'Office / hybrid' : '',
-      profile.max_duration && profile.max_duration !== 'any' ? `Up to ${profile.max_duration} months` : '',
+      profile.max_duration && profile.max_duration !== 'any' ? `Up to ${escapeHtml(profile.max_duration)} months` : '',
       (profile.companies || []).length ? `Preferred: ${profile.companies.slice(0, 3).map(escapeHtml).join(', ')}` : '',
     ].filter(Boolean);
     box.innerHTML = `<div class="jb-label">Ranked for you</div>

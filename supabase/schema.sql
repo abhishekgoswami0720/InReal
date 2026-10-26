@@ -130,3 +130,27 @@ begin
 end; $$;
 revoke execute on function public.ensure_profile() from public, anon;
 grant execute on function public.ensure_profile() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Security pass (26 Oct 2026): least-privilege grants and profile size limits.
+-- RLS already blocks these writes; the grants are a second lock in case a policy
+-- is ever added by mistake (an INSERT policy would otherwise let anyone set is_admin).
+revoke all on public.listings from anon;
+revoke insert, update, delete, truncate, references, trigger on public.listings from authenticated;
+revoke all on public.bookmarks from anon;
+revoke update, truncate, references, trigger on public.bookmarks from authenticated;
+revoke all on public.profiles from anon;
+revoke insert, delete, truncate, references, trigger on public.profiles from authenticated;
+-- One account must not be able to fill the database through its own profile.
+alter table public.profiles drop constraint if exists profiles_name_len,
+  drop constraint if exists profiles_small_text, drop constraint if exists profiles_list_sizes,
+  drop constraint if exists profiles_stipend_range;
+alter table public.profiles
+  add constraint profiles_name_len check (char_length(name) <= 120),
+  add constraint profiles_small_text check (char_length(coalesce(field,'')) <= 60 and char_length(coalesce(experience,'')) <= 40
+      and char_length(coalesce(study_year,'')) <= 40 and char_length(coalesce(work_mode,'')) <= 40 and char_length(coalesce(max_duration,'')) <= 40),
+  add constraint profiles_list_sizes check (coalesce(cardinality(regions),0) <= 40 and coalesce(cardinality(sources),0) <= 40
+      and coalesce(cardinality(companies),0) <= 60 and coalesce(cardinality(roles),0) <= 40 and coalesce(cardinality(skills),0) <= 80),
+  add constraint profiles_stipend_range check (min_stipend is null or min_stipend between 0 and 10000000);
+drop function if exists public.is_pro();
+drop function if exists public.my_field();

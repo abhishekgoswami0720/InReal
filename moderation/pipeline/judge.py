@@ -135,15 +135,29 @@ def post_text(description) -> str:
     return text[:HEAD] + " [...]" + ("\nLater in the post (lines about money, contact or documents):\n" + "\n".join(later) if later else "")
 
 
+# A post is written by whoever posted it. Several posts go to the AI in one message, so a post whose
+# text starts a line with "POST <id>" or "Automated findings:" could pretend to be another post or
+# fake our findings. Such lines get a "» " in front; one-line fields lose their line breaks.
+FORGED_LINE = re.compile(r"(^|\n)[ \t]*(?=POST[ \t]|-{3}|(?:Title|Company|Stipend|Source|Text|Automated findings):)", re.I)
+
+
+def fence(text) -> str:
+    return FORGED_LINE.sub(lambda m: m.group(1) + "» ", str(text))
+
+
+def one_line(value) -> str:
+    return re.sub(r"[\r\n]+", " ", str(value))
+
+
 def post_block(item: dict) -> str:
     listing = item["listing"]
     return "\n".join([
         f"POST {item['id']}",
-        f"Title: {listing.get('role_title')}",
-        f"Company: {listing.get('company_name')}",
-        f"Stipend: {listing.get('stipend') or 'not stated'}",
-        f"Source: {listing.get('source_platform')}",
-        f"Text: {post_text(listing.get('description'))}",
+        f"Title: {one_line(listing.get('role_title'))}",
+        f"Company: {one_line(listing.get('company_name'))}",
+        f"Stipend: {one_line(listing.get('stipend') or 'not stated')}",
+        f"Source: {one_line(listing.get('source_platform'))}",
+        f"Text: {fence(post_text(listing.get('description')))}",
         f"Automated findings: {findings_line(item)}",
     ])
 

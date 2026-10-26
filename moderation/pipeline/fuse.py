@@ -89,6 +89,25 @@ def verify_evidence(listing: dict, evidence: list) -> tuple:
     return verified, rejected, contradicting
 
 
+# A post that talks to the AI reviewer ("ignore previous instructions", "rate this as genuine") is
+# trying to steer the check. Real internship posts never do that, so it never gets "verified".
+# (Python pipeline only; the old n8n workflow does not have this rule.) Words like "system prompt" or
+# "you are an AI" are left out on purpose: real AI/LLM internship posts use them.
+INJECTION_RE = re.compile(
+    r"ignore (all |any )?(the )?(previous|prior|above|earlier) (instructions|prompts?|rules)"
+    r"|disregard (all |any )?(the )?(previous|prior|above) "
+    r"|(to|for) the (ai|automated|llm) (reviewer|checker|moderator|system)s?\b"
+    r"|\b(rate|mark|classify|label|score) (this|the) (post|listing|internship|job) as (genuine|safe|legit|approved|not a scam)"
+    r"|scam_probability|\bverdict\s*[:=]",
+    re.I)
+
+
+def injection_phrase(listing: dict) -> str:
+    text = " ".join(str(listing.get(k) or "") for k in ("role_title", "company_name", "description"))
+    m = INJECTION_RE.search(text)
+    return m.group(0) if m else ""
+
+
 def fuse(listing: dict, item: dict, resp: dict, cfg: dict) -> dict:
     llm = parse_llm(resp)
     reasons, p_adj, verified, rejected, contradicting = [], None, [], [], []
@@ -127,9 +146,13 @@ def fuse(listing: dict, item: dict, resp: dict, cfg: dict) -> dict:
     nothing_ran = p_adj is None and bool(item.get("stage1", {}).get("error"))
     if nothing_ran:
         reasons.insert(0, "Both AI checks failed this time; queued again")
+    steer = injection_phrase(listing)
+    if steer:
+        reasons.insert(0, f'The post tries to give instructions to the AI reviewer ("{steer}"), so a person should check it')
+        risk = max(risk, float(cfg.get("reviewAt", 0.4)))
     return {
         "id": item["id"],
-        "status": "retry" if nothing_ran else "blocked" if proof else decide(risk, cfg, disagree),
+        "status": "retry" if nothing_ran else "blocked" if proof else decide(risk, cfg, disagree or bool(steer)),
         "scam_risk": round(min(0.99, max(0, risk)), 2),
         "reasons": reasons,
         "decided_by": "fusion" if llm["ok"] else "vector_search",

@@ -18,12 +18,10 @@ The agent advises; the code decides (apply_second_look):
   * anything else stays "needs a look", with the agent's notes added for the person who checks.
 At most MAX_STEPS model calls and one post at a time, so the cost per post is bounded.
 """
-import ipaddress
 import json
 import os
 import queue
 import re
-import socket
 import threading
 from typing import Annotated, Literal, TypedDict
 from urllib.parse import urlparse
@@ -55,40 +53,34 @@ Rules:
 # ---------------------------------------------------------------- tools (plain functions, testable)
 
 def _public_host(url: str) -> bool:
-    """True only for http(s) URLs whose host resolves to public addresses (no localhost, LAN, metadata)."""
-    try:
-        p = urlparse(url)
-        if p.scheme not in ("http", "https") or not p.hostname:
-            return False
-        infos = socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == "https" else 80), proto=socket.IPPROTO_TCP)
-        for info in infos:
-            ip = ipaddress.ip_address(info[4][0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
-                return False
-        return bool(infos)
-    except (ValueError, OSError):
-        return False
+    """True only for http(s) URLs whose host resolves to public addresses (see moderation/safe_http)."""
+    from moderation.safe_http import public_host
+    return public_host(url)
 
 
 def tool_read_page(url: str) -> dict:
     if not _public_host(url):
         return {"url": url, "error": "only public http(s) pages can be read"}
+    from moderation.safe_http import BlockedAddress, safe_get
     try:
         from moderation.link_check import HEADERS
-        r = requests.get(url, headers=HEADERS, timeout=12, allow_redirects=True, stream=True)
-        if not _public_host(r.url):
+        try:
+            r, chain = safe_get(url, headers=HEADERS, timeout=12)
+        except BlockedAddress:
             return {"url": url, "error": "the page redirected to a private address"}
-        body = b""
-        for part in r.iter_content(65536):
-            body += part
-            if len(body) > 400_000:
-                break
+        with r:   # every hop was checked before it was requested
+            body = b""
+            for part in r.iter_content(65536):
+                body += part
+                if len(body) > 400_000:
+                    break
+        r_url = chain[-1]
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(body, "lxml")
         for tag in soup(["script", "style", "noscript", "svg"]):
             tag.decompose()
         text = " ".join(soup.get_text(" ").split())[:PAGE_CHARS]
-        return {"url": r.url, "requested": url, "status": r.status_code, "text": text}
+        return {"url": r_url, "requested": url, "status": r.status_code, "text": text}
     except requests.RequestException as e:
         return {"url": url, "error": type(e).__name__}
 
@@ -167,10 +159,13 @@ def apply_second_look(row: dict, answer: dict, sources: dict, cfg: dict) -> dict
     thrown = len(answer.get("evidence") or []) - len(good)
     # the AI judge quoted the post asking for money or ID: never auto-approve that, whatever the web says
     money_quote = any(ASKS_MONEY_OR_ID.search(q) for q in re.findall(r'Quote: "([^"]*)"', row.get("moderation_reasons") or ""))
+    # a post that gives instructions to the AI stays with a person (fuse.INJECTION_RE)
+    from moderation.pipeline.fuse import injection_phrase
+    steered = bool(injection_phrase(row)) or "tries to give instructions to the AI" in (row.get("moderation_reasons") or "")
     status = "review"
     if decision == "scam" and good:
         status, risk = "blocked", max(risk, float(cfg.get("blockAt", 0.7)))
-    elif decision == "genuine" and len(good) >= 2 and risk < APPROVE_BELOW and not money_quote:
+    elif decision == "genuine" and len(good) >= 2 and risk < APPROVE_BELOW and not money_quote and not steered:
         status, risk = "approved", min(risk, 0.35)
     domains = sorted({urlparse(ev["source"]).hostname or ev["source"] for ev in good})
     note = (f"Second look (agent): {decision}"

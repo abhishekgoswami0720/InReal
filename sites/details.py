@@ -135,6 +135,12 @@ def add_stipend(row):
 def _talent(link):
     """About 7 in 10 Talent.com posts carry a JobPosting; the rest only show the text under a
     "Job description" heading (6 of 20 on 19 Oct 2026), so both are tried."""
+    # only Talent.com's own pages: the link comes from the post, and a crafted one must not make
+    # this laptop open an address on the home network
+    from urllib.parse import urlparse
+    host = (urlparse(link).hostname or "").lower()
+    if urlparse(link).scheme != "https" or not (host == "talent.com" or host.endswith(".talent.com")):
+        raise ValueError(f"not a Talent.com link: {host or link}")
     html = get(link).text
     return jobposting_text(ld_json_scripts(html)) or text_under_heading(html)
 

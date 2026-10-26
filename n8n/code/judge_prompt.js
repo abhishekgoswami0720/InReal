@@ -93,15 +93,21 @@ function postText(description) {
   return text.slice(0, HEAD) + " [...]" + (later.length ? "\nLater in the post (lines about money, contact or documents):\n" + later.join("\n") : "");
 }
 
+// A post could start a line with "POST <id>" or "Automated findings:" to pretend to be another post
+// or fake our findings: such lines get a "» " in front; one-line fields lose their line breaks.
+const FORGED_LINE = /(^|\n)[ \t]*(?=POST[ \t]|-{3}|(?:Title|Company|Stipend|Source|Text|Automated findings):)/gi;
+const fence = (text) => String(text).replace(FORGED_LINE, (m, start) => start + "» ");
+const oneLine = (value) => String(value).replace(/[\r\n]+/g, " ");
+
 function postBlock(item) {
   const listing = item.listing;
   return [
     `POST ${item.id}`,
-    `Title: ${listing.role_title}`,
-    `Company: ${listing.company_name}`,
-    `Stipend: ${listing.stipend || "not stated"}`,
-    `Source: ${listing.source_platform}`,
-    `Text: ${postText(listing.description)}`,
+    `Title: ${oneLine(listing.role_title)}`,
+    `Company: ${oneLine(listing.company_name)}`,
+    `Stipend: ${oneLine(listing.stipend || "not stated")}`,
+    `Source: ${oneLine(listing.source_platform)}`,
+    `Text: ${fence(postText(listing.description))}`,
     `Automated findings: ${findingsLine(item)}`,
   ].join("\n");
 }

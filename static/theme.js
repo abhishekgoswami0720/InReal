@@ -1,6 +1,27 @@
 // Light / dark theme for every page. Loaded in <head>, before the body is drawn, so the page
 // never flashes the wrong colours. The choice is kept per browser; until someone picks one,
 // the page follows the device setting. Any button with data-theme-toggle switches it.
+// Every call to this app's own /api carries X-InReal: 1. The server refuses a change (POST) without it:
+// another website open in the same browser can send a plain form to localhost:5000, but it cannot add
+// a custom header without the browser asking this server first, and the server says no.
+(function () {
+  if (!window.fetch || window.fetch.inreal) return;
+  var plain = window.fetch.bind(window);
+  var wrapped = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var same = url.charAt(0) === '/' && url.charAt(1) !== '/' || url.indexOf(location.origin + '/') === 0;
+    if (same && typeof input === 'string') {
+      init = Object.assign({}, init || {});
+      var h = new Headers(init.headers || {});
+      h.set('X-InReal', '1');
+      init.headers = h;
+    }
+    return plain(input, init);
+  };
+  wrapped.inreal = true;
+  window.fetch = wrapped;
+})();
+
 (function () {
   var KEY = 'inreal-theme';
   var root = document.documentElement;

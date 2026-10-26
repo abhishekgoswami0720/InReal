@@ -14,6 +14,8 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
+from moderation.safe_http import BlockedAddress, safe_get
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                   "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
@@ -44,10 +46,11 @@ def resolve(url: str, timeout: float = 12.0) -> dict:
         out["link_state"] = "invalid"
         return out
     try:
-        with requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True, stream=True) as r:
-            out["chain"] = [h.url for h in r.history] + [r.url]
-            out["final_url"] = r.url
-            out["final_domain"] = domain(r.url)
+        r, chain = safe_get(url, headers=HEADERS, timeout=timeout)
+        with r:
+            out["chain"] = chain
+            out["final_url"] = chain[-1]
+            out["final_domain"] = domain(chain[-1])
             out["http_status"] = r.status_code
             body = b""
             if r.status_code == 200 and "html" in r.headers.get("content-type", "html"):
@@ -55,6 +58,11 @@ def resolve(url: str, timeout: float = 12.0) -> dict:
                     body += part
                     if len(body) >= MAX_BYTES:
                         break
+    except BlockedAddress:
+        # a post whose link points into a private network is not a real public internship page
+        out["link_state"] = "invalid"
+        out["error"] = "private_address"
+        return out
     except requests.exceptions.SSLError:
         out["link_state"] = "bad_certificate"
         return out
