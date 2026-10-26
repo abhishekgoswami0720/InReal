@@ -521,14 +521,19 @@
 
   <!-- Live scan: one row per site while a search runs, then the scam-check progress -->
   <div id="scan-panel" class="hidden fixed bottom-6 left-6 z-[58] w-[340px] max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] flex flex-col glass-panel shadow-2xl p-4" role="status" aria-live="polite">
+    <!-- drag this corner to make the panel bigger or smaller (double-click: back to normal) -->
+    <div id="scan-resize" class="scan-resize" title="Drag to resize · double-click to reset" aria-hidden="true"></div>
     <div class="flex items-start gap-3 shrink-0">
       <div id="scan-icon" class="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
-        <i class="ph ph-radar text-xl animate-spin" style="animation-duration:2.5s"></i>
+        <i class="ph ph-spinner-gap text-xl animate-spin" style="animation-duration:1.6s"></i>
       </div>
       <div class="flex-1 min-w-0">
         <div id="scan-title" class="text-sm font-bold text-slate-900">Searching internships</div>
         <div id="scan-sub" class="text-[11px] text-slate-500 font-medium truncate"></div>
       </div>
+      <button id="scan-min" type="button" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400" aria-label="Make smaller" title="Make smaller">
+        <i class="ph ph-caret-down text-sm"></i>
+      </button>
       <button id="scan-close" type="button" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400" aria-label="Close">
         <i class="ph ph-x text-sm"></i>
       </button>

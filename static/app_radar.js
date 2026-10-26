@@ -1693,7 +1693,7 @@ function renderScanPanel(progress, isRunning) {
     `${progress.field || ''}${progress.field ? ' · ' : ''}${progress.sites.length}/${planned.length} sites · ${clock}`;
   document.getElementById('scan-bar').style.width = `${planned.length ? Math.round(100 * progress.sites.length / planned.length) : 0}%`;
   const icon = document.getElementById('scan-icon');
-  icon.innerHTML = finished ? '<i class="ph ph-check-circle text-xl"></i>' : '<i class="ph ph-radar text-xl animate-spin" style="animation-duration:2.5s"></i>';
+  icon.innerHTML = finished ? '<i class="ph ph-check-circle text-xl"></i>' : '<i class="ph ph-spinner-gap text-xl animate-spin" style="animation-duration:1.6s"></i>';
   icon.className = `w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${finished ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'}`;
 
   document.getElementById('scan-sites').innerHTML = planned.map(src => {
@@ -1715,12 +1715,16 @@ function renderScanPanel(progress, isRunning) {
   const check = document.getElementById('scan-check');
   const total = progress.sites.reduce((n, s) => n + (s.added || 0), 0);
   if (progress.sites.length && total && lastModCounts) {
-    const left = lastModCounts.pending + lastModCounts.checking;
-    const waiting = lastModCounts.held ? ` ${lastModCounts.held} more saved: use "Load 5 more" under the list.` : '';
+    // this search's posts only (26 Oct: it counted every search's waiting posts, "281 scraped")
+    const mine = viewRun ? allInternships.filter(r => r.last_run === viewRun) : [];
+    const held = viewRun ? mine.filter(r => r.moderation_status === 'held').length : lastModCounts.held;
+    const left = viewRun ? mine.filter(r => ['', 'checking'].includes(r.moderation_status || '')).length
+                         : lastModCounts.pending + lastModCounts.checking;
+    const waiting = held ? ` ${held} more found: they're checked when you click "Load 5 more" under the list.` : '';
     check.innerHTML = left
       ? `<span class="flex items-start gap-2 text-amber-700"><i class="ph ph-shield-checkered text-base"></i> Scam check: ${left} being checked now.${waiting}</span>`
-      : (lastModCounts.held
-          ? `<span class="flex items-start gap-2 text-slate-700"><i class="ph ph-tray text-base"></i> ${lastModCounts.held} internships scraped and saved. Click "Load 5 more" under the list to scam-check the next 5.</span>`
+      : (held
+          ? `<span class="flex items-start gap-2 text-slate-700"><i class="ph ph-tray text-base"></i> ${held} more found. Click "Load 5 more" under the list to check the next 5.</span>`
           : `<span class="flex items-start gap-2 text-emerald-700"><i class="ph ph-shield-check text-base"></i> All checked.</span>`);
     check.classList.remove('hidden');
   } else if (finished && !total) {
@@ -1730,6 +1734,54 @@ function renderScanPanel(progress, isRunning) {
     check.classList.add('hidden');
   }
 }
+
+// The panel's size (dragged at its top-right corner) and folded state, remembered in this browser
+const SCAN_SIZE_KEY = 'inreal_scan_panel';
+function scanSize(save) {
+  try {
+    if (save) localStorage.setItem(SCAN_SIZE_KEY, JSON.stringify(save));
+    return JSON.parse(localStorage.getItem(SCAN_SIZE_KEY)) || {};
+  } catch (e) { return save || {}; }
+}
+function applyScanSize(size) {
+  const panel = document.getElementById('scan-panel');
+  if (!panel) return;
+  panel.style.width = size.w ? `${size.w}px` : '';
+  panel.style.height = size.h ? `${size.h}px` : '';
+  panel.classList.toggle('scan-min', !!size.min);
+  const b = document.getElementById('scan-min');
+  if (b) { b.title = size.min ? 'Show all sites' : 'Make smaller'; b.setAttribute('aria-label', b.title); }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const panel = document.getElementById('scan-panel'), grip = document.getElementById('scan-resize');
+  if (!panel || !grip) return;
+  applyScanSize(scanSize());
+  document.getElementById('scan-min')?.addEventListener('click', () => {
+    const size = scanSize();
+    applyScanSize(scanSize({ ...size, min: !size.min }));
+  });
+  // anchored bottom-left, so the top-right corner grows it up and to the right
+  grip.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    const r = panel.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY;
+    panel.classList.add('resizing');
+    const move = (ev) => {
+      const w = Math.round(Math.min(window.innerWidth - 48, Math.max(260, r.width + ev.clientX - x0)));
+      const h = Math.round(Math.min(window.innerHeight - 48, Math.max(120, r.height - (ev.clientY - y0))));
+      applyScanSize({ w, h, min: false });
+    };
+    const up = () => {
+      grip.removeEventListener('pointermove', move);
+      panel.classList.remove('resizing');
+      const b = panel.getBoundingClientRect();
+      scanSize({ w: Math.round(b.width), h: Math.round(b.height), min: false });
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up, { once: true });
+  });
+  grip.addEventListener('dblclick', () => applyScanSize(scanSize({})));
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('scan-close')?.addEventListener('click', () => {
