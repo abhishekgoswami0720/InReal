@@ -456,6 +456,12 @@ if __name__ == "__main__":
     # (19 Oct: rounds at 17:24 and 23:24 opened 23 sites nobody asked for). autopilot.py stays
     # for a later server setup; nothing starts it here, whatever AUTO_UPDATE says.
     start_publish_loop()
+    # The scam check runs inside the app (moderation/pipeline); SCAM_CHECK=n8n keeps the old n8n workflow
+    from moderation.notify import mode as scam_check_mode
+    if scam_check_mode() == "python":
+        from moderation.pipeline import start_worker
+        start_worker()
+        print("Scam check: built in (moderation/pipeline), no n8n needed")
     port = int(os.environ.get("PORT", 5000))
     if os.environ.get("INREAL_DEBUG") == "1":
         # Flask's debugger can run code on this machine: only for local development, never with a tunnel

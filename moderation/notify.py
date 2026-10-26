@@ -1,5 +1,10 @@
-"""Tells n8n there are listings to check. Called by the scraper after EACH site is saved,
-so n8n checks site 1 while site 2 is still being scraped (instead of waiting for the whole run)."""
+"""Starts the scam check when posts are waiting. Called after EACH site is saved and on
+"Load 5 more", so site 1 is checked while site 2 is still being searched.
+
+SCAM_CHECK=python (default, 26 Oct 2026): the check runs inside the app (moderation/pipeline).
+SCAM_CHECK=n8n: the old way, a POST to INREAL_N8N_WEBHOOK (n8n/inreal_moderation.json).
+The name notify_n8n stays so every caller keeps working.
+"""
 import os
 
 from loguru import logger
@@ -7,17 +12,30 @@ from loguru import logger
 from moderation.env import load_env
 
 
-def notify_n8n(source: str = "") -> None:
+def mode() -> str:
     load_env()
+    return "n8n" if os.environ.get("SCAM_CHECK", "python").strip().lower() == "n8n" else "python"
+
+
+def notify_n8n(source: str = "") -> None:
+    from output_handler import moderation_counts
+    pending = moderation_counts()["pending"]
+    if not pending:
+        return
+    if mode() == "python":
+        from moderation.pipeline import wake
+        if wake(source):
+            logger.info(f"Scam check started{f' for {source}' if source else ''} ({pending} listings waiting)")
+        return
+    _post_to_n8n(source, pending)
+
+
+def _post_to_n8n(source: str, pending: int) -> None:
     url = os.environ.get("INREAL_N8N_WEBHOOK", "").strip()
     if not url:
         return
-    from output_handler import moderation_counts
     try:
         import requests
-        pending = moderation_counts()["pending"]
-        if not pending:
-            return
         r = requests.post(url, json={"event": "site_saved", "source": source, "pending": pending}, timeout=5)
         if r.status_code == 404:
             # n8n only registers /webhook/... while the workflow is published (active)

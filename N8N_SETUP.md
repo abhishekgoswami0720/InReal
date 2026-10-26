@@ -1,3 +1,8 @@
+> **Not needed any more (26 Oct 2026).** The scam check now runs inside the app
+> (`moderation/pipeline`), with the same three checks and thresholds, plus an AI agent that takes
+> a second look at "needs a look" posts. Start `python app.py` and it runs by itself.
+> This guide is only for `SCAM_CHECK=n8n` in `.env`, if you want the old n8n workflow back.
+
 # Scam moderation pipeline (n8n)
 
 Every new listing the scraper saves is checked by an n8n workflow before you trust it.

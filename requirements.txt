@@ -30,3 +30,8 @@ loguru
 
 # ── Tests ──────────────────────────────────────────────────────────────────────
 pytest
+
+# ── Scam check (moderation/pipeline) ───────────────────────────────────────────
+# the second-look agent for "needs a look" posts
+langgraph>=1.0,<2
+langchain-openai>=1.0,<2
