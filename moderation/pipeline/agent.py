@@ -88,7 +88,7 @@ def tool_read_page(url: str) -> dict:
         for tag in soup(["script", "style", "noscript", "svg"]):
             tag.decompose()
         text = " ".join(soup.get_text(" ").split())[:PAGE_CHARS]
-        return {"url": r.url, "status": r.status_code, "text": text}
+        return {"url": r.url, "requested": url, "status": r.status_code, "text": text}
     except requests.RequestException as e:
         return {"url": url, "error": type(e).__name__}
 
@@ -111,29 +111,48 @@ def tool_open_link(url: str) -> dict:
 
 # ---------------------------------------------------------------- evidence check and decision
 
+def url_key(url) -> str:
+    """The same page written differently is one key: no scheme, www, trailing slash or #part.
+    (26 Oct: the agent cited the URL it asked for, the text was stored under the URL the site
+    redirected to, so all three of its real quotes were thrown out.)"""
+    u = str(url or "").strip().lower().split("#")[0]
+    u = re.sub(r"^[a-z]+://", "", u)
+    u = re.sub(r"^www\.", "", u)
+    return u.rstrip("/")
+
+
 def collect_sources(tool_outputs: list) -> dict:
-    """url -> all text the agent was shown for it in this run (page text, search titles and snippets)."""
+    """page -> all text the agent was shown for it in this run (page text, search titles and snippets),
+    under both the address asked for and the one the site redirected to."""
     seen = {}
+
+    def add(urls, text):
+        for u in {url_key(x) for x in urls if x}:
+            seen[u] = seen.get(u, "") + " " + text
+
     for out in tool_outputs:
         if not isinstance(out, dict):
             continue
         if out.get("text"):
-            seen[out.get("url", "")] = seen.get(out.get("url", ""), "") + " " + out["text"]
+            add([out.get("url"), out.get("requested")], out["text"])
         for hit in out.get("results") or []:
-            seen[hit.get("url", "")] = seen.get(hit.get("url", ""), "") + " " + f"{hit.get('title', '')} {hit.get('snippet', '')}"
+            add([hit.get("url")], f"{hit.get('title', '')} {hit.get('snippet', '')}")
         if out.get("final_url"):
-            seen[out.get("url", "")] = seen.get(out.get("url", ""), "") + " " + " ".join(
-                str(out.get(k) or "") for k in ("final_url", "final_domain", "link_state", "closed_phrase"))
+            add([out.get("url"), out.get("final_url")],
+                " ".join(str(out.get(k) or "") for k in ("final_url", "final_domain", "link_state", "closed_phrase")))
     return {u: norm(t) for u, t in seen.items() if u}
 
 
+def _quote_in(quote: str, text: str) -> bool:
+    """Word for word, allowing "..." where the agent left words out: every part must be there."""
+    parts = [norm(p) for p in re.split(r"\.\.\.|…", str(quote or ""))]
+    parts = [p for p in parts if p]
+    return bool(parts) and sum(len(p) for p in parts) >= 8 and all(p in text for p in parts)
+
+
 def verified_evidence(evidence: list, sources: dict) -> list:
-    good = []
-    for ev in evidence or []:
-        q = norm(ev.get("quote"))
-        if len(q) >= 8 and q in sources.get(ev.get("source", ""), ""):
-            good.append(ev)
-    return good
+    by_key = {url_key(k): v for k, v in sources.items()}
+    return [ev for ev in evidence or [] if _quote_in(ev.get("quote"), by_key.get(url_key(ev.get("source")), ""))]
 
 
 def apply_second_look(row: dict, answer: dict, sources: dict, cfg: dict) -> dict:
@@ -155,7 +174,8 @@ def apply_second_look(row: dict, answer: dict, sources: dict, cfg: dict) -> dict
             + f" — {str(answer.get('reason') or '').strip()[:300]}"
             + (f" (sources: {', '.join(domains)})" if domains else "")
             + (f" [{thrown} quote(s) not found in the sources were ignored]" if thrown else ""))
-    return {"status": status, "scam_risk": round(min(0.99, risk), 2), "note": note, "verified": good}
+    rejected = [ev for ev in answer.get("evidence") or [] if ev not in good]
+    return {"status": status, "scam_risk": round(min(0.99, risk), 2), "note": note, "verified": good, "rejected": rejected}
 
 
 # ---------------------------------------------------------------- the LangGraph agent

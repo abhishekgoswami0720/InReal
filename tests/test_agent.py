@@ -96,3 +96,19 @@ def test_the_agent_cannot_read_private_addresses():
     for url in ("http://127.0.0.1:5000/api/internships", "http://localhost/", "http://169.254.169.254/latest/meta-data",
                 "http://10.0.0.5/", "file:///etc/passwd", "ftp://example.com/x"):
         assert A.tool_read_page(url).get("error"), url
+
+
+def test_quotes_count_whatever_way_the_page_address_is_written():
+    """26 Oct: the agent quoted pages under the address it asked for; the text was stored under the
+    address the site redirected to, so every real quote was thrown out."""
+    outputs = [{"url": "https://www.acme-labs.example/about", "requested": "http://acme-labs.example/about/",
+                "status": 200, "text": "Acme Labs builds logistics software in Pune since 2015."},
+               {"query": "q", "results": [{"url": "https://news.example/a?id=1", "title": "Acme Labs fee complaints",
+                                           "snippet": "Students say they were asked to pay ... a deposit of Rs 500"}]}]
+    src = A.collect_sources(outputs)
+    ev = [{"source": "http://acme-labs.example/about/", "quote": "Acme Labs builds logistics software in Pune"},
+          {"source": "acme-labs.example/about", "quote": "builds logistics software ... since 2015"},
+          {"source": "https://news.example/a?id=1#top", "quote": "asked to pay ... a deposit of Rs 500"},
+          {"source": "https://acme-labs.example/about", "quote": "Acme Labs never asks for money"}]
+    good = A.verified_evidence(ev, src)
+    assert [e["quote"] for e in good] == [ev[0]["quote"], ev[1]["quote"], ev[2]["quote"]]

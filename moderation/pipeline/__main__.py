@@ -55,6 +55,8 @@ def sample(with_agent: bool):
     t = time.time()
     out = second_look(row, cfg=cfg)
     print(f"  -> {out['status']} in {time.time() - t:.1f}s\n  {out['note']}")
+    for ev in out.get("rejected") or []:
+        print(f"  quote not found in {ev.get('source')}: \"{str(ev.get('quote'))[:120]}\"")
 
 
 def main():
