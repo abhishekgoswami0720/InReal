@@ -520,7 +520,7 @@
   </div>
 
   <!-- Live scan: one row per site while a search runs, then the scam-check progress -->
-  <div id="scan-panel" class="hidden fixed bottom-6 left-6 z-[58] w-[340px] max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] flex flex-col glass-panel shadow-2xl p-4" role="status" aria-live="polite">
+  <div id="scan-panel" class="hidden fixed bottom-6 left-6 z-[58] w-[340px] max-w-[calc(100%-3rem)] max-h-[calc(100vh-3rem)] flex flex-col overflow-hidden glass-panel shadow-2xl p-4" role="status" aria-live="polite">
     <!-- drag this corner to make the panel bigger or smaller (double-click: back to normal) -->
     <div id="scan-resize" class="scan-resize" title="Drag to resize · double-click to reset" aria-hidden="true"></div>
     <div class="flex items-start gap-3 shrink-0">
@@ -539,8 +539,11 @@
       </button>
     </div>
     <div class="mt-3 h-1.5 shrink-0 rounded-full bg-slate-100 overflow-hidden"><div id="scan-bar" class="h-full bg-orange-500 transition-all duration-500" style="width:0%"></div></div>
-    <ul id="scan-sites" class="mt-3 space-y-1.5 text-xs min-h-0 flex-1 overflow-y-auto pr-1"></ul>
-    <div id="scan-check" class="hidden shrink-0 mt-3 pt-3 border-t border-slate-200 text-xs font-semibold"></div>
+    <!-- one scrolling area for the sites and the note under them: a small panel scrolls, never spills out -->
+    <div id="scan-body" class="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+      <ul id="scan-sites" class="space-y-1.5 text-xs"></ul>
+      <div id="scan-check" class="hidden mt-3 pt-3 border-t border-slate-200 text-xs font-semibold"></div>
+    </div>
   </div>
 
   <!-- First-time profile: one question per screen (static/onboarding.js) -->

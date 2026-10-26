@@ -514,13 +514,13 @@ html.dark .jb-ghost i { background: #1C2433; }
 @media (prefers-reduced-motion: reduce) { .jb, .jb-filters, .jb-side > .jb-rail, .jb-detail > * { transition: none !important; } }
 
 /* ── Search progress panel: resizable from its top-right corner, can be folded to its header ── */
-#scan-panel { min-width: 260px; min-height: 120px; }
+#scan-panel { min-width: 260px; min-height: 150px; }
 .scan-resize { position: absolute; top: 0; right: 0; width: 18px; height: 18px; cursor: nesw-resize; z-index: 2; border-top-right-radius: 16px;
   background: linear-gradient(45deg, transparent 45%, #CBD5E1 45%, #CBD5E1 52%, transparent 52%, transparent 64%, #CBD5E1 64%, #CBD5E1 71%, transparent 71%); opacity: .8; touch-action: none; }
 .scan-resize:hover { opacity: 1; background: linear-gradient(45deg, transparent 45%, #F97316 45%, #F97316 52%, transparent 52%, transparent 64%, #F97316 64%, #F97316 71%, transparent 71%); }
 #scan-panel.resizing { user-select: none; transition: none; }
 #scan-panel.scan-min { height: auto !important; min-height: 0; }
-#scan-panel.scan-min #scan-sites, #scan-panel.scan-min #scan-check { display: none !important; }
+#scan-panel.scan-min #scan-body { display: none !important; }
 #scan-panel.scan-min #scan-min i { transform: rotate(180deg); }
 #scan-min i { transition: transform .2s; }
 html.dark .scan-resize { background: linear-gradient(45deg, transparent 45%, #475569 45%, #475569 52%, transparent 52%, transparent 64%, #475569 64%, #475569 71%, transparent 71%); }

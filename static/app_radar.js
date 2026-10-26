@@ -1783,7 +1783,7 @@ document.addEventListener('DOMContentLoaded', () => {
     panel.classList.add('resizing');
     const move = (ev) => {
       const w = Math.round(Math.min(window.innerWidth - 48, Math.max(260, r.width + ev.clientX - x0)));
-      const h = Math.round(Math.min(window.innerHeight - 48, Math.max(120, r.height - (ev.clientY - y0))));
+      const h = Math.round(Math.min(window.innerHeight - 48, Math.max(150, r.height - (ev.clientY - y0))));
       applyScanSize({ w, h, min: false });
     };
     const up = () => {
