@@ -105,8 +105,13 @@ def check_waiting(limit: int | None = None) -> dict:
     if cfg["agent"]:
         review = [v["id"] for v in verdicts if v["status"] == "review"]
         if review:
-            from moderation.pipeline import agent
-            agent.look_later(review)
+            try:
+                import langgraph  # noqa: F401
+            except ImportError:
+                logger.warning("Second look skipped: run  pip install -r requirements.txt  (needs langgraph)")
+            else:
+                from moderation.pipeline import agent
+                agent.look_later(review)
     return {"checked": len(verdicts), **counts, "seconds": round(took, 1)}
 
 

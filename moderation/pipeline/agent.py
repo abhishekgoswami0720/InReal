@@ -26,8 +26,6 @@ import re
 import socket
 import threading
 from typing import Annotated, Literal, TypedDict
-
-from pydantic import BaseModel, Field
 from urllib.parse import urlparse
 
 import requests
@@ -181,6 +179,7 @@ def build_graph(model, tools: dict | None = None):
     from langchain_core.tools import tool
     from langgraph.graph import END, START, StateGraph
     from langgraph.graph.message import add_messages
+    from pydantic import BaseModel, Field
 
     impl = {"open_apply_link": tool_open_link, "search_web": tool_search, "read_web_page": tool_read_page, **(tools or {})}
 
