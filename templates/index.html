@@ -117,7 +117,15 @@
 
     <!-- Left: what to show and the filters. On phones it opens from the Filters button above the list. -->
     <aside id="filter-menu-wrap" class="jb-side">
+      <!-- folded: a thin strip, like Power BI's panes (wide screens only) -->
+      <button type="button" class="jb-rail" data-panel-toggle="side" aria-label="Show filters" title="Show filters">
+        <i class="ph ph-caret-double-right"></i><span class="jb-rail-label">Filters</span><b id="rail-filter-count" class="jb-badge hidden">0</b>
+      </button>
       <div id="filter-menu" class="jb-filters hidden lg:flex" role="group" aria-label="Filters">
+        <div class="jb-panel-head">
+          <span>Filters &amp; view</span>
+          <button type="button" class="jb-fold" data-panel-toggle="side" aria-label="Hide filters" title="Hide filters"><i class="ph ph-caret-double-left"></i></button>
+        </div>
         <div class="jb-panel">
           <div class="jb-label">Show</div>
           <div class="jb-views" role="tablist" aria-label="Which internships">
@@ -254,9 +262,23 @@
     <!-- Right: the open post. Wide screens keep it beside the list; smaller screens slide it in. -->
     <div id="detail-drawer-overlay" class="jb-detail-wrap fixed inset-0 bg-slate-900/30 modal-blur z-50 hidden transition-opacity duration-200">
       <div id="detail-drawer" class="jb-detail fixed right-0 top-0 bottom-0 w-full max-w-md bg-white border-l border-slate-200 shadow-2xl flex flex-col transform translate-x-full transition-transform duration-200 ease-out">
+        <button type="button" class="jb-rail" data-panel-toggle="detail" aria-label="Show the internship" title="Show the internship">
+          <i class="ph ph-caret-double-left"></i><span class="jb-rail-label">Internship</span>
+        </button>
+        <!-- empty until the first internship is ready, like an empty Power BI visual -->
         <div id="detail-empty" class="hidden jb-detail-empty">
-          <i class="ph ph-cursor-click text-3xl text-slate-300"></i>
-          <p class="text-sm font-semibold text-slate-500 mt-2">Pick an internship to see the full post here.</p>
+          <div class="jb-detail-empty-head">
+            <span>Internship</span>
+            <button type="button" class="jb-fold" data-panel-toggle="detail" aria-label="Hide this panel" title="Hide this panel"><i class="ph ph-caret-double-right"></i></button>
+          </div>
+          <div class="jb-ghost" aria-hidden="true">
+            <div class="flex items-center gap-3"><i class="jb-ghost-logo"></i><div class="flex-1 space-y-2"><i class="jb-ghost-line w-3/5"></i><i class="jb-ghost-line w-2/5"></i></div></div>
+            <i class="jb-ghost-line h-4 w-4/5 mt-5"></i>
+            <div class="grid grid-cols-2 gap-2.5 mt-4"><i class="jb-ghost-box"></i><i class="jb-ghost-box"></i></div>
+            <i class="jb-ghost-line w-full mt-5"></i><i class="jb-ghost-line w-11/12 mt-2"></i><i class="jb-ghost-line w-3/4 mt-2"></i>
+          </div>
+          <p class="text-sm font-bold text-slate-700 mt-5">The first internship shows up here</p>
+          <p class="text-xs font-medium text-slate-500 mt-1 max-w-[260px]">As soon as one passes the scam check. Then click any card to open it here.</p>
         </div>
         <div id="detail-body" class="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-5">
           <div class="flex items-start justify-between gap-3">
@@ -267,6 +289,7 @@
                 <span id="drawer-org-badge" class="text-[11px] font-semibold text-slate-500">Company</span>
               </div>
             </div>
+            <button type="button" class="jb-fold jb-fold-detail" data-panel-toggle="detail" aria-label="Hide this panel" title="Hide this panel"><i class="ph ph-caret-double-right"></i></button>
             <button id="close-drawer-btn" type="button" aria-label="Close" class="jb-close w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition shrink-0">
               <i class="ph ph-x text-base"></i>
             </button>

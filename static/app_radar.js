@@ -519,6 +519,28 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-show-all-rules]')) setProfileRules(true);
 });
 
+// ---- Folding side panels (wide screens), remembered in this browser ----
+const PANELS_KEY = 'inreal_panels';
+const panels = (() => { try { return JSON.parse(localStorage.getItem(PANELS_KEY)) || {}; } catch (e) { return {}; } })();
+function applyPanels() {
+  const main = document.querySelector('main.jb');
+  if (!main) return;
+  main.classList.toggle('side-collapsed', !!panels.side);
+  main.classList.toggle('detail-collapsed', !!panels.detail);
+  document.querySelectorAll('[data-panel-toggle]').forEach(b => b.setAttribute('aria-expanded', String(!panels[b.dataset.panelToggle])));
+}
+function setPanel(key, folded) {
+  panels[key] = folded;
+  try { localStorage.setItem(PANELS_KEY, JSON.stringify(panels)); } catch (e) { /* private window */ }
+  applyPanels();
+  if (key === 'detail' && !folded && !activeDrawerJob) applyFiltersAndRender();   // fill it with the best match
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-panel-toggle]');
+  if (b) setPanel(b.dataset.panelToggle, !panels[b.dataset.panelToggle]);
+});
+document.addEventListener('DOMContentLoaded', applyPanels);
+
 function showDetailPlaceholder() {
   activeDrawerJob = null;
   document.getElementById('detail-empty')?.classList.remove('hidden');
@@ -534,6 +556,7 @@ function openDetailDrawer(id, opts) {
 
   activeDrawerJob = item;
   document.getElementById('detail-empty')?.classList.add('hidden');
+  if (!quiet && isWide() && panels.detail) setPanel('detail', false);   // a click on a card unfolds the panel
   document.querySelectorAll('.jb-card.is-selected').forEach(c => c.classList.remove('is-selected'));
   document.querySelector(`.jb-card[data-id="${CSS.escape(String(id))}"]`)?.classList.add('is-selected');
   const logoBox = document.getElementById('drawer-logo');
@@ -1559,6 +1582,8 @@ function updateFilterCount() {
   if (!badge) return;
   badge.textContent = n;
   badge.classList.toggle('hidden', n === 0);
+  const rail = document.getElementById('rail-filter-count');
+  if (rail) { rail.textContent = n; rail.classList.toggle('hidden', n === 0); }
 }
 
 function setFilterMenu(open) {

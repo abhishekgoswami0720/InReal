@@ -336,9 +336,12 @@ html.dark .bg-gradient-to-br.from-white\/90 { background-image: linear-gradient(
 /* ───────────────────────── Dashboard: job-board layout (templates/index.html) ─────────────────────────
    Phones: one column, filters open from a button, the post slides in.
    1024px+: filters on the left.  1280px+: the open post stays beside the list. */
-.jb { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
-@media (min-width: 1024px) { .jb { grid-template-columns: 250px minmax(0, 1fr); gap: 24px; } }
-@media (min-width: 1280px) { .jb { grid-template-columns: 240px minmax(0, 1fr) minmax(380px, 440px); } }
+.jb { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; --side: 250px; --detail: minmax(380px, 440px); }
+@media (min-width: 1024px) { .jb { grid-template-columns: var(--side) minmax(0, 1fr); gap: 24px; transition: grid-template-columns .3s cubic-bezier(.16, 1, .3, 1); } }
+@media (min-width: 1280px) { .jb { --side: 240px; grid-template-columns: var(--side) minmax(0, 1fr) var(--detail); } }
+/* folded panels: a 44px strip each (Power BI style), remembered per browser (app_radar.js: panels) */
+@media (min-width: 1024px) { .jb.side-collapsed { --side: 44px; } }
+@media (min-width: 1280px) { .jb.detail-collapsed { --detail: 44px; } }
 
 .jb-side { position: relative; }
 @media (min-width: 1024px) { .jb-side { position: sticky; top: 88px; max-height: calc(100vh - 104px); overflow-y: auto; padding-bottom: 8px; } }
@@ -462,3 +465,35 @@ html.dark .jb-fact-v { color: #F8FAFC; }
 @media (max-width: 1023px) { html.dark .jb-filters:not(.hidden) { background: #0F141D; box-shadow: 0 -20px 50px -10px rgba(0, 0, 0, .8); } }
 @media (min-width: 1280px) { html.dark .jb-detail { border-color: #263042 !important; box-shadow: 0 16px 40px -24px rgba(0, 0, 0, .8) !important; } }
 @media (prefers-reduced-motion: reduce) { .jb-filters:not(.hidden) { animation: none; } }
+
+/* ── Folding panels (wide screens) ── */
+.jb-rail, .jb-panel-head, .jb-fold-detail, .jb-detail-empty-head .jb-fold { display: none; }
+.jb-rail { flex-direction: column; align-items: center; gap: 12px; width: 44px; padding: 14px 0; border-radius: 14px; background: #fff; border: 1px solid #E2E8F0; color: #475569; font-size: 12px; font-weight: 800; transition: border-color .15s, color .15s, background .15s; }
+.jb-rail:hover { border-color: #FDBA74; color: #C2410C; background: #FFFBF5; }
+.jb-rail i { font-size: 16px; }
+.jb-rail-label { writing-mode: vertical-rl; letter-spacing: .04em; }
+.jb-fold { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #64748B; font-size: 15px; transition: background .15s, color .15s; flex: none; }
+.jb-fold:hover { background: #F1F5F9; color: #0F172A; }
+@media (min-width: 1024px) {
+  .jb-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #64748B; }
+  .jb.side-collapsed .jb-filters { display: none !important; }
+  .jb.side-collapsed .jb-side > .jb-rail { display: flex; min-height: 220px; }
+}
+@media (min-width: 1280px) {
+  .jb-fold-detail, .jb-detail-empty-head .jb-fold { display: inline-flex; }
+  .jb.detail-collapsed .jb-detail > :not(.jb-rail) { display: none !important; }
+  .jb.detail-collapsed .jb-detail > .jb-rail { display: flex; height: 100%; border: 0; border-radius: 0; }
+}
+.jb-detail-empty-head { position: absolute; top: 12px; left: 18px; right: 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #94A3B8; }
+.jb-detail-empty { position: relative; }
+.jb-ghost { width: 100%; max-width: 300px; padding: 18px; border-radius: 16px; border: 1.5px dashed #CBD5E1; text-align: left; }
+.jb-ghost i { display: block; background: #F1F5F9; border-radius: 6px; }
+.jb-ghost-logo { width: 40px; height: 40px; border-radius: 12px !important; flex: none; }
+.jb-ghost-line { height: 9px; }
+.jb-ghost-box { height: 48px; border-radius: 10px !important; }
+html.dark .jb-rail { background: #141A25; border-color: #263042; color: #CBD5E1; }
+html.dark .jb-rail:hover { background: #1A2230; border-color: #FB923C; color: #FDBA74; }
+html.dark .jb-fold:hover { background: #1C2433; color: #F1F5F9; }
+html.dark .jb-ghost { border-color: #334155; }
+html.dark .jb-ghost i { background: #1C2433; }
+@media (prefers-reduced-motion: reduce) { .jb { transition: none !important; } }
