@@ -312,6 +312,33 @@ RUN_PROGRESS = {"run_id": 0, "sites": [], "finished": True, "total_added": 0, "f
                 "planned": [], "running": [], "field": "", "started_at": 0}
 
 
+MAX_PARALLEL = 6
+# Sites that answer in seconds (APIs, RSS, light pages) start first, so the first results come fast
+FAST_FIRST = ["government", "cutshort", "unstop", "remotive", "weworkremotely", "microsoft", "amazon", "nvidia",
+              "intel", "adobe", "salesforce", "apple", "google", "talent"]
+
+
+def site_speed_rank(name: str, chrome_sources=()) -> tuple:
+    if name in chrome_sources:
+        return (2, 0)
+    if name in FAST_FIRST:
+        return (0, FAST_FIRST.index(name))
+    return (1, 0)
+
+
+def _network_hiccup(e: BaseException) -> bool:
+    """A dropped connection rather than a broken scraper: SSL EOF, reset, timeout (also when wrapped)."""
+    names = {"SSLError", "SSLEOFError", "ConnectionError", "ConnectionResetError", "ProtocolError", "ReadTimeout",
+             "ConnectTimeout", "Timeout", "RemoteDisconnected", "ChunkedEncodingError", "MaxRetryError"}
+    seen = set()
+    while e is not None and id(e) not in seen:
+        seen.add(id(e))
+        if type(e).__name__ in names:
+            return True
+        e = e.__cause__ or e.__context__
+    return False
+
+
 def run_scrapers(dry_run=False, config=None, specific_source=None):
     total_added = 0
     failed_sources = []
@@ -391,15 +418,26 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
             if not dry_run and source_name in RUN_PROGRESS["running"]:
                 RUN_PROGRESS["running"].remove(source_name)
 
-    def _run_one(source_name, scraper_func):
-        logger.info(f"🚀 Starting to check {source_name} for new opportunities...")
+    def fetch(source_name, scraper_func):
         if source_name in VISIBLE_CHROME_SOURCES:
             with visible_chrome:
-                listings = scraper_func()
-        elif source_name in ["linkedin", "search"]:
-            listings = scraper_func(config=config)
-        else:
-            listings = scraper_func()
+                return scraper_func()
+        if source_name in ["linkedin", "search"]:
+            return scraper_func(config=config)
+        return scraper_func()
+
+    def _run_one(source_name, scraper_func):
+        logger.info(f"🚀 Starting to check {source_name} for new opportunities...")
+        try:
+            listings = fetch(source_name, scraper_func)
+        except Exception as e:
+            if not _network_hiccup(e):
+                raise
+            # a dropped connection (SSL EOF, reset) is usually gone a moment later: one more try
+            logger.warning(f"[{source_name}] connection dropped ({type(e).__name__}), trying once more in 3 s")
+            import time as _t
+            _t.sleep(3)
+            listings = fetch(source_name, scraper_func)
         if dry_run:
             report_dry_run(source_name, listings)
             return 0
@@ -422,13 +460,15 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
     else:
         budget.stop()
 
-    # Every site at once (25 Oct, was 3 at a time): the fast ones (Cutshort, AICTE, Unstop) finish in
-    # seconds instead of queueing behind Internshala. The Chrome-window sites still take turns.
-    workers = len(scrapers_to_run)
+    # Up to MAX_PARALLEL sites at once, fast ones first (26 Oct: all 25 at once made the laptop's
+    # connections drop, "SSL EOF" / "connection reset", and 9 sites failed). The Chrome-window
+    # sites still take turns and go last.
+    workers = min(MAX_PARALLEL, len(scrapers_to_run))
+    order = sorted(scrapers_to_run.items(), key=lambda kv: site_speed_rank(kv[0], VISIBLE_CHROME_SOURCES))
     if workers > 1:
         logger.info(f"⚡ {len(scrapers_to_run)} sites, {workers} at a time")
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(run_one, name, fn): name for name, fn in scrapers_to_run.items()}
+        futures = {pool.submit(run_one, name, fn): name for name, fn in order}
         for fut in as_completed(futures):
             name = futures[fut]
             try:

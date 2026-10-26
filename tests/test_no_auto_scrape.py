@@ -86,3 +86,40 @@ def test_a_site_stops_reading_once_it_has_enough():
     finally:
         budget.stop()
     assert budget.take(recs) == recs and not budget.enough(recs)                      # no target: no limit
+
+
+def test_sites_run_a_few_at_a_time_fast_ones_first_and_retry_a_dropped_connection(monkeypatch):
+    """26 Oct: all 25 sites at once made the laptop's connections drop and 9 sites failed."""
+    import threading
+    import time
+    import requests
+    import scraper
+    monkeypatch.setattr(scraper, "process_and_save", lambda name, listings, per_site=None: len(listings))
+    monkeypatch.setattr(scraper, "update_run_history", lambda *a: None)
+    live, peak, started, tries = [0], [0], [], {}
+    lock = threading.Lock()
+
+    def site(name, flaky=False):
+        def run(**kw):
+            with lock:
+                started.append(name)
+                live[0] += 1
+                peak[0] = max(peak[0], live[0])
+                tries[name] = tries.get(name, 0) + 1
+            time.sleep(0.05)
+            with lock:
+                live[0] -= 1
+            if flaky and tries[name] == 1:
+                raise requests.exceptions.SSLError("EOF occurred in violation of protocol")
+            return [{"id": name}]
+        return run
+
+    names = ["internshala", "shine", "apna", "naukri", "government", "cutshort", "unstop", "nvidia", "intel",
+             "adobe", "salesforce", "amazon", "remotive"]
+    fake = {n: site(n, flaky=(n == "nvidia")) for n in names}
+    monkeypatch.setattr(scraper, "ALL_SCRAPERS", fake)
+    monkeypatch.setattr("sites.registry.scrapers_for", lambda keys: (list(keys), []))
+    scraper.run_scrapers(dry_run=False, config={"sources": names, "field": "software", "limit": 0, "run_tag": "t"})
+    assert peak[0] <= scraper.MAX_PARALLEL
+    assert started[0] == "government" and started.index("naukri") > started.index("internshala")   # Chrome last
+    assert tries["nvidia"] == 2 and not scraper.RUN_PROGRESS["failed"]                              # retried, saved
