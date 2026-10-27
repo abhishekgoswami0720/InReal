@@ -5,12 +5,10 @@ Quick live check of the two Azure OpenAI deployments the scam check uses.
 
 Reads .env (EMBED_PROVIDER=azure, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_EMBED_DEPLOYMENT,
 AZURE_OPENAI_KEY, AZURE_OPENAI_JUDGE_URL). Sends one embedding request and one 2-post judge
-request built by the same code n8n runs, and prints what came back. Costs a fraction of a rupee.
+request built by the same code the scam check runs, and prints what came back. Costs a fraction of a rupee.
 """
 import json
 import os
-import shutil
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -101,15 +99,9 @@ def main():
     key = (os.environ.get("AZURE_OPENAI_JUDGE_KEY") or os.environ.get("AZURE_OPENAI_KEY", "")).strip()
     if not url:
         sys.exit("AZURE_OPENAI_JUDGE_URL is missing in .env")
-    node = shutil.which("node")
-    if not node:
-        sys.exit("Node.js is needed to build the judge request exactly like n8n does")
+    from moderation.pipeline import judge
     items = [{"id": p["id"], "listing": p, "stage1": {"categories": []}, "signals": []} for p in POSTS]
-    out = subprocess.run([node, str(ROOT / "tests" / "js_runner.js"), "judge_prompt.js", "packJudge"],
-                         input=json.dumps([items, "azure"]), capture_output=True, text=True, timeout=30)
-    if out.returncode:
-        sys.exit(out.stderr)
-    body = json.loads(out.stdout)[0]["judgeRequest"]
+    body = judge.pack(items, "azure")[0]["judgeRequest"]
     t = time.time()
     r = _post(url, body, key, "Judge (gpt-4o)")
     if r is None:

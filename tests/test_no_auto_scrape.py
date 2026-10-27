@@ -55,7 +55,7 @@ def test_first_10_go_out_as_sites_finish_and_only_from_this_search(tmp_path, mon
     monkeypatch.setattr(oh, "CSV_FILE", tmp_path / "internships.csv")
     monkeypatch.setattr(oh, "LOG_FILE", tmp_path / "internships_log.json")
     monkeypatch.setattr("sites.details.fill_details", lambda rows, n: None)
-    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    monkeypatch.setattr("moderation.notify.start_scam_check", lambda source="": None)
     monkeypatch.setattr(scraper, "evaluate", lambda src, raw: [(dict(r), True, "") for r in raw])
     row = lambda i, site: {"id": f"{site}{i}", "company_name": "Acme", "role_title": "Software Intern",
                            "apply_link": f"https://example.com/{site}/{i}", "source_platform": site, "description": "x" * 400}

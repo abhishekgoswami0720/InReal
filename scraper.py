@@ -253,8 +253,8 @@ def process_and_save(source_name: str, raw_listings: list, max_new: int = None):
     if res["removed"]:
         extra.append(f"removed {res['removed']} that no longer pass the checks")
     if released or res["updated"]:
-        from moderation.notify import notify_n8n
-        notify_n8n(source_name)   # n8n checks this site while the next one is being scraped
+        from moderation.notify import start_scam_check
+        start_scam_check(source_name)   # this site is checked while the next one is being scraped
     logger.info(f"[{source_name}] Analyzed {len(raw_listings)} listings, found {len(valid_listings)} matches, "
                 f"and saved {res['added']} brand new ones!" + (f" ({', '.join(extra)})" if extra else "")
                 + (f" {res['held']} more kept back for 'Search more'." if res.get("held") else ""))
@@ -441,7 +441,7 @@ def run_scrapers(dry_run=False, config=None, specific_source=None):
         if dry_run:
             report_dry_run(source_name, listings)
             return 0
-        return process_and_save(source_name, listings, per_site)   # also wakes n8n for this site
+        return process_and_save(source_name, listings, per_site)   # also starts the scam check for this site
 
     # "limit" (from the dashboard): about this many NEW listings per run, shared between the sites,
     # so the scam check gets a small batch and answers fast. The rest wait for "Search more".

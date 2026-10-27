@@ -1,6 +1,6 @@
 @echo off
 REM InReal: start the app (production server) and a public Cloudflare link to it.
-REM Public visitors get a READ-ONLY dashboard. Scraping and n8n keep working from this laptop.
+REM Public visitors get a READ-ONLY dashboard. Scraping and the scam check keep working from this laptop.
 cd /d "%~dp0"
 
 if exist ".venv\Scripts\activate.bat" call ".venv\Scripts\activate.bat"

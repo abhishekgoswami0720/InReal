@@ -1,4 +1,4 @@
-"""Automatic update (autopilot.py): one round with fake scrapers, Supabase and n8n."""
+"""Automatic update (autopilot.py): one round with fake scrapers, Supabase and scam check."""
 import sys
 from pathlib import Path
 
@@ -29,11 +29,11 @@ def test_a_round_checks_only_new_posts_and_waits_for_verdicts(tmp_path, monkeypa
     published = []
     monkeypatch.setattr(supabase_sync, "publish_later", lambda rows: published.extend(r["id"] for r in rows))
 
-    def fake_n8n(source=""):        # n8n: judge everything pending
+    def fake_check(source=""):      # the scam check: judge everything pending
         for p in oh.pending_moderation(limit=50, claim=True):
             oh.save_verdict(p["id"], "approved", 0.05, ["LLM: genuine"])
     import moderation.notify
-    monkeypatch.setattr(moderation.notify, "notify_n8n", fake_n8n)
+    monkeypatch.setattr(moderation.notify, "start_scam_check", fake_check)
 
     result = autopilot.run_round(lambda: False)
     assert result == {"software": {"to_check": 2, "known": 1}}

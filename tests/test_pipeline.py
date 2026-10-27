@@ -1,15 +1,12 @@
-"""The scam check moved from n8n into the app (moderation/pipeline, 26 Oct 2026).
-These tests run the n8n Code-node JavaScript and the Python port on the SAME inputs and require
-the same output, so verdicts don't change with the move. Then the whole round with fake APIs."""
+"""The scam check (moderation/pipeline). It replaced the n8n workflow on 26 Oct 2026; the answers
+the n8n JavaScript gave on these inputs are kept in tests/fixtures/n8n_golden.json and the Python
+code must still give them. Then the whole round with fake APIs."""
 import json
 import math
 import random
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -19,16 +16,23 @@ from moderation.pipeline import rules as R  # noqa: E402
 from moderation.pipeline import vectors as V  # noqa: E402
 from moderation.pipeline.runner import judge_posts  # noqa: E402
 
-NODE = shutil.which("node")
-needs_node = pytest.mark.skipif(NODE is None, reason="node is not installed")
 CFG = {"blockAt": 0.7, "reviewAt": 0.4, "hitFloor": "", "strongFloor": "", "margin": "", "judgeBatch": 5, "judgeParallel": 2}
 
 
+# What the old n8n JavaScript returned for each comparison below, recorded on 27 Oct 2026 before the
+# n8n/ folder was deleted (it gave the same answers as this Python code then). The Python pipeline
+# must keep giving the same answers: a change to a threshold or a prompt shows up here.
+GOLDEN = Path(__file__).parent / "fixtures" / "n8n_golden.json"
+_golden = json.loads(GOLDEN.read_text(encoding="utf-8"))
+
+
 def js(files, fn, *args):
-    out = subprocess.run(["node", str(Path(__file__).parent / "js_runner.js"), files, fn],
-                         input=json.dumps(args), capture_output=True, text=True, timeout=30)
-    assert out.returncode == 0, out.stderr
-    return json.loads(out.stdout)
+    """The recorded n8n answer for this call (files and fn name the old JavaScript)."""
+    import hashlib
+    args = json.loads(json.dumps(args))
+    key = hashlib.sha256(json.dumps([files, fn, args], sort_keys=True).encode()).hexdigest()[:24]
+    assert key in _golden, f"no recorded n8n answer for {fn}: the test input changed"
+    return _golden[key]
 
 
 def same(a, b):
@@ -70,7 +74,6 @@ LINKS = [
 ]
 
 
-@needs_node
 def test_rules_match_n8n():
     for listing, link in zip(LISTINGS, LINKS):
         assert same(R.analyse(listing, link), js("signals.js", "analyse", listing, link, {})), listing["id"]
@@ -119,7 +122,6 @@ def _posts(n=14):
     return posts
 
 
-@needs_node
 def test_embedding_batches_and_vector_search_match_n8n():
     bank = _bank()
     posts = _posts(60)
@@ -143,7 +145,6 @@ def test_embedding_batches_and_vector_search_match_n8n():
         assert not same(V.unpack(posts, batches, answers, moved, cfg), py)
 
 
-@needs_node
 def test_judge_requests_match_n8n():
     bank = _bank()
     posts = _posts(7)
@@ -175,7 +176,6 @@ def _judge_answer(posts, mode):
         {"candidates": [{"content": {"parts": [{"text": body}]}}]}
 
 
-@needs_node
 def test_verdicts_match_n8n():
     bank = _bank()
     posts = _posts(12)
@@ -216,7 +216,6 @@ def test_a_whole_round_with_fake_apis():
     assert len(calls) == 1                                      # r3's page is closed: never sent to the AI
 
 
-@needs_node
 def test_every_threshold_edge_matches_n8n():
     """One-chunk posts swept across angles between a scam phrase and an honest one, so every
     threshold (hit, near-copy, margin, 2x margin) is crossed somewhere."""
@@ -235,7 +234,6 @@ def test_every_threshold_edge_matches_n8n():
     assert kinds == {(False, False), (True, False), (True, True)}
 
 
-@needs_node
 def test_long_posts_are_cut_like_n8n():
     risky = ("Pay the registration fee " + "x" * 900)[:899] + "."   # exactly the 900 characters allowed
     for extra in (risky, risky + "y", "Kit charge applies.\n" + risky):

@@ -63,8 +63,7 @@ test_output/
 # Built from moderation/scam_patterns.json with your Gemini key (python -m moderation.build_index)
 moderation/pattern_index.json
 
-# local only: site caches, data backups, copies made for pasting into n8n
+# local only: site caches, data backups
 .cache/
 internships*.backup-*.csv
 internships_log*.backup-*.json
-n8n/PASTE_*.js

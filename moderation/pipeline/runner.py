@@ -1,4 +1,4 @@
-"""Runs the scam check on posts waiting in the list (the job the n8n workflow used to do).
+"""Runs the scam check on posts waiting in the list.
 
 One round: take up to 10 waiting posts (claimed, so two rounds never take the same ones), open
 their apply links (all at once), rules, one embedding call, gate, AI judge (5 posts per call,

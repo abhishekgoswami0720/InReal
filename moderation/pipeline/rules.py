@@ -1,4 +1,4 @@
-"""Stage 0, port of n8n/code/signals.js: rules on the apply link and on contact details in the
+"""Stage 0: rules on the apply link and on contact details in the
 post, then the post cut into short chunks for the vector search. No AI: every signal is a rule
 a person can read and argue with."""
 import re

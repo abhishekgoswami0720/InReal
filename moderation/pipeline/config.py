@@ -1,4 +1,4 @@
-"""Knobs of the scam check (the n8n Config node). Override any of them in .env."""
+"""Knobs of the scam check. Override any of them in .env."""
 import os
 
 from moderation.env import load_env

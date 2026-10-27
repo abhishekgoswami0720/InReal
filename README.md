@@ -8,8 +8,8 @@
 ![Flask](https://img.shields.io/badge/Flask-waitress-000000?logo=flask&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-Chromium-2EAD33?logo=playwright&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Auth%20%2B%20Postgres-3ECF8E?logo=supabase&logoColor=white)
-![n8n](https://img.shields.io/badge/n8n-scam%20check-EA4B71?logo=n8n&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-142%20passing-2ea043)
+![LangGraph](https://img.shields.io/badge/LangGraph-scam%20check%20agent-1C3C3C?logo=langchain&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-173%20passing-2ea043)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 </div>
@@ -81,7 +81,7 @@ The home page has a 30-second game. One of these two posts is a scam. Which one?
 - **Sites change their pages.** A scraper can break without warning; `test_sites.py` and `SELECTOR_TRACKER.md` are how breakage is found and fixed.
 - **The scam check is not perfect.** It blocks only on quoted evidence, so a cleverly worded scam can reach *review*. Always check the company before paying anything, and never pay to get an internship.
 - **Google sign-in is in testing mode,** so only accounts added as test users can sign in until the app is published.
-- **Runs on one computer.** Scraping and n8n run locally; there is no hosted deployment yet.
+- **Runs on one computer.** Scraping and the scam check run locally; there is no hosted deployment yet.
 
 ---
 
@@ -96,7 +96,7 @@ The home page has a 30-second game. One of these two posts is a scam. Which one?
 flowchart LR
     A[You press<br/>Search Internships] --> B[Scrape only the<br/>sites you picked]
     B --> C[(Posts held<br/>internships.csv)]
-    C -->|Load 5 more| D[n8n scam check]
+    C -->|Load 5 more| D[Scam check<br/>inside the app]
     D --> E{Verdict}
     E -->|approved| F[Shown on dashboard]
     E -->|review| F
@@ -106,11 +106,13 @@ flowchart LR
 
 1. **Search.** You pick a field, regions and sites. Playwright and the sites' public APIs/RSS collect the posts.
 2. **Hold.** New posts are held, not shown, until they are checked.
-3. **Check.** *Load 5 more* sends the next posts to the n8n workflow:
+3. **Check.** *Load 5 more* sends the next posts to the scam check, which runs inside the app (`moderation/pipeline/`):
+   - **Link check:** the apply link is opened (every redirect is checked, private addresses are refused); dead or closed posts are marked *Closed*, not scam.
    - **Rules:** known scam wording (fees, deposits, "pay to start").
    - **Vector search:** each post is compared with a bank of real scam examples (`moderation/scam_patterns.json`).
-   - **LLM judge:** Azure gpt-4o reads the post and must quote the exact line behind its verdict. Quotes are checked against the post, and a post is blocked only on evidence.
-4. **Publish.** Verdicts come back to `/api/moderation/verdict` and are pushed to Supabase straight away (plus a sweep every 15 minutes), so signed-in users see them.
+   - **LLM judge:** Azure gpt-4o reads 5 posts per call and must quote the exact line behind its verdict. Quotes are checked against the post, and a post is blocked only on evidence. A post that tries to give the AI instructions always goes to *review*.
+   - **Second look (agent):** a LangGraph agent re-checks *review* posts in the background: it opens the company site and the apply link and searches the web (DuckDuckGo). Its quotes are checked against the pages it read; without proof the post stays in *review*.
+4. **Publish.** Verdicts are saved and pushed to Supabase straight away (plus a sweep every 15 minutes), so signed-in users see them.
 5. **Tidy up.** Posts older than 3 days are pruned when a new search starts. Posts still being checked are never pruned.
 
 </details>
@@ -133,7 +135,7 @@ flowchart LR
 
 <br>
 
-**You need:** Python 3.10+, a Supabase project, and (for the scam check) n8n plus an Azure OpenAI deployment.
+**You need:** Python 3.10+, a Supabase project, and (for the scam check) an Azure OpenAI deployment of gpt-4o and an embedding model.
 
 ```bash
 git clone https://github.com/abhishekgoswami0720/InReal.git
@@ -152,7 +154,7 @@ Then:
 
 1. **Database.** In the Supabase SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). It creates `profiles`, `listings` and `bookmarks` with row-level security. Details: [`supabase/README.md`](supabase/README.md).
 2. **Google sign-in.** In Supabase → Authentication → Providers, turn on Google with your OAuth client, and add `http://localhost:5000` to the redirect URLs.
-3. **Scam check.** Follow [`N8N_SETUP.md`](N8N_SETUP.md): build the pattern index (`python -m moderation.build_index`) and import `n8n/inreal_moderation.json`.
+3. **Scam check.** Fill in the Azure keys in `.env`, then build the pattern index once: `python -m moderation.build_index`. Check that everything is connected with `python -m moderation.pipeline --sample` (3 made-up posts, nothing saved).
 4. **Run.**
    ```bash
    python app.py
@@ -173,8 +175,9 @@ All keys live in `.env`, which is git-ignored. **Never commit it**, and never pu
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_PUBLISHABLE_KEY` | Browser sign-in and reads. Safe to expose. |
 | `SUPABASE_SECRET_KEY` | Server-side publishing of verdicts. **Server only.** |
-| `INREAL_N8N_WEBHOOK` | URL of the n8n moderation webhook |
-| `INREAL_ADMIN_TOKEN` | Protects the endpoints that scrape or clear data |
+| `INREAL_ADMIN_TOKEN` | Optional: lets a remote caller scrape or clear data (header `X-InReal-Token`) |
+| `INREAL_ALLOWED_HOSTS` | Optional: extra host names for a LAN setup. Empty = `localhost` only |
+| `MOD_AGENT` | `on` / `off`: the agent's second look at *review* posts |
 | `AZURE_OPENAI_GPT4O_ENDPOINT` / `_KEY` | The LLM judge |
 | `AZURE_OPENAI_EMBEDDING_ENDPOINT` / `_KEY` | Embeddings for the scam-pattern index |
 | `GEMINI_API_KEY` | Optional alternative to Azure for embeddings / judge |
@@ -189,7 +192,7 @@ All keys live in `.env`, which is git-ignored. **Never commit it**, and never pu
 
 ```text
 InReal/
-├── app.py                 # Flask app: pages, /api/scrape, verdicts, publish loop
+├── app.py                 # Flask app: pages, /api/scrape, security checks, publish loop
 ├── scraper.py             # Runs the picked site scrapers for one search
 ├── scraper_utils.py       # Shared browser / request helpers
 ├── sites/                 # One module per site group + registry.py (status of every site)
@@ -197,8 +200,8 @@ InReal/
 ├── filters.py, genuine.py # Title checks and the genuine-only rules
 ├── output_handler.py      # internships.csv store: statuses, de-duplication, 3-day pruning
 ├── supabase_sync.py       # Pushes checked posts to Supabase
-├── moderation/            # Scam pattern bank, vector index, judge evals, re-checks
-├── n8n/                   # The moderation workflow (JSON) and its builder
+├── moderation/            # Scam pattern bank, vector index, link check, judge evals, re-checks
+│   └── pipeline/          # The scam check: rules, vectors, judge, fuse, runner, agent
 ├── supabase/              # schema.sql + access notes
 ├── templates/
 │   ├── site.html          # Landing page  (/)

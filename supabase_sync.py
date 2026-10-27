@@ -1,6 +1,6 @@
 """
 Laptop -> Supabase: puts judged listings on the shared list the website reads (table `listings`,
-see supabase/schema.sql). Called after every n8n verdict and after an unblock; can also push
+see supabase/schema.sql). Called after every verdict and after an unblock; can also push
 everything judged in the local CSV:
 
     python -m supabase_sync            # push every approved / review / blocked row in internships.csv
@@ -105,7 +105,7 @@ def known_verdicts(ids) -> dict:
 
 
 def publish_later(rows):
-    """Same, in the background, so a verdict from n8n is answered at once."""
+    """Same, in the background, so saving a verdict is not slowed down."""
     if enabled():
         threading.Thread(target=publish, args=(list(rows),), daemon=True).start()
 

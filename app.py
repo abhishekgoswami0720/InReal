@@ -1,5 +1,4 @@
 from flask import Flask, render_template, jsonify, request
-import pandas as pd
 from pathlib import Path
 import threading
 import json
@@ -11,16 +10,15 @@ import tempfile
 # Import the scraper orchestrator
 # We need to add the current dir to path to import scraper properly if needed, but it's in the same dir
 from scraper import run_scrapers
-from output_handler import moderation_counts, pending_moderation, save_verdict
+from output_handler import moderation_counts
 from moderation.env import load_env
-from moderation.link_check import resolve as resolve_link
 
 load_env()
 app = Flask(__name__)
 
 # ---- Who may change data ----
 # Visitors coming through a public tunnel (Cloudflare) or a host like Render can only READ.
-# Writes (scrape, clear, n8n moderation calls) are allowed from this laptop itself, or with the
+# Writes (scrape, clear, scam-check buttons) are allowed from this laptop itself, or with the
 # secret INREAL_ADMIN_TOKEN in the X-InReal-Token header.
 # cloudflared connects from 127.0.0.1 too, but it always adds these headers, so a tunnelled
 # request is never mistaken for a local one.
@@ -82,7 +80,7 @@ def guard_cross_site():
     """CSRF: any website open in the same browser can send a plain form or image request to
     localhost:5000. Browsers say where a request came from (Sec-Fetch-Site, Origin), and a page
     on another site cannot add our X-InReal header without the browser asking first, which this
-    app never allows. Scripts and n8n (no browser headers) carry on as before."""
+    app never allows. Scripts (no browser headers) carry on as before."""
     if not request.path.startswith("/api/"):
         return None
     site = request.headers.get("Sec-Fetch-Site", "")
@@ -110,9 +108,6 @@ def guard_writes():
     needs_admin |= path in LOCAL_ONLY_READS
     if needs_admin and not (is_local_request() or has_admin_token()):
         return _refuse("This is a read-only public view. Run scrapes from the laptop.")
-    # claim=1 hands posts to the checker and changes their state: never from a plain GET in a browser
-    if path == "/api/moderation/pending" and request.args.get("claim") == "1" and request.headers.get("Sec-Fetch-Mode"):
-        return _refuse("Claiming posts is for the scam checker, not the browser.")
     return None
 
 
@@ -194,7 +189,6 @@ def list_sites():
 def whoami():
     return jsonify({"can_edit": is_local_request() or has_admin_token()})
 DATA_FILE = Path(__file__).parent / "internships.csv"
-PATTERN_INDEX = Path(__file__).parent / "moderation" / "pattern_index.json"
 
 # Global state for scraping
 scraper_t = None
@@ -313,7 +307,7 @@ def trigger_scrape():
                 return
         if new_search:
             cfg["first_show"] = FIRST_SHOW   # the first 10 go to the scam check as sites finish
-        run_scrapers(dry_run=False, config=cfg)   # calls n8n after each site (moderation/notify.py)
+        run_scrapers(dry_run=False, config=cfg)   # starts the scam check after each site (moderation/notify.py)
 
     scraper_t = threading.Thread(target=scrape_job, args=(config,), daemon=True)
     scraper_t.start()
@@ -322,56 +316,11 @@ def trigger_scrape():
                         "message": "The automatic update is finishing the site it is on; your search starts right after."})
     return jsonify({"status": "started", "run_tag": run_tag, "message": "Scraper started successfully. This might take a while."})
 
-# ---- Moderation API, called by the n8n workflow in n8n/inreal_moderation.json ----
-
-@app.route("/api/moderation/pending")
-def moderation_pending():
-    try:
-        limit = int(request.args.get("limit", 40))
-    except ValueError:
-        limit = 40
-    return jsonify(pending_moderation(limit, claim=request.args.get("claim") == "1"))
-
+# ---- Scam check, as the dashboard sees it (the check itself runs in moderation/pipeline) ----
 
 @app.route("/api/moderation/status")
 def moderation_status():
     return jsonify(moderation_counts())
-
-
-@app.route("/api/moderation/patterns")
-def moderation_patterns():
-    if not PATTERN_INDEX.exists():
-        return jsonify({"error": "moderation/pattern_index.json is missing. Run: python -m moderation.build_index"}), 404
-    return app.response_class(PATTERN_INDEX.read_text(encoding="utf-8"), mimetype="application/json")
-
-
-@app.route("/api/moderation/resolve")
-def moderation_resolve():
-    """Opens one listing's apply link: redirect chain, final domain, status, 'closed' wording."""
-    listing_id = request.args.get("id", "")
-    from output_handler import _read_rows
-    row = next((r for r in _read_rows() if r.get("id") == listing_id), None)
-    if row is None:
-        return jsonify({"id": listing_id, "error": "unknown id"}), 404
-    return jsonify({"id": listing_id, **resolve_link(row.get("apply_link", ""))})
-
-
-@app.route("/api/moderation/verdict", methods=["POST"])
-def moderation_verdict():
-    data = request.get_json(silent=True) or {}
-    try:
-        ok = save_verdict(str(data.get("id", "")), str(data.get("status", "")),
-                          data.get("scam_risk", 0), data.get("reasons", []))
-    except (TypeError, ValueError) as e:
-        return jsonify({"saved": False, "error": str(e)}), 400
-    if not ok:
-        return jsonify({"saved": False, "error": "unknown id"}), 404
-    # No automatic next batch for a manual search: only "Load 5 more" sends listings (13 Oct 00:06).
-    # The automatic update keeps n8n going until its round is judged.
-    import autopilot
-    if autopilot.STATE["checking"]:
-        chain_next_batch()
-    return jsonify({"saved": True, "id": data.get("id"), "status": data.get("status")})
 
 
 def manual_scrape_running() -> bool:
@@ -382,26 +331,6 @@ def manual_scrape_running() -> bool:
 def autopilot_status():
     import autopilot
     return jsonify({**autopilot.STATE, **{k: v for k, v in autopilot.settings().items() if k != "on"}})
-
-
-_last_chain = {"t": 0.0}
-_chain_lock = threading.Lock()
-
-
-def chain_next_batch():
-    """
-    When the last verdict of a run is saved and listings are still waiting, wake n8n again
-    right away instead of leaving them for the 30-minute schedule. Debounced: once per 5 s.
-    """
-    counts = moderation_counts()
-    if counts["checking"] or not counts["pending"]:
-        return
-    with _chain_lock:
-        if time.time() - _last_chain["t"] < 5:
-            return
-        _last_chain["t"] = time.time()
-    from moderation.notify import notify_n8n
-    threading.Thread(target=notify_n8n, args=("next batch",), daemon=True).start()
 
 
 @app.route("/api/moderation/unblock", methods=["POST"])
@@ -425,8 +354,8 @@ def moderation_load_more():
         n = 5
     released = release_held(n, str(data.get("run_tag") or ""))
     if released:
-        from moderation.notify import notify_n8n
-        threading.Thread(target=notify_n8n, args=("load more",), daemon=True).start()
+        from moderation.notify import start_scam_check
+        threading.Thread(target=start_scam_check, args=("load more",), daemon=True).start()
     from output_handler import read_all_rows
     tag = str(data.get("run_tag") or "")
     left = sum(1 for r in read_all_rows() if r.get("moderation_status") == "held" and (not tag or r.get("last_run") == tag))
@@ -436,7 +365,7 @@ def moderation_load_more():
 @app.route("/api/session/new", methods=["POST"])
 def new_session():
     """A page load. The page starts with an empty view by itself; nothing is deleted here any more
-    (wiping internships.csv lost verdicts on their way from n8n and other people's results).
+    (wiping internships.csv lost verdicts still being saved and other people's results).
     Only posts no search has found for a few days are removed."""
     from output_handler import prune_old
     return jsonify({"status": "kept", "pruned": prune_old()})
@@ -569,17 +498,14 @@ def start_publish_loop():
 
 if __name__ == "__main__":
     _hold_old_listings()
-    import autopilot
     # No automatic searching: sites are scraped only when someone presses Search Internships
     # (19 Oct: rounds at 17:24 and 23:24 opened 23 sites nobody asked for). autopilot.py stays
     # for a later server setup; nothing starts it here, whatever AUTO_UPDATE says.
     start_publish_loop()
-    # The scam check runs inside the app (moderation/pipeline); SCAM_CHECK=n8n keeps the old n8n workflow
-    from moderation.notify import mode as scam_check_mode
-    if scam_check_mode() == "python":
-        from moderation.pipeline import start_worker
-        start_worker()
-        print("Scam check: built in (moderation/pipeline), no n8n needed")
+    # The scam check runs inside the app, in its own thread (moderation/pipeline)
+    from moderation.pipeline import start_worker
+    start_worker()
+    print("Scam check: running inside the app (moderation/pipeline)")
     port = int(os.environ.get("PORT", 5000))
     if os.environ.get("INREAL_DEBUG") == "1":
         # Flask's debugger can run code on this machine: only for local development, never with a tunnel

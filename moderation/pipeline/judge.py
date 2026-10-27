@@ -1,9 +1,9 @@
-"""Stage 2, port of n8n/code/judge_prompt.js: the AI judge (gpt-4o on Azure, or Gemini).
+"""Stage 2: the AI judge (gpt-4o on Azure, or Gemini).
 
 One request per mini-batch of posts: rules, one worked example, then the posts with their stage-0/1
 findings as leads to check. The answer follows a fixed JSON schema with one result per post id,
 and every quote must be copied word for word, because fuse.py throws away any quote it can't find
-in that post. The prompt text is the same as the n8n node's (tests/test_pipeline.py compares them).
+in that post. The prompt is pinned by tests/test_pipeline.py (any change to it shows up there).
 """
 import json
 import os

@@ -1,7 +1,5 @@
-"""The scam-moderation pipeline: pattern index, moderation API, link check and the n8n Code-node logic."""
+"""The scam check: pattern index, storage of verdicts, link check and the pipeline's logic."""
 import json
-import shutil
-import subprocess
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,7 +16,10 @@ import output_handler as oh  # noqa: E402
 from moderation import build_index  # noqa: E402
 from moderation.link_check import resolve  # noqa: E402
 
-NODE = shutil.which("node")
+from moderation.pipeline import fuse as F  # noqa: E402
+from moderation.pipeline import judge as J  # noqa: E402
+from moderation.pipeline import rules as R  # noqa: E402
+from moderation.pipeline import vectors as V  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -100,21 +101,11 @@ def test_verdict_survives_refresh_but_not_a_changed_post(store):
     assert oh.save_verdict("zzz", "approved", 0.1, []) is False
 
 
-def test_flask_moderation_api(store, monkeypatch, index, tmp_path):
-    import app as app_module
-    idx = tmp_path / "pattern_index.json"
-    idx.write_text(json.dumps(index), encoding="utf-8")
-    monkeypatch.setattr(app_module, "PATTERN_INDEX", idx)
+def test_verdict_is_stored_in_the_list(store):
     oh.sync_listings([_row("a", "AI Intern")], [])
-    c = app_module.app.test_client()
-    pending = c.get("/api/moderation/pending?limit=5").get_json()
-    assert [p["id"] for p in pending] == ["a"] and pending[0]["description"]
-    assert c.get("/api/moderation/patterns").get_json()["model"] == "gemini-embedding-001"
-    r = c.post("/api/moderation/verdict", json={"id": "a", "status": "review", "scam_risk": 0.5, "reasons": ["x", "y"]})
-    assert r.status_code == 200 and r.get_json()["saved"] is True
+    assert oh.save_verdict("a", "review", 0.5, ["x", "y"]) is True
     row = oh._read_rows()[0]
     assert row["moderation_status"] == "review" and row["scam_risk"] == "0.50" and row["moderation_reasons"] == "x | y"
-    assert c.post("/api/moderation/verdict", json={"id": "a", "status": "nope", "scam_risk": 0.5}).status_code == 400
 
 
 # ---------- link check ----------
@@ -187,16 +178,7 @@ def test_link_check_checks_every_redirect(site, monkeypatch):
     assert out["link_state"] == "invalid" and asked == ["https://jobs.example.com/apply"]
 
 
-# ---------- n8n Code-node logic (run with node) ----------
-
-def js(files, fn, *args):
-    out = subprocess.run(["node", str(Path(__file__).parent / "js_runner.js"), files, fn],
-                         input=json.dumps(args), capture_output=True, text=True, timeout=30)
-    assert out.returncode == 0, out.stderr
-    return json.loads(out.stdout)
-
-
-needs_node = pytest.mark.skipif(NODE is None, reason="node is not installed")
+# ---------- pipeline logic (moderation/pipeline) ----------
 
 SCAM_TEXT = ("Work on AI projects. Selected candidates must pay a refundable security deposit of Rs 2000 "
              "to confirm the internship. Contact HR on WhatsApp 9876543210. UPI: hr.jobs@ybl")
@@ -209,29 +191,26 @@ def _listing(id_, text, link="https://www.naukri.com/job-listings-x"):
             "description": text, "apply_link": link, "source_platform": "Naukri", "trust_flags": ""}
 
 
-@needs_node
-def test_signals_and_chunks(index):
-    bank = {k: index[k] for k in ("model", "dims", "request_style", "task_type")}
-    out = js("signals.js", "analyse", _listing("s", SCAM_TEXT, "https://bit.ly/abc"),
+def test_signals_and_chunks():
+    out = R.analyse(_listing("s", SCAM_TEXT, "https://bit.ly/abc"),
              {"link_state": "ok", "chain": ["https://bit.ly/abc", "https://forms.gle/xyz"], "final_url": "https://forms.gle/xyz",
-              "final_domain": "forms.gle"}, bank)
+              "final_domain": "forms.gle"})
     codes = {s["code"] for s in out["signals"]}
     assert {"short_link", "form_link", "upi_id", "whatsapp", "phone", "redirect"} <= codes
     assert 0.75 < out["signal_risk"] <= 0.95   # 1 - product of (1 - weight)
     assert out["chunks"][0].startswith("AI Intern at Acme") and len(out["chunks"]) >= 3
     assert out["listing"]["id"] == "s"
 
-    clean = js("signals.js", "analyse", _listing("c", CLEAN_TEXT), {"link_state": "portal_blocks_bots"}, bank)
+    clean = R.analyse(_listing("c", CLEAN_TEXT), {"link_state": "portal_blocks_bots"})
     assert clean["signals"] == [] and clean["signal_risk"] == 0
 
 
-@needs_node
 def test_vector_search_contrast_and_gate(index):
     def run(text):
-        chunks = js("signals.js", "chunkText", _listing("x", text))
+        chunks = R.chunk_text(_listing("x", text))
         embs = [{"values": mock_gemini.embed(c)} for c in chunks]
-        stage1 = js("vector_search.js", "search", chunks, embs, index, {})
-        return stage1, js("vector_search.js", "gate", stage1, [])
+        stage1 = V.search(chunks, embs, index, {})
+        return stage1, V.gate(stage1, [])
 
     scam1, gate1 = run("Selected candidates must pay a security deposit which will be returned after the internship.")
     assert scam1["categories"] and scam1["categories"][0]["category"] == "upfront_fee"
@@ -241,7 +220,6 @@ def test_vector_search_contrast_and_gate(index):
     assert clean1["nearest"]   # reviewers still see how close it came
 
 
-@needs_node
 def test_fuse_checks_quotes_and_blocks_only_when_sure_and_proven():
     cfg = {"blockAt": 0.7, "reviewAt": 0.4}
     listing = _listing("f", "Great team. Interns pay a refundable deposit of Rs 1500 to join.")
@@ -252,33 +230,32 @@ def test_fuse_checks_quotes_and_blocks_only_when_sure_and_proven():
                 "evidence": [{"quote": q, "why": "fee"} for q in quotes], "summary": "s"}
         return {"candidates": [{"content": {"parts": [{"text": json.dumps(body)}]}}]}
 
-    real = js("_verdict_lib.js,fuse.js", "fuse", listing, item, llm(0.95, ["Interns pay a refundable deposit of Rs 1500"]), cfg)
+    real = F.fuse(listing, item, llm(0.95, ["Interns pay a refundable deposit of Rs 1500"]), cfg)
     # sure (>= 0.9) + a quote that is in the post + it asks for money: blocked even on the LLM alone (19 Oct)
     assert real["parts"]["verified_quotes"] == 1 and real["status"] == "blocked" and real["parts"]["sure_and_proven"]
     assert real["reasons"][0].startswith("Blocked: the AI judge was sure")
-    unsure = js("_verdict_lib.js,fuse.js", "fuse", listing, item, llm(0.85, ["Interns pay a refundable deposit of Rs 1500"]), cfg)
+    unsure = F.fuse(listing, item, llm(0.85, ["Interns pay a refundable deposit of Rs 1500"]), cfg)
     assert unsure["status"] == "review"                                                   # below 0.9: the old weighting
-    fake = js("_verdict_lib.js,fuse.js", "fuse", listing, item, llm(0.95, ["pay the processing fee before joining"]), cfg)
+    fake = F.fuse(listing, item, llm(0.95, ["pay the processing fee before joining"]), cfg)
     assert fake["parts"]["rejected_quotes"] == 1 and fake["parts"]["llm_adjusted"] < 0.65   # made-up quote discounted
     assert any("not in the post" in r for r in fake["reasons"])
 
     item_hit = {**item, "stage1": {"vector_risk": 0.8, "categories": []}, "signal_risk": 0.3}
-    both = js("_verdict_lib.js,fuse.js", "fuse", listing, item_hit, llm(0.95, ["Interns pay a refundable deposit of Rs 1500"]), cfg)
+    both = F.fuse(listing, item_hit, llm(0.95, ["Interns pay a refundable deposit of Rs 1500"]), cfg)
     assert both["status"] == "blocked"
-    calm = js("_verdict_lib.js,fuse.js", "fuse", listing, item_hit, llm(0.05, []), cfg)
+    calm = F.fuse(listing, item_hit, llm(0.05, []), cfg)
     assert calm["status"] == "review" and any("disagree" in r for r in calm["reasons"])  # disagreement goes to a person
-    down = js("_verdict_lib.js,fuse.js", "fuse", listing, item_hit, {"error": {"code": 429}}, cfg)
+    down = F.fuse(listing, item_hit, {"error": {"code": 429}}, cfg)
     assert down["decided_by"] == "vector_search" and down["status"] in ("review", "blocked")
 
 
-@needs_node
 def test_fuse_rejects_quotes_that_say_no_fee():
     cfg = {"blockAt": 0.7, "reviewAt": 0.4}
     listing = _listing("n", CLEAN_TEXT)
     item = {"id": "n", "stage1": {"vector_risk": 0.0, "categories": []}, "signals": [], "signal_risk": 0.0}
     body = {"scam_probability": 0.9, "verdict": "scam", "categories": ["upfront_fee"], "summary": "fee",
             "evidence": [{"quote": "We do not charge any fee from candidates at any stage of hiring", "why": "fee"}]}
-    v = js("_verdict_lib.js,fuse.js", "fuse", listing, item, {"candidates": [{"content": {"parts": [{"text": json.dumps(body)}]}}]}, cfg)
+    v = F.fuse(listing, item, {"candidates": [{"content": {"parts": [{"text": json.dumps(body)}]}}]}, cfg)
     assert v["parts"]["verified_quotes"] == 0 and any("says the opposite" in r for r in v["reasons"])
     assert v["scam_risk"] < 0.4 and v["status"] == "review"   # discounted, but the disagreement still goes to a person
 
@@ -290,29 +267,26 @@ def test_description_arriving_later_triggers_new_moderation(store):
     assert [p["id"] for p in oh.pending_moderation()] == ["old"]
 
 
-@needs_node
 def test_mini_batches_map_answers_back_to_the_right_posts(index):
     bank = {k: index[k] for k in ("model", "dims", "request_style", "task_type")}
     posts = [{"id": f"p{i}", "chunks": [f"chunk {i}.{j}" for j in range(n)]} for i, n in enumerate([30, 40, 30, 5])]
-    batches = js("pack_embed.js", "packEmbeds", posts, bank)
-    assert [len(b["embedRequest"]["requests"]) for b in batches] == [70, 35]        # max 90 texts per call
+    batches = V.pack(posts, bank)
+    assert [b["texts"] for b in batches] == [70, 35]        # max 90 texts per call
     assert batches[1]["members"] == [{"idx": 2, "start": 0, "n": 30}, {"idx": 3, "start": 30, "n": 5}]
-    assert batches[0]["embedRequest"]["requests"][0]["embedContentConfig"]["outputDimensionality"] == 768
+    assert V._request_item(batches[0]["chunks"][0], bank)["embedContentConfig"]["outputDimensionality"] == 768
 
     # unpack: second batch failed -> its posts still go on, marked, to the LLM judge
     full = [{**p, "signals": [], "signal_risk": 0, "listing": {"id": p["id"]}} for p in posts]
-    answers = [{"embeddings": [{"values": mock_gemini.embed(c)} for b in [batches[0]] for r in b["embedRequest"]["requests"]
-                               for c in [r["content"]["parts"][0]["text"]]]}, {"error": {"code": 429}}]
-    out = js("vector_search.js", "unpack", full, batches, answers, index, {})
+    answers = [{"embeddings": [{"values": mock_gemini.embed(c)} for c in batches[0]["chunks"]]}, {"error": {"code": 429}}]
+    out = V.unpack(full, batches, answers, index, {})
     assert [o["id"] for o in out] == ["p0", "p1", "p2", "p3"]
     assert out[0]["stage1"]["chunks_checked"] == 30 and "Embedding failed" in out[3]["stage1"]["error"]
 
 
-@needs_node
 def test_judge_batches_split_per_post():
-    items = [{"id": f"x{i}", "stage1": {"categories": []}, "signals": [], "signal_risk": 0,
+    items = [{"id": f"x{i}", "stage1": {"categories": [], "vector_risk": 0}, "signals": [], "signal_risk": 0,
               "listing": _listing(f"x{i}", SCAM_TEXT if i == 3 else CLEAN_TEXT)} for i in range(10)]
-    packed = js("judge_prompt.js", "packJudge", items)
+    packed = J.pack(items, "gemini")
     assert [len(b["posts"]) for b in packed] == [5, 5]
     prompt = packed[0]["judgeRequest"]["contents"][-1]["parts"][0]["text"]
     assert prompt.count("POST x") == 5 and "results" in json.dumps(packed[0]["judgeRequest"]["generationConfig"])
@@ -321,11 +295,13 @@ def test_judge_batches_split_per_post():
         res = [{"id": p["id"], **mock_gemini.judge("Text: " + p["listing"]["description"])} for p in batch["posts"] if p["id"] != drop]
         return {"candidates": [{"content": {"parts": [{"text": json.dumps({"results": res})}]}}]}
 
-    out = js("_verdict_lib.js,fuse.js", "fuseBatches", packed, [answer(packed[0], drop="x4"), {"error": {"code": 500}}],
+    out = F.fuse_batches(packed, [answer(packed[0], drop="x4"), {"error": {"code": 500}}],
              {"blockAt": 0.7, "reviewAt": 0.4})
     v = {o["verdict"]["id"]: o["verdict"] for o in out}
     assert len(v) == 10
-    assert v["x3"]["parts"]["verified_quotes"] == 1 and v["x0"]["status"] == "approved"
+    # x0 says "we do not charge any fee": the mock judge calls that a scam, its quote is thrown out,
+    # so it is never blocked (it goes to a person because the AI and the wording check disagree)
+    assert v["x3"]["parts"]["verified_quotes"] == 1 and v["x0"]["parts"]["verified_quotes"] == 0 and v["x0"]["status"] == "review"
     assert v["x4"]["decided_by"] == "vector_search" and "no result for this post" in v["x4"]["reasons"][0]
     assert v["x9"]["decided_by"] == "vector_search"                       # whole second call failed
 
@@ -358,39 +334,36 @@ def test_azure_index_and_unpack(gemini, tmp_path, monkeypatch):
     assert "test-key" not in out.read_text(encoding="utf-8")            # the key never goes into the index
     fee = [it for it in idx["items"] if it["id"] == "upfront_fee-3"][0]
     assert abs(sum(a * b for a, b in zip(fee["vector"], mock_gemini.embed(fee["text"]))) - 1) < 1e-3   # order kept
-    if NODE:
-        posts = [{"id": "a", "chunks": ["Selected candidates must pay a security deposit which will be returned after the internship."],
-                  "signals": [], "signal_risk": 0, "listing": {"id": "a"}}]
-        batches = js("pack_embed.js", "packEmbeds", posts, idx)
-        assert batches[0]["embedRequest"] == {"input": posts[0]["chunks"], "dimensions": 768}
-        ans = [{"data": [{"index": 0, "embedding": mock_gemini.embed(posts[0]["chunks"][0])}]}]
-        res = js("vector_search.js", "unpack", posts, batches, ans, idx, {})
-        assert res[0]["stage1"]["categories"][0]["category"] == "upfront_fee"
+    posts = [{"id": "a", "chunks": ["Selected candidates must pay a security deposit which will be returned after the internship."],
+              "signals": [], "signal_risk": 0, "listing": {"id": "a"}}]
+    batches = V.pack(posts, idx)
+    assert batches[0]["chunks"] == posts[0]["chunks"]
+    ans = [{"data": [{"index": 0, "embedding": mock_gemini.embed(posts[0]["chunks"][0])}]}]
+    res = V.unpack(posts, batches, ans, idx, {})
+    assert res[0]["stage1"]["categories"][0]["category"] == "upfront_fee"
 
 
-@needs_node
 def test_azure_gpt4o_judge_request_and_answer():
-    items = [{"id": f"z{i}", "stage1": {"categories": []}, "signals": [], "signal_risk": 0,
+    items = [{"id": f"z{i}", "stage1": {"categories": [], "vector_risk": 0}, "signals": [], "signal_risk": 0,
               "listing": _listing(f"z{i}", SCAM_TEXT if i == 1 else CLEAN_TEXT)} for i in range(3)]
-    packed = js("judge_prompt.js", "packJudge", items, "azure")
+    packed = J.pack(items, "azure")
     req = packed[0]["judgeRequest"]
     assert [m["role"] for m in req["messages"]] == ["system", "user", "assistant", "user"]   # one-shot example
     schema = req["response_format"]["json_schema"]["schema"]["properties"]["results"]["items"]
     assert schema["additionalProperties"] is False and set(schema["required"]) == set(schema["properties"])
     body = {"results": [{"id": p["id"], **mock_gemini.judge("Text: " + p["listing"]["description"])} for p in packed[0]["posts"]]}
     ans = {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(body)}}]}
-    v = {o["verdict"]["id"]: o["verdict"] for o in js("_verdict_lib.js,fuse.js", "fuseBatches", packed, [ans], {"blockAt": 0.7, "reviewAt": 0.4})}
-    assert v["z1"]["parts"]["verified_quotes"] == 1 and v["z0"]["status"] == "approved"
+    v = {o["verdict"]["id"]: o["verdict"] for o in F.fuse_batches(packed, [ans], {"blockAt": 0.7, "reviewAt": 0.4})}
+    assert v["z1"]["parts"]["verified_quotes"] == 1 and v["z0"]["parts"]["verified_quotes"] == 0 and v["z0"]["status"] == "review"
     filt = {"choices": [{"finish_reason": "content_filter", "message": {"content": None}}]}
-    w = js("_verdict_lib.js,fuse.js", "fuseBatches", packed, [filt], {"blockAt": 0.7, "reviewAt": 0.4})
+    w = F.fuse_batches(packed, [filt], {"blockAt": 0.7, "reviewAt": 0.4})
     assert all("content filter" in o["verdict"]["reasons"][0] for o in w)
 
 
-@needs_node
 def test_both_ai_checks_down_means_retry_not_approved(store):
     listing = _listing("r", "Pay a refundable deposit to join.")
     item = {"id": "r", "stage1": {"vector_risk": 0, "categories": [], "error": "Embedding failed (429)"}, "signals": [], "signal_risk": 0.1}
-    v = js("_verdict_lib.js,fuse.js", "fuse", listing, item, {"error": {"code": 429}}, {"blockAt": 0.7, "reviewAt": 0.4})
+    v = F.fuse(listing, item, {"error": {"code": 429}}, {"blockAt": 0.7, "reviewAt": 0.4})
     assert v["status"] == "retry"
     oh.sync_listings([_row("r", "AI Intern")], [])
     oh.pending_moderation(claim=True)
@@ -407,16 +380,12 @@ def test_round_robin_across_sites():
 
 
 def test_no_automatic_next_batch(store, monkeypatch):
-    """Only Load more sends listings: a finished run must not wake n8n for the rest."""
-    import app as app_mod
+    """Only Load more sends listings: saving the verdicts of a round must not start another one."""
     calls = []
-    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": calls.append(source))
+    monkeypatch.setattr("moderation.notify.start_scam_check", lambda source="": calls.append(source))
     oh.sync_listings([_row(f"q{i}", "AI Intern") for i in range(3)], [])
-    claimed = oh.pending_moderation(limit=2, claim=True)
-    c = app_mod.app.test_client()
-    for p_ in claimed:
-        c.post("/api/moderation/verdict", json={"id": p_["id"], "status": "approved", "scam_risk": 0.1, "reasons": []})
-    import time; time.sleep(0.2)
+    for p_ in oh.pending_moderation(limit=2, claim=True):
+        oh.save_verdict(p_["id"], "approved", 0.1, [])
     assert calls == []
 
 
@@ -427,7 +396,7 @@ def test_unreleased_rows_are_held_at_start(store):
 
 def test_new_listings_are_held_and_released_five_at_a_time(store, monkeypatch):
     import app as app_mod
-    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    monkeypatch.setattr("moderation.notify.start_scam_check", lambda source="": None)
     rows = [_row(f"h{i}", "AI Intern", source_platform=("Unstop" if i % 2 else "Shine")) for i in range(12)]
     oh.sync_listings(rows, [], hold=True)
     c = oh.moderation_counts()
@@ -445,7 +414,7 @@ def test_new_listings_are_held_and_released_five_at_a_time(store, monkeypatch):
 def test_a_scrape_sends_nothing_until_load_more(store, monkeypatch):
     import scraper
     calls = []
-    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": calls.append(source))
+    monkeypatch.setattr("moderation.notify.start_scam_check", lambda source="": calls.append(source))
     monkeypatch.setattr(scraper, "evaluate", lambda src, raw: [(dict(r), True, "") for r in raw])
     scraper._release["left"] = scraper.INITIAL_RELEASE
     scraper.process_and_save("unstop", [_row(f"s{i}", "AI Intern", source_platform="Unstop") for i in range(8)])
@@ -456,7 +425,7 @@ def test_a_scrape_sends_nothing_until_load_more(store, monkeypatch):
 
 def test_initial_release_when_switched_on(store, monkeypatch):
     import scraper
-    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    monkeypatch.setattr("moderation.notify.start_scam_check", lambda source="": None)
     monkeypatch.setattr(scraper, "evaluate", lambda src, raw: [(dict(r), True, "") for r in raw])
     scraper._release["left"] = 5
     scraper.process_and_save("unstop", [_row(f"s{i}", "AI Intern", source_platform="Unstop") for i in range(8)])
@@ -467,7 +436,7 @@ def test_initial_release_when_switched_on(store, monkeypatch):
 
 def test_each_search_is_tagged_and_load_more_stays_in_it(store, monkeypatch):
     import app as app_mod
-    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    monkeypatch.setattr("moderation.notify.start_scam_check", lambda source="": None)
     oh.sync_listings([_row("old1", "AI Intern"), _row("both", "ML Intern")], [], hold=True, run_tag="A")
     oh.sync_listings([_row("both", "ML Intern"), _row("new1", "AI Intern")], [], hold=True, run_tag="B")
     tags = {r["id"]: r["last_run"] for r in oh._read_rows()}
@@ -551,7 +520,7 @@ SNIPPET = "Software Development Intern (Angular /.Months (Full-time conversion b
 def test_load_more_reads_the_full_talent_post_first(store, monkeypatch):
     import app as app_mod
     from sites import details
-    monkeypatch.setattr("moderation.notify.notify_n8n", lambda source="": None)
+    monkeypatch.setattr("moderation.notify.start_scam_check", lambda source="": None)
     opened = []
     monkeypatch.setitem(details.FETCHERS, "Talent.com", lambda link: opened.append(link) or LONG_DESC)
     rows = [_row("t1", "SDE Intern", desc=SNIPPET, source_platform="Talent.com"),
@@ -611,7 +580,6 @@ def test_line_breaks_are_kept_and_do_not_count_as_a_change(store):
     assert "\n" in next(x for x in oh.read_all_rows() if x["id"] == "lb")["description"]
 
 
-@needs_node
 def test_sure_judge_without_a_money_or_id_quote_is_not_blocked():
     cfg = {"blockAt": 0.7, "reviewAt": 0.4}
     text = ("Earn 45,000 a month. Everyone who applies today is selected, no interview. "
@@ -629,11 +597,11 @@ def test_sure_judge_without_a_money_or_id_quote_is_not_blocked():
                    ["Stipend: 45,000/month"],
                    ["We never charge any fee"],              # says the opposite: thrown out, not proof
                    ["pay a deposit of Rs 2000 to join"]):    # not in the post: thrown out, not proof
-        v = js("_verdict_lib.js,fuse.js", "fuse", listing, item, llm(quotes), cfg)
+        v = F.fuse(listing, item, llm(quotes), cfg)
         assert v["status"] == "review" and not v["parts"]["sure_and_proven"], quotes
 
     priced = _listing("p", "Selected candidates first complete a 2-month training program (₹4,500, EMI available).")
-    v = js("_verdict_lib.js,fuse.js", "fuse", priced, {**item, "id": "p"},
+    v = F.fuse(priced, {**item, "id": "p"},
            llm(["complete a 2-month training program (₹4,500, EMI available)"]), cfg)
     assert v["status"] == "blocked"
 

@@ -14,7 +14,7 @@ Automatic update: keeps the shared list (Supabase) fresh without anyone clicking
 
 Each round, for every field: search every live site, skip the posts the shared list already has a
 verdict for (they were checked in an earlier round; each check costs Azure tokens), send the rest
-to the scam check, and keep waking n8n until all are judged. Every verdict is published to
+to the scam check, and keep waking the scam check until all are judged. Every verdict is published to
 Supabase by output_handler.save_verdict. Sites that open a Chrome window (Naukri, Foundit,
 SimplyHired, Careerjet, Meta) open it on this laptop during a round.
 
@@ -94,20 +94,20 @@ def _skip_known(run_tag: str) -> int:
 
 def _wait_for_verdicts(run_tag: str):
     import output_handler as oh
-    from moderation.notify import notify_n8n
+    from moderation.notify import start_scam_check
     STATE["checking"] = True
     try:
-        notify_n8n("automatic update")
+        start_scam_check("automatic update")
         start, last_kick = time.time(), time.time()
         while time.time() - start < JUDGE_TIMEOUT_S:
-            if STATE["yield"]:      # someone is waiting to search; n8n's own schedule finishes these
+            if STATE["yield"]:      # someone is waiting to search; the scam check's own rounds finish these
                 return
             rows = [r for r in oh.read_all_rows() if r.get("last_run") == run_tag]
             waiting = sum(1 for r in rows if (r.get("moderation_status") or "") in ("", "checking"))
             if not waiting:
                 return
-            if time.time() - last_kick > 300:    # n8n idle for 5 min with work left: wake it again
-                notify_n8n("automatic update (still waiting)")
+            if time.time() - last_kick > 300:    # no verdict for 5 min with work left: wake the check again
+                start_scam_check("automatic update (still waiting)")
                 last_kick = time.time()
             time.sleep(15)
         logger.warning(f"Automatic update: {run_tag} still had posts unjudged after {JUDGE_TIMEOUT_S // 60} min")

@@ -1,5 +1,5 @@
 """
-The scam check, inside the app (26 Oct 2026: replaces the n8n workflow in n8n/).
+The scam check, inside the app (26 Oct 2026: replaced the n8n workflow, removed 27 Oct).
 
     rules.py    stage 0: where the apply link leads, contact details in the post (no AI)
     vectors.py  stage 1: post sentences vs the bank of known scam / honest phrases (embeddings)
@@ -8,7 +8,7 @@ The scam check, inside the app (26 Oct 2026: replaces the n8n workflow in n8n/).
     runner.py   takes waiting posts from the list, runs the stages, saves the verdicts
     agent.py    a second look at "needs a look" posts: an agent checks the company and the link
 
-Same logic and thresholds as the n8n Code nodes (tests/test_pipeline.py runs both on the same
-posts and compares), so verdicts don't change with the move; it just runs without n8n.
+Same logic and thresholds the n8n workflow had: tests/test_pipeline.py checks the answers against
+what the n8n code gave on the same posts (tests/fixtures/n8n_golden.json).
 """
 from moderation.pipeline.runner import check_waiting, start_worker, wake  # noqa: F401

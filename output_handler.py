@@ -18,7 +18,7 @@ CSV_HEADERS = [
     "source_platform", "date_scraped", "is_new", 
     "org_type", "role_type", "match_score",
     "posted", "trust_flags",
-    # text the n8n moderation pipeline reads, and what it decided
+    # text the scam check reads, and what it decided
     "description", "moderation_status", "scam_risk", "moderation_reasons", "moderated_at",
     "field",   # which field of study the run searched for (fields.py); empty on old rows = ai_ml
     "last_run",   # tag of the latest search that found this post; the dashboard shows one search at a time
@@ -31,7 +31,7 @@ DESCRIPTION_LIMIT = 6000   # 19 Oct: a fee can sit near the end of a long post
 # Sites whose search page gives only a snippet; the full text comes from the post page (sites/details.py)
 SNIPPET_SOURCES = {"Talent.com", "SimplyHired", "Careerjet"}
 
-# The scraper thread and the n8n verdict calls both write internships.csv
+# The scraper thread and the scam-check thread both write internships.csv
 _CSV_LOCK = threading.RLock()
 
 def load_log():
@@ -70,7 +70,7 @@ def _write_rows(rows: list):
         for r in rows:
             writer.writerow({k: r.get(k, "") for k in CSV_HEADERS})
     # Windows refuses to replace a file another reader has open ("WinError 5 Access is denied",
-    # laptop 12 Oct 10:46: one n8n verdict was lost and stayed "checking"). Retry briefly.
+    # laptop 12 Oct 10:46: one verdict was lost and stayed "checking"). Retry briefly.
     for attempt in range(20):
         try:
             tmp.replace(CSV_FILE)   # the dashboard never reads a half-written file
@@ -109,7 +109,7 @@ def sync_listings(kept: list, dropped_ids: list, max_new: int = None, hold: bool
       - kept listing not seen before -> added and marked new
       - listing this run re-checked and dropped -> removed from the dashboard
     Listings that simply did not appear in this run are left alone.
-    The n8n verdict is kept unless the post's own text changed; then it is moderated again.
+    The verdict is kept unless the post's own text changed; then it is moderated again.
     """
     with _CSV_LOCK:
         log_data = load_log()
@@ -194,7 +194,7 @@ PENDING_FIELDS = ["id", "company_name", "role_title", "location", "duration", "s
                   "required_skills", "apply_link", "source_platform", "org_type", "trust_flags", "description"]
 
 
-CLAIM_TIMEOUT_MIN = 4   # a "checking" claim older than this is treated as lost (n8n stopped mid-run)
+CLAIM_TIMEOUT_MIN = 4   # a "checking" claim older than this is treated as lost (the check stopped mid-round)
 
 
 def _is_pending(r: dict, now: datetime) -> bool:
@@ -276,7 +276,7 @@ def round_robin(rows: list, limit: int) -> list:
 def hold_unreleased() -> int:
     """
     Listings with no status were saved before 'held' existed, or released and never picked up.
-    They go back to 'held' at app start, so only a "Load 5 more" click ever sends listings to n8n
+    They go back to 'held' at app start, so only a "Load 5 more" click ever sends listings to the scam check
     (13 Oct 00:04: 30 old ones were checked on their own right after a Load more click).
     """
     with _CSV_LOCK:
@@ -361,11 +361,11 @@ def release_held(n: int, run_tag: str = "") -> int:
 
 def pending_moderation(limit: int = 40, claim: bool = False) -> list:
     """
-    Listings the n8n pipeline has not judged yet, taken ROUND-ROBIN across sites (one from each
+    Listings the scam check has not judged yet, taken ROUND-ROBIN across sites (one from each
     site in turn, newest first within a site), so a batch never goes to a single site while the
     others wait (13 Oct: a 400-listing Content & Media run filled every batch from two sites).
-    claim=True marks them "checking", so a second n8n run started meanwhile (the scraper calls
-    n8n after EACH site, so runs overlap) takes different listings instead of the same ones.
+    claim=True marks them "checking", so a second round started meanwhile (the scraper starts
+    the check after EACH site, so rounds overlap) takes different listings instead of the same ones.
     """
     now = datetime.now()
     with _CSV_LOCK:
@@ -403,7 +403,7 @@ MIN_TEXT_TO_CHECK = 300   # characters of post text the scam check needs to say 
 
 def approval_doubts(row: dict, reasons: str) -> list:
     """
-    Reasons NOT to show an n8n "approved" as verified; the post goes to "review" instead.
+    Reasons NOT to show an AI "approved" as verified; the post goes to "review" instead.
     Added 18 Oct 2026 after a batch where every post was approved:
       1. the AI judge itself called it suspicious/scam and quoted the post (The SmartBridge and
          VDOIT were approved at risk 0.39, just under the 0.40 review line);
@@ -423,7 +423,7 @@ def approval_doubts(row: dict, reasons: str) -> list:
 
 
 def save_verdict(listing_id: str, status: str, scam_risk, reasons) -> bool:
-    """Stores the n8n verdict on one listing. Returns False if the id is unknown."""
+    """Stores the scam-check verdict on one listing. Returns False if the id is unknown."""
     if status == "retry":   # the checks could not run (API down): back to the queue
         with _CSV_LOCK:
             rows = _read_rows()

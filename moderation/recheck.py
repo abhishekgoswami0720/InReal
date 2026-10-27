@@ -1,5 +1,5 @@
 """
-Puts already-judged listings back in the n8n queue and starts the workflow.
+Puts already-judged listings back in the scam-check queue.
 
     python -m moderation.recheck              # posts whose AI check failed (e.g. "Embedding failed")
     python -m moderation.recheck --source unstop --limit 10
@@ -45,9 +45,8 @@ def main():
     n = requeue(a.source, a.all, a.limit)
     print(f"{n} listing(s) back in the queue")
     if n:
-        from moderation.notify import notify_n8n
-        notify_n8n("recheck")
-        print("n8n notified (check its Executions tab). If n8n isn't running, click Execute workflow later.")
+        print("The running app checks them within 30 minutes. To check them right now instead, run:"
+              "  python -m moderation.pipeline")
 
 
 if __name__ == "__main__":

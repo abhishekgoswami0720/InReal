@@ -23,11 +23,10 @@ def test_other_websites_cannot_post(client):
             assert r.status_code == 403, (path, headers)
 
 
-def test_cross_site_get_cannot_claim_or_read(client):
-    r = client.get("/api/moderation/pending?claim=1", headers={"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors"})
+def test_cross_site_get_cannot_read(client):
+    r = client.get("/api/internships", headers={"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors"})
     assert r.status_code == 403
-    r = client.get("/api/moderation/pending?claim=1", headers={"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors"})
-    assert r.status_code == 403   # the browser never claims posts
+    assert client.get("/api/internships", headers={"Sec-Fetch-Site": "same-origin"}).status_code == 200
 
 
 def test_own_page_post_needs_the_app_header(client):
@@ -37,7 +36,7 @@ def test_own_page_post_needs_the_app_header(client):
 
 
 def test_scripts_without_browser_headers_still_work(client):
-    assert client.post("/api/alerts/dismiss").status_code == 200   # n8n, curl on the laptop
+    assert client.post("/api/alerts/dismiss").status_code == 200   # scripts, curl on the laptop
 
 
 def test_dns_rebinding_host_refused(client):
@@ -51,7 +50,7 @@ def test_dns_rebinding_host_refused(client):
 def test_tunnel_visitor_is_read_only_and_cannot_see_logs(client):
     tunnel = {"Host": "abc.trycloudflare.com", "Cf-Connecting-Ip": "1.2.3.4", "X-InReal": "1"}
     assert client.get("/api/whoami", headers=tunnel).get_json() == {"can_edit": False}
-    for path in ("/api/logs", "/api/autopilot", "/api/moderation/pending", "/admin"):
+    for path in ("/api/logs", "/api/autopilot", "/admin"):
         assert client.get(path, headers=tunnel).status_code == 403, path
     assert client.post("/api/clear", headers=tunnel).status_code == 403
 
@@ -66,7 +65,7 @@ def test_security_headers(client):
 
 
 def test_big_body_refused(client):
-    r = client.post("/api/moderation/verdict", data=b"x" * (2 * 1024 * 1024), content_type="application/json")
+    r = client.post("/api/moderation/load-more", data=b"x" * (2 * 1024 * 1024), content_type="application/json")
     assert r.status_code == 413
 
 

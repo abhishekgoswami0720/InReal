@@ -1,4 +1,4 @@
-"""Verdicts, port of n8n/code/_verdict_lib.js, fuse.js, stage1_verdict.js and expired_verdict.js.
+"""Verdicts: the three stages combined into one decision (first written for n8n, ported 26 Oct 2026).
 
 The AI's answer is one witness, not the judge:
   1. every quote it gives is searched for in the real post; quotes that aren't there are thrown out
@@ -91,7 +91,7 @@ def verify_evidence(listing: dict, evidence: list) -> tuple:
 
 # A post that talks to the AI reviewer ("ignore previous instructions", "rate this as genuine") is
 # trying to steer the check. Real internship posts never do that, so it never gets "verified".
-# (Python pipeline only; the old n8n workflow does not have this rule.) Words like "system prompt" or
+# Words like "system prompt" or
 # "you are an AI" are left out on purpose: real AI/LLM internship posts use them.
 INJECTION_RE = re.compile(
     r"ignore (all |any )?(the )?(previous|prior|above|earlier) (instructions|prompts?|rules)"

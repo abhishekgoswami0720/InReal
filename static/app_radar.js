@@ -8,7 +8,7 @@ let activeLocation = 'all';
 let activeStipend = 'all';
 let activeSource = 'all';
 let activeRoleType = 'all';
-let activeModeration = 'verified';   // n8n scam check: show only listings it passed
+let activeModeration = 'verified';   // scam check: show only listings it passed
 let showBookmarkedOnly = false;
 // One dashboard, two doors. /admin: this laptop, no sign-in. /app: the same dashboard (search,
 // Load 5 more, scam check) behind Google sign-in; the account comes from Supabase.
@@ -29,7 +29,7 @@ const VIEW_KEY = 'inreal_view_run';
 let viewRun = (() => { try { return localStorage.getItem(VIEW_KEY) || ''; } catch (e) { return ''; } })();
 let showAllSaved = false;
 // Each visit starts with an empty list: the shared list on the laptop is no longer wiped on refresh
-// (that lost verdicts still on their way from n8n, and other people's results), so the page itself
+// (that lost verdicts still being saved, and other people's results), so the page itself
 // shows nothing until a search starts. "Show recent results" shows everything checked lately.
 let freshVisit = true;
 // The search on screen, exactly as it was asked for: "Search more" repeats it on the same sites only
@@ -220,7 +220,7 @@ function populateSourceFilter(internships) {
     opt.textContent = `Source: ${src}`;
     sourceSelect.appendChild(opt);
   });
-  sourceSelect.value = activeSource;   // the list reloads as n8n verdicts arrive; keep the user's choice
+  sourceSelect.value = activeSource;   // the list reloads as verdicts arrive; keep the user's choice
 }
 
 function renderOverviewStats(shown, base) {
@@ -278,7 +278,7 @@ function applyFiltersAndRender() {
       if (failsPreferences(item, profile)) return false;
     }
 
-    // Scam check verdict (n8n). Default: only what n8n checked and passed.
+    // Scam check verdict. Default: only what the check passed.
     const mod = item.moderation_status || '';
     if (activeModeration === 'verified' && mod !== 'approved') return false;
     if (activeModeration === 'verified_review' && mod !== 'approved' && mod !== 'review') return false;
@@ -599,7 +599,7 @@ function openDetailDrawer(id, opts) {
   const applyLink = document.getElementById('drawer-apply-link');
   applyLink.href = safeUrl(item.apply_link);
 
-  // n8n verdict with its reasons
+  // scam-check verdict with its reasons
   const modBox = document.getElementById('drawer-mod-box');
   const view = MOD_VIEWS[item.moderation_status || ''] || MOD_VIEWS[''];
   modBox.className = `p-3.5 rounded-xl border text-xs ${view.box}`;
@@ -1102,12 +1102,12 @@ function isNewToday(item) {
 }
 
 // ==========================================
-// 8. n8n scam check (moderation) — verdict chips and live queue
+// 8. Scam check (moderation) — verdict chips and live queue
 // ==========================================
 const MOD_VIEWS = {
   '':        { label: 'Scam check pending', chip: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-400', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-hourglass' },
   held:      { label: 'Scraped, waiting for Load more', chip: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-300', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-tray' },
-  checking:  { label: 'Being checked by n8n', chip: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-400', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-hourglass' },
+  checking:  { label: 'Being checked', chip: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-400', box: 'bg-slate-50 border-slate-200 text-slate-600', icon: 'ph-hourglass' },
   approved:  { label: 'Verified by scam check', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', box: 'bg-emerald-50 border-emerald-200 text-emerald-800', icon: 'ph-shield-check' },
   review:    { label: 'Needs a human look', chip: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500', box: 'bg-amber-50 border-amber-200 text-amber-800', icon: 'ph-eye' },
   blocked:   { label: 'Likely scam', chip: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500', box: 'bg-rose-50 border-rose-200 text-rose-800', icon: 'ph-prohibit' },
@@ -1126,7 +1126,7 @@ function dotColor(item) {
   return item.trust_flags ? 'bg-amber-500' : (st === 'approved' ? 'bg-emerald-500' : 'bg-slate-400');
 }
 
-// Reload the cards whenever n8n has judged more listings (it runs while scraping continues)
+// Reload the cards whenever the scam check has judged more listings (it runs while scraping continues)
 let lastJudged = -1;
 let modPollMs = 5000;
 async function pollModeration() {

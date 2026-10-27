@@ -6,8 +6,8 @@ embedding vector, plus thresholds measured on the bank itself.
 
 Needs EMBED_PROVIDER + its key in .env (see .env.example). Run it again whenever you add phrases
 or switch provider: vectors from different models cannot be compared.
-The n8n workflow reads the result from http://localhost:5000/api/moderation/patterns and
-embeds each listing with the SAME model and settings, so the two can be compared.
+The scam check (moderation/pipeline/vectors.py) reads this file and embeds each listing with the
+SAME model and settings, so the two can be compared.
 """
 import json
 import math
@@ -28,7 +28,7 @@ INDEX = HERE / "pattern_index.json"
 DIMS = 768            # gemini-embedding-001 is trained so the first N values work on their own (truncation)
 BATCH = 90
 # Request shapes the Gemini API has accepted for embedding options, newest first.
-# The one that works is saved in the index so n8n sends the same thing.
+# The one that works is saved in the index so the scam check sends the same thing.
 REQUEST_STYLES = ["config", "legacy", "plain"]
 
 
@@ -150,7 +150,7 @@ def main():
         it["vector"] = [round(x, 6) for x in v]
     cal = calibrate(items)
     index = {
-        "provider": cfg["provider"], "embed_url": cfg["url"],   # no key here: n8n adds it from its credential
+        "provider": cfg["provider"], "embed_url": cfg["url"],   # no key here: the scam check reads it from .env
         "model": cfg["model"], "dims": DIMS, "request_style": used, "task_type": "SEMANTIC_SIMILARITY",
         "built_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "bank_version": bank["version"],
         "calibration": cal, "categories": {k: {"label": v["label"], "severity": v["severity"]}

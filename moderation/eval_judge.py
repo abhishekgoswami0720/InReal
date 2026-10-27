@@ -1,9 +1,9 @@
 """
 Does the LLM judge actually catch scams? Runs the test posts in moderation/judge_cases.json
 (9 scams written the way real ones hide the trick, 9 genuine posts that look risky at first sight)
-through the SAME request n8n sends, then scores the answers.
+through the SAME request the scam check sends, then scores the answers.
 
-    python -m moderation.eval_judge            # all 18 posts, 3 calls of up to 8 posts (~20k tokens)
+    python -m moderation.eval_judge            # all 18 posts, 4 calls of up to 5 posts (~20k tokens)
     python -m moderation.eval_judge --only s_late_fee,g_unpaid_ngo
 
 Reads the judge URL and key from .env like check_azure.py. Prints, per post: the judge's verdict and
@@ -14,18 +14,17 @@ import argparse
 import json
 import os
 import random
-import shutil
-import subprocess
 import sys
 import time
 from pathlib import Path
 
 from moderation.check_azure import _explain_401, _post, preflight
 from moderation.env import load_env
+from moderation.pipeline import fuse, judge
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = Path(__file__).with_name("judge_cases.json")
-CFG = {"blockAt": 0.7, "reviewAt": 0.4}        # the Config values in n8n
+CFG = {"blockAt": 0.7, "reviewAt": 0.4}        # the default thresholds (moderation/pipeline/config.py)
 
 # ~1,900 characters of an ordinary post, so the fee in "s_late_fee" sits past the 1,800 the judge reads
 LONG_GENUINE_TEXT = "\n".join([
@@ -63,17 +62,6 @@ LONG_GENUINE_TEXT = "\n".join([
 ])
 
 
-def node_js(fn, files, args):
-    node = shutil.which("node")
-    if not node:
-        sys.exit("Node.js is needed to build the judge request exactly like n8n does")
-    out = subprocess.run([node, str(ROOT / "tests" / "js_runner.js"), files, fn],
-                         input=json.dumps(args), capture_output=True, text=True, timeout=60)
-    if out.returncode:
-        sys.exit(out.stderr)
-    return json.loads(out.stdout)
-
-
 def load_cases(only=None):
     cases = json.loads(CASES.read_text(encoding="utf-8"))["cases"]
     for c in cases:
@@ -98,7 +86,7 @@ def main():
     cases = load_cases(set(filter(None, a.only.split(","))))
     items = [{"id": c["id"], "listing": c, "stage1": {"categories": [], "vector_risk": 0.0}, "signals": [],
               "signal_risk": 0.0} for c in cases]
-    batches = node_js("packJudge", "judge_prompt.js", [items, "azure"])
+    batches = judge.pack(items, "azure")
     answers, tokens = [], 0
     for i, b in enumerate(batches):
         if i:
@@ -115,7 +103,7 @@ def main():
         tokens += r.json().get("usage", {}).get("total_tokens", 0)
         print(f"call {i + 1}/{len(batches)}: {len(b['posts'])} posts in {time.time() - t:.1f}s")
         answers.append(r.json())
-    verdicts = [x["verdict"] for x in node_js("fuseBatches", "_verdict_lib.js,fuse.js", [batches, answers, CFG])]
+    verdicts = [x["verdict"] for x in fuse.fuse_batches(batches, answers, CFG)]
     by_id = {c["id"]: c for c in cases}
 
     raw = {}

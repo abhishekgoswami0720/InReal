@@ -1,4 +1,4 @@
-"""Stage 1, port of n8n/code/pack_embed.js + vector_search.js.
+"""Stage 1: post sentences compared with known scam and honest phrases (embeddings).
 
 Each chunk of a post is compared with every phrase in the bank (moderation/scam_patterns.json,
 embedded by build_index into pattern_index.json). A chunk is a hit only when it is
@@ -67,7 +67,7 @@ def pack(posts: list, bank: dict) -> list:
 
 
 def embed_call(texts: list, bank: dict, timeout: float = 20.0) -> dict:
-    """One call; returns the API's answer, or {"error": ...} (the n8n node never failed the run)."""
+    """One call; returns the API's answer, or {"error": ...} (a failed call never stops the round)."""
     load_env()
     try:
         if bank.get("provider") == "azure":
