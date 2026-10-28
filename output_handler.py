@@ -311,9 +311,14 @@ def mark_known(verdicts: dict, run_tag: str = "") -> int:
 
 def release_held(n: int, run_tag: str = "") -> int:
     """'Load more': moves up to n held listings (round-robin across sites) into the scam-check queue.
-    run_tag: only listings of that search (the one on screen)."""
+    run_tag: only listings of that search (the one on screen). Returns how many."""
+    return len(release_held_ids(n, run_tag))
+
+
+def release_held_ids(n: int, run_tag: str = "") -> list:
+    """Same as release_held, returning the ids sent (app.py follows them until they are judged)."""
     if n <= 0:
-        return 0
+        return []
     with _CSV_LOCK:
         rows = _read_rows()
         held = [r for r in rows if (r.get("moderation_status") or "").strip() == "held"
@@ -328,7 +333,7 @@ def release_held(n: int, run_tag: str = "") -> int:
         if picked:
             _write_rows(rows)
     if not picked:
-        return 0
+        return []
 
     # Sites that show only a snippet in search: read the post's own page first (sites/details.py),
     # outside the lock so the scraper can keep saving meanwhile.
@@ -356,7 +361,7 @@ def release_held(n: int, run_tag: str = "") -> int:
                 r["moderation_status"] = ""
                 r["moderated_at"] = ""
         _write_rows(rows)
-    return len(picked)
+    return [r["id"] for r in picked]
 
 
 def pending_moderation(limit: int = 40, claim: bool = False) -> list:

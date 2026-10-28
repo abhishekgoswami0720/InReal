@@ -403,7 +403,7 @@ def test_new_listings_are_held_and_released_five_at_a_time(store, monkeypatch):
     assert c["held"] == 12 and c["pending"] == 0          # saved, but not in the pipeline
     assert oh.pending_moderation(limit=50) == []
     r = app_mod.app.test_client().post("/api/moderation/load-more", json={"count": 5}).get_json()
-    assert r == {"released": 5, "held_left": 7}
+    assert (r["released"], r["held_left"]) == (5, 7)
     sent = oh.pending_moderation(limit=50)
     assert len(sent) == 5 and {p["source_platform"] for p in sent} == {"Unstop", "Shine"}   # round-robin
     # a refresh of a held post doesn't push it into the pipeline
@@ -442,7 +442,7 @@ def test_each_search_is_tagged_and_load_more_stays_in_it(store, monkeypatch):
     tags = {r["id"]: r["last_run"] for r in oh._read_rows()}
     assert tags == {"old1": "A", "both": "B", "new1": "B"}     # found again -> belongs to the new search
     r = app_mod.app.test_client().post("/api/moderation/load-more", json={"count": 5, "run_tag": "B"}).get_json()
-    assert r == {"released": 2, "held_left": 0}
+    assert (r["released"], r["held_left"]) == (2, 0)
     assert {p["id"] for p in oh.pending_moderation(limit=10)} == {"both", "new1"}   # old1 stays held
 
 
@@ -618,3 +618,62 @@ def test_unblock_moves_a_blocked_post_to_review(store, monkeypatch):
     assert row["moderation_status"] == "review"
     assert row["moderation_reasons"].startswith("Moved out of 'likely scam' by hand")
     assert "Blocked: the AI judge was sure" in row["moderation_reasons"]   # why it was blocked stays visible
+
+
+# ---------- Load 5 more = 5 more on screen (moderation/load_more.py) ----------
+
+def _judge_all(verdicts):
+    """A fake scam check: gives the waiting posts these verdicts, in order, one per post."""
+    it = iter(verdicts)
+
+    def wake(source=""):
+        for p_ in oh.pending_moderation(limit=50, claim=True):
+            oh.save_verdict(p_["id"], next(it, "approved"), 0.1, [])
+    return wake
+
+
+def test_load_more_tops_up_until_five_are_on_screen(store):
+    from moderation import load_more
+    oh.sync_listings([_row(f"m{i}", "AI Intern") for i in range(20)], [], hold=True, run_tag="R")
+    # of the first 5, only 2 pass; the top-up of 6 brings 4 more: 6 on screen, 11 checked
+    wake = _judge_all(["approved", "blocked", "review", "approved", "blocked",
+                       "approved", "approved", "blocked", "approved", "approved", "review"])
+    first = oh.release_held_ids(5, "R")
+    wake()
+    load_more.JOB.update(running=True)
+    out = load_more.fill(first, "R", want=5, show="verified", wake=wake, sleep=lambda s: None)
+    assert out["shown"] >= 5 and out["checked"] == 11 and out["done_reason"] == "enough" and not out["running"]
+    assert oh.moderation_counts()["held"] == 9
+
+
+def test_load_more_stops_at_the_limit_when_everything_is_a_scam(store):
+    from moderation import load_more
+    oh.sync_listings([_row(f"s{i}", "AI Intern") for i in range(30)], [], hold=True, run_tag="R")
+    wake = _judge_all(["blocked"] * 30)
+    first = oh.release_held_ids(5, "R")
+    wake()
+    load_more.JOB.update(running=True)
+    out = load_more.fill(first, "R", want=5, wake=wake, sleep=lambda s: None)
+    assert out["shown"] == 0 and out["checked"] == load_more.MAX_CHECKED and out["done_reason"] == "limit"
+
+
+def test_load_more_counts_needs_a_look_when_the_filter_shows_it(store):
+    from moderation import load_more
+    oh.sync_listings([_row(f"v{i}", "AI Intern") for i in range(10)], [], hold=True, run_tag="R")
+    wake = _judge_all(["review"] * 10)
+    first = oh.release_held_ids(5, "R")
+    wake()
+    load_more.JOB.update(running=True)
+    out = load_more.fill(first, "R", want=5, show="verified_review", wake=wake, sleep=lambda s: None)
+    assert out["shown"] == 5 and out["checked"] == 5
+
+
+def test_load_more_ends_when_nothing_is_left(store):
+    from moderation import load_more
+    oh.sync_listings([_row(f"e{i}", "AI Intern") for i in range(6)], [], hold=True, run_tag="R")
+    wake = _judge_all(["blocked"] * 6)
+    first = oh.release_held_ids(5, "R")
+    wake()
+    load_more.JOB.update(running=True)
+    out = load_more.fill(first, "R", want=5, wake=wake, sleep=lambda s: None)
+    assert out["checked"] == 6 and out["done_reason"] == "none_left"

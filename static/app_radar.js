@@ -1139,7 +1139,8 @@ async function pollModeration() {
     const q = document.getElementById('mod-queue');
     if (q) q.innerText = waiting ? `${c.checking} being checked · ${c.pending} waiting` : '';
     if (judged !== lastJudged) { lastJudged = judged; loadData(); }
-    modPollMs = waiting ? 1500 : 5000;   // verdicts on their way: look often so they show up at once
+    // verdicts on their way (or a Load 5 more still filling): look often so they show up at once
+    modPollMs = waiting || (c.load_more && c.load_more.running) ? 1500 : 5000;
   } catch (e) { /* app restarting */ }
   setTimeout(pollModeration, modPollMs);
 }
@@ -1841,7 +1842,19 @@ function updateHeldUI(c) {
   const inFlight = viewRun
     ? allInternships.filter(r => r.last_run === viewRun && ['', 'checking'].includes(r.moderation_status || '')).length
     : (c.pending || 0) + (c.checking || 0);
-  if (loadMoreBusy && inFlight === 0) loadMoreBusy = false;   // the 5 have been judged
+  // a click is followed on the server until 5 are on screen (moderation/load_more.py)
+  const job = c && c.load_more;
+  const wasBusy = loadMoreBusy;
+  if (job && job.run_tag === viewRun) loadMoreBusy = !!job.running;
+  else if (loadMoreBusy && inFlight === 0) loadMoreBusy = false;   // the 5 have been judged
+  if (wasBusy && !loadMoreBusy && job && job.run_tag === viewRun && job.shown < job.want) {
+    // fewer than 5: say why, so an empty click doesn't look broken
+    const why = job.done_reason === 'limit'
+      ? `${job.checked} posts were checked and most did not pass. Click again to check the next ones.`
+      : job.done_reason === 'none_left' ? 'Nothing else is waiting from this search. Use "Search more" for newer posts.'
+      : 'The scam check did not answer in time. Try again in a minute.';
+    showToast('info', `${job.shown} more on screen`, why);
+  }
   // the bar belongs to a search on screen; it stays out of the way otherwise
   // first the search, then the automatic first 10; the button comes after (25 Oct)
   const runRows = viewRun ? allInternships.filter(r => r.last_run === viewRun) : [];
@@ -1853,7 +1866,11 @@ function updateHeldUI(c) {
   if (bar) bar.classList.toggle('hidden', !showBar);
   const title = document.getElementById('queue-title'), sub = document.getElementById('queue-sub');
   if (title && sub) {
-    if (loadMoreBusy) { title.innerHTML = `Checking ${inFlight} post${inFlight === 1 ? '' : 's'}…`; sub.textContent = 'The ones that pass join the end of the list in about half a minute.'; }
+    if (loadMoreBusy) {
+      const got = job && job.running ? job.shown : 0, want = (job && job.want) || 5;
+      title.innerHTML = `Finding ${want} more for you… <span class="text-orange-600">${got} of ${want}</span>`;
+      sub.textContent = 'Each post is checked for scams first. The ones that don\'t pass are replaced by the next ones.';
+    }
     else if (held) { title.innerHTML = `<span id="held-count">${held}</span> more found`; sub.textContent = scrapeRunning ? 'They join the list after the scam check. The slower sites are still being searched.' : 'They join the list after the scam check.'; }
     else { title.innerHTML = 'That\'s everything found'; sub.textContent = 'Search the same sites again for newer posts.'; }
   }
@@ -1867,13 +1884,15 @@ function updateHeldUI(c) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('load-more-btn')?.addEventListener('click', async () => {
     try {
-      const res = await fetch('/api/moderation/load-more', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ count: 5, run_tag: viewRun }) });
+      const res = await fetch('/api/moderation/load-more', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: 5, run_tag: viewRun, show: activeModeration }) });
       if (res.status === 403) { showToast('info', 'View-only link', 'Load more works on the host laptop.'); return; }
+      if (res.status === 409) return;   // the last click is still being filled
       const d = await res.json();
       if (!d.released) { showToast('info', 'Nothing waiting', 'Use "Search more" to scrape the sites again.'); return; }
       loadMoreBusy = true;
-      updateHeldUI({ held: d.held_left, pending: d.released, checking: 0 });
-      showToast('info', `${d.released} sent to the scam check`, 'Verified ones appear at the end of the list in about half a minute.');
+      updateHeldUI({ ...(lastModCounts || {}), held: d.held_left, pending: d.released, checking: 0, load_more: d.load_more });
+      modPollMs = 1500;
     } catch (e) {
       showToast('error', 'Load more failed', 'The app is not answering. Is python app.py running?');
     }

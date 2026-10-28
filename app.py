@@ -320,7 +320,8 @@ def trigger_scrape():
 
 @app.route("/api/moderation/status")
 def moderation_status():
-    return jsonify(moderation_counts())
+    from moderation import load_more
+    return jsonify({**moderation_counts(), "load_more": load_more.status()})
 
 
 def manual_scrape_running() -> bool:
@@ -345,21 +346,28 @@ def moderation_unblock():
 
 @app.route("/api/moderation/load-more", methods=["POST"])
 def moderation_load_more():
-    """'Load more' on the dashboard: send the next few scraped listings (round-robin) to the scam check."""
-    from output_handler import release_held
+    """'Load 5 more' on the dashboard: 5 more internships on screen. Sends the next 5 held posts
+    (round-robin across sites) to the scam check, then tops up for the ones that don't pass
+    (moderation/load_more.py), at most 15 checked per click."""
+    from moderation import load_more
+    from moderation.pipeline import runner
+    from output_handler import read_all_rows, release_held_ids
     data = request.get_json(silent=True) or {}
     try:
         n = max(1, min(20, int(data.get("count") or 5)))
     except (TypeError, ValueError):
         n = 5
-    released = release_held(n, str(data.get("run_tag") or ""))
-    if released:
+    tag = str(data.get("run_tag") or "")
+    if load_more.busy():
+        return jsonify({"released": 0, "busy": True, "load_more": load_more.status()}), 409
+    ids = release_held_ids(n, tag)
+    if ids:
         from moderation.notify import start_scam_check
         threading.Thread(target=start_scam_check, args=("load more",), daemon=True).start()
-    from output_handler import read_all_rows
-    tag = str(data.get("run_tag") or "")
+        if runner.running():   # the scam check runs in this app: follow the click until n are on screen
+            load_more.start(ids, tag, want=n, show=str(data.get("show") or "verified"))
     left = sum(1 for r in read_all_rows() if r.get("moderation_status") == "held" and (not tag or r.get("last_run") == tag))
-    return jsonify({"released": released, "held_left": left})
+    return jsonify({"released": len(ids), "held_left": left, "load_more": load_more.status()})
 
 
 @app.route("/api/session/new", methods=["POST"])
