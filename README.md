@@ -43,6 +43,14 @@ The AI never gets the final word on its own. If it says *"scam"* but can't point
 the post that proves it, the post is **not** hidden. Good internships don't disappear because the AI
 had a hunch.
 
+Two more steps sit around those three:
+
+- **Before:** the apply link is opened. A dead or closed link marks the post *Closed* (gone, not a scam).
+  A link that hides behind a shortener, ends on WhatsApp or a Google Form counts against the post.
+- **After:** posts the check can't decide go to *Needs a look*. An AI agent then takes a second look in
+  the background: it opens the company's own site and searches the web for scam reports. It may move a
+  post only with quotes that are really on the pages it read; otherwise the post waits for a person.
+
 ### What counts as a scam
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/scam-types-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/readme/scam-types-light.svg"><img alt="8 kinds of scam: asks you to pay (12 patterns), paid course sold as an internship (7), pays for online tasks (7), wants ID or OTP early (5), moves you to WhatsApp or Telegram (5), too-good promises (5), rushes you (4), pay from recruiting others (4)" src="docs/readme/scam-types-light.svg" width="100%"></picture></p>
@@ -71,8 +79,22 @@ The home page has a 30-second game. One of these two posts is a scam. Which one?
 - **Sign in with Google.** No password.
 - **Answer a few questions,** one per screen: your field, your year, the roles and skills you want.
 - **Your list sorts itself:** companies you like first, then your role, then your skills.
-  Posts below your minimum stipend or outside your work mode are hidden.
+  Posts below your minimum stipend or outside your work mode are hidden, and each of those rules is
+  shown as a chip above the list, so you can switch one off for a moment without editing your profile.
 - **Your profile is saved to your account,** so it follows you to any browser.
+
+---
+
+## The dashboard
+
+- **Job-board layout:** filters on the left, the list in the middle, the full post on the right. Both
+  side panels fold away (animated) when you want more room, and remember how you left them.
+- **First results without a click:** the first 10 internships appear by themselves as soon as the
+  fastest sites finish and pass the scam check; the rest wait behind **Load 5 more**, so the check is
+  only paid for posts you actually want to see.
+- **Readable posts:** the *About the internship* text is split into headings, points and short paragraphs.
+- **Search progress panel:** each site's status, live. Drag its corner to resize it, or fold it down to its header.
+- **Light and dark theme,** with a toggle in the header. It follows your device until you pick one.
 
 ---
 
@@ -82,6 +104,7 @@ The home page has a 30-second game. One of these two posts is a scam. Which one?
 - **The scam check is not perfect.** It blocks only on quoted evidence, so a cleverly worded scam can reach *review*. Always check the company before paying anything, and never pay to get an internship.
 - **Google sign-in is in testing mode,** so only accounts added as test users can sign in until the app is published.
 - **Runs on one computer.** Scraping and the scam check run locally; there is no hosted deployment yet.
+- **Nothing is scraped on its own.** Sites are searched only when someone presses *Search Internships*, and only the sites they picked.
 
 ---
 
@@ -104,9 +127,10 @@ flowchart LR
     F --> H[(Supabase<br/>listings)]
 ```
 
-1. **Search.** You pick a field, regions and sites. Playwright and the sites' public APIs/RSS collect the posts.
-2. **Hold.** New posts are held, not shown, until they are checked.
-3. **Check.** *Load 5 more* sends the next posts to the scam check, which runs inside the app (`moderation/pipeline/`):
+1. **Search.** You pick a field, regions and sites. Playwright and the sites' public APIs/RSS collect the posts,
+   6 sites at a time, fastest first, with one retry on a network hiccup. Each site keeps at most 15 new posts per search.
+2. **Hold.** New posts are held, not shown, until they are checked. The first 10 go to the check by themselves.
+3. **Check.** The first 10, then every *Load 5 more*, go to the scam check, which runs inside the app (`moderation/pipeline/`):
    - **Link check:** the apply link is opened (every redirect is checked, private addresses are refused); dead or closed posts are marked *Closed*, not scam.
    - **Rules:** known scam wording (fees, deposits, "pay to start").
    - **Vector search:** each post is compared with a bank of real scam examples (`moderation/scam_patterns.json`).
@@ -125,7 +149,7 @@ flowchart LR
 | Route | Who | What's there |
 |---|---|---|
 | `/` | Everyone | Landing page: live stats, a moving ticker of checked posts, a *Spot the scam* mini-game, a scroll-animated *How the check works*, and Google sign-in. |
-| `/app` | Signed-in users | The dashboard: search, results, bookmarks, profile. Signed-in users are sent here from `/`. |
+| `/app` | Signed-in users | The dashboard: search, results with the full post beside them, bookmarks, profile. Signed-in users are sent here from `/`. |
 | `/admin` | This computer only | The admin dashboard, reachable from `localhost` only. |
 
 </details>
@@ -154,11 +178,13 @@ Then:
 
 1. **Database.** In the Supabase SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). It creates `profiles`, `listings` and `bookmarks` with row-level security. Details: [`supabase/README.md`](supabase/README.md).
 2. **Google sign-in.** In Supabase → Authentication → Providers, turn on Google with your OAuth client, and add `http://localhost:5000` to the redirect URLs.
-3. **Scam check.** Fill in the Azure keys in `.env`, then build the pattern index once: `python -m moderation.build_index`. Check that everything is connected with `python -m moderation.pipeline --sample` (3 made-up posts, nothing saved).
-4. **Run.**
+3. **Turn off email sign-up.** In Supabase → Authentication → Providers, switch **Email** off. Sign-in is Google only, and an open email provider lets anyone create accounts through the API.
+4. **Scam check.** Fill in the Azure keys in `.env`, then build the pattern index once: `python -m moderation.build_index`. Check that everything is connected with `python -m moderation.pipeline --sample` (3 made-up posts, nothing saved).
+5. **Run.**
    ```bash
    python app.py
    ```
+   The console should say `Scam check: running inside the app (moderation/pipeline)`.
    Open **http://localhost:5000**. Use `localhost`, not `127.0.0.1`; the app redirects `127.0.0.1` because Google sign-in is tied to one address.
 
 </details>
@@ -201,6 +227,7 @@ InReal/
 ├── output_handler.py      # internships.csv store: statuses, de-duplication, 3-day pruning
 ├── supabase_sync.py       # Pushes checked posts to Supabase
 ├── moderation/            # Scam pattern bank, vector index, link check, judge evals, re-checks
+│   ├── safe_http.py       # Opens scraped links without reaching this computer or the home network
 │   └── pipeline/          # The scam check: rules, vectors, judge, fuse, runner, agent
 ├── supabase/              # schema.sql + access notes
 ├── templates/
@@ -212,8 +239,9 @@ InReal/
 │   ├── onboarding.js      # One-question-at-a-time onboarding
 │   ├── profile_options.js # Roles and skills per field, skill autocomplete
 │   ├── background.js      # Animated glass background
-│   └── theme.css          # Shared theme
-├── tests/                 # pytest suite with saved HTML fixtures
+│   ├── theme.js           # Light / dark toggle; adds the app's header to every /api call
+│   └── theme.css          # Shared theme, dark mode, dashboard layout
+├── tests/                 # pytest suite with saved HTML fixtures and the scam check's recorded answers
 ├── run_public.bat         # Optional: share a read-only public link (Cloudflare tunnel)
 └── autopilot.py           # Old automatic run. Not started by the app; don't use.
 ```
@@ -234,6 +262,42 @@ python test_sites.py naukri foundit                      # live check of chosen 
 
 `tests/test_no_auto_scrape.py` guards the main rule: `/api/scrape` refuses a request without picked
 sites, scrapes only the sites given, and the app never starts the autopilot.
+
+The scam check has its own tools (they call Azure, so they cost a little):
+
+```bash
+python -m moderation.pipeline --sample     # 3 made-up posts through every step, nothing saved
+python -m moderation.check_azure           # are the two Azure deployments answering?
+python -m moderation.eval_judge            # 18 tricky posts: does the AI judge catch the scams?
+python -m moderation.recheck               # put posts whose AI check failed back in the queue
+```
+
+`tests/test_pipeline.py` compares the scam check with answers recorded in
+`tests/fixtures/n8n_golden.json` (from the n8n workflow it replaced), so a changed threshold or prompt shows up.
+
+</details>
+
+<details>
+<summary><b>Security</b></summary>
+
+<br>
+
+Checked and fixed in a full review (27 Oct 2026). No app is unhackable; these are the locks in place:
+
+| Risk | What stops it |
+|---|---|
+| Another website in your browser sending requests to `localhost:5000` (CSRF) | `/api` refuses cross-site requests (`Sec-Fetch-Site`, `Origin`), and browser `POST`s need the app's own `X-InReal` header |
+| A website pointing its domain at your computer (DNS rebinding) | Direct requests must name `localhost` / `127.0.0.1` as the host |
+| A scraped apply link aimed at your router or the app itself (SSRF) | Every hop of a redirect is checked; private, local and cloud-metadata addresses are refused |
+| A post's text running script in the dashboard (XSS) | Everything from a post is escaped; cards no longer put ids inside `onclick` |
+| A post trying to talk the AI into "genuine" (prompt injection) | Such a post always goes to *review*; it can't fake another post or our findings inside a batch |
+| Framing, sniffing, leaks | CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, no error details sent to the browser, 1 MB request limit |
+| Database | Row-level security on every table, only the grants the app needs, size limits on profiles, email sign-up off |
+| Public link visitors | Read-only: no scraping, clearing, scam-check buttons, logs or `/admin` |
+
+Known gaps: the CSP still allows inline scripts (the Tailwind CDN and inline handlers need it), and
+`internships.csv` is not protected against spreadsheet formulas if you open it in Excel.
+The tests for all of this are in `tests/test_security.py` and `tests/test_public_guard.py`.
 
 </details>
 
@@ -275,7 +339,7 @@ Selector notes for each site are in [`SELECTOR_TRACKER.md`](SELECTOR_TRACKER.md)
 
 It started as a fork of the open-source **AI/ML Internship Radar** (MIT licence). The first commit in
 this repository is that original code, unchanged; every later commit is our work: rebuilt scrapers,
-the scam check, Supabase accounts, the profile and the new interface.
+the scam check and its agent, Supabase accounts, the profile, the new interface and the security work.
 
 ### License
 
