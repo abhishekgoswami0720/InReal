@@ -1846,13 +1846,15 @@ function updateHeldUI(c) {
   // first the search, then the automatic first 10; the button comes after (25 Oct)
   const runRows = viewRun ? allInternships.filter(r => r.last_run === viewRun) : [];
   const firstBatchBusy = !loadMoreBusy && inFlight > 0;
+  // 28 Oct: the slow sites (LinkedIn, university boards) can search for minutes after the first 10
+  // are shown; the button must not wait for them, so while they run it shows as soon as posts are held
   const showBar = canEdit && !showBookmarkedOnly && !showAllSaved && !!viewRun && !freshVisit
-    && !scrapeRunning && !firstBatchBusy && runRows.length > 0;
+    && !firstBatchBusy && runRows.length > 0 && (!scrapeRunning || held > 0 || loadMoreBusy);
   if (bar) bar.classList.toggle('hidden', !showBar);
   const title = document.getElementById('queue-title'), sub = document.getElementById('queue-sub');
   if (title && sub) {
     if (loadMoreBusy) { title.innerHTML = `Checking ${inFlight} post${inFlight === 1 ? '' : 's'}…`; sub.textContent = 'The ones that pass join the end of the list in about half a minute.'; }
-    else if (held) { title.innerHTML = `<span id="held-count">${held}</span> more found`; sub.textContent = 'They join the list after the scam check.'; }
+    else if (held) { title.innerHTML = `<span id="held-count">${held}</span> more found`; sub.textContent = scrapeRunning ? 'They join the list after the scam check. The slower sites are still being searched.' : 'They join the list after the scam check.'; }
     else { title.innerHTML = 'That\'s everything found'; sub.textContent = 'Search the same sites again for newer posts.'; }
   }
   btn.classList.toggle('hidden', !held && !loadMoreBusy);
