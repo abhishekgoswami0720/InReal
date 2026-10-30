@@ -61,17 +61,18 @@ function dropStaleView() {
   staleRun = viewRun;
   viewRun = ''; freshVisit = true; lastSearch = null; restoredRun = '';
   try { localStorage.removeItem(VIEW_KEY); } catch (e) {}
-  displayOrder.clear();
+  displayOrder.clear(); renderedIds.clear();
   return true;
 }
 function startNewView(tag) {
   if (!tag) return;
   viewRun = tag; showAllSaved = false; freshVisit = false;
   try { localStorage.setItem(VIEW_KEY, tag); } catch (e) { /* private window */ }
-  displayOrder.clear(); verifiedSeen = null;
+  displayOrder.clear(); renderedIds.clear(); verifiedSeen = null;
   applyFiltersAndRender(); updateViewNote();
 }
 const displayOrder = new Map();   // id -> position the card was first shown at
+const renderedIds = new Set();    // cards already on screen: only new ones play the slide-in
 let verifiedSeen = null;          // ids that had passed the check at the last reload
 
 // Profile from the sign-up form, kept in this browser: field, experience, preferred companies, sites
@@ -421,6 +422,7 @@ function renderListings(items) {
 
   if (items.length === 0) {
     container.innerHTML = '';
+    renderedIds.clear();
     showDetailPlaceholder();
     const h = document.querySelector('#empty-state h3'), t = document.querySelector('#empty-state p');
     const btn = (id, on) => document.getElementById(id)?.classList.toggle('hidden', !on);
@@ -511,7 +513,10 @@ function renderListings(items) {
   if (emptyState) { emptyState.classList.add('hidden'); emptyState.classList.remove('flex'); }
 
   const selected = activeDrawerJob && activeDrawerJob.id;
+  let fresh = 0;
   container.innerHTML = items.map((item) => {
+    const enter = !renderedIds.has(item.id);
+    const delay = enter ? Math.min(fresh++, 10) : 0;
     const saved = bookmarks.includes(item.id);
     const logo = logoFor(item.company_name);
     const id = escapeHtml(item.id);
@@ -521,7 +526,7 @@ function renderListings(items) {
       item.duration ? `<span><i class="ph ph-clock"></i>${escapeHtml(item.duration)}</span>` : '',
     ].filter(Boolean).join('');
     return `
-      <article class="jb-card${selected === item.id ? ' is-selected' : ''}" data-id="${id}" tabindex="0" role="button"
+      <article class="jb-card${selected === item.id ? ' is-selected' : ''}${enter ? ' jb-enter' : ''}"${enter ? ` style="--i:${delay}"` : ''} data-id="${id}" tabindex="0" role="button"
         aria-label="${escapeHtml(item.role_title || 'Internship')} at ${escapeHtml(item.company_name || 'company')}">
         <div class="jb-logo" style="background:${logo.color}" aria-hidden="true">${logo.initials}</div>
         <div class="min-w-0">
@@ -542,6 +547,9 @@ function renderListings(items) {
         </button>
       </article>`;
   }).join('');
+  items.forEach(i => renderedIds.add(i.id));
+  // after the slide-in, drop the class so a later re-render of the same card doesn't replay it
+  setTimeout(() => container.querySelectorAll('.jb-card.jb-enter').forEach(c => c.classList.remove('jb-enter')), 1200);
 
   // wide screens: the panel always shows a post (the one open, else the best match)
   if (isWide()) {
@@ -585,12 +593,12 @@ function renderProfileRules() {
 }
 function setProfileRules(off) {
   profileRules(profile).forEach(r => { prefsOff[r.key] = off; });
-  displayOrder.clear();
+  displayOrder.clear(); renderedIds.clear();
   applyFiltersAndRender();
 }
 document.addEventListener('click', (e) => {
   const chip = e.target.closest('[data-rule]');
-  if (chip) { prefsOff[chip.dataset.rule] = !prefsOff[chip.dataset.rule]; displayOrder.clear(); applyFiltersAndRender(); return; }
+  if (chip) { prefsOff[chip.dataset.rule] = !prefsOff[chip.dataset.rule]; displayOrder.clear(); renderedIds.clear(); applyFiltersAndRender(); return; }
   if (e.target.closest('[data-show-all-rules]')) setProfileRules(true);
 });
 
@@ -637,7 +645,10 @@ function openDetailDrawer(id, opts) {
   const logoBox = document.getElementById('drawer-logo');
   if (logoBox) { const lg = logoFor(item.company_name); logoBox.innerHTML = lg.initials; logoBox.style.background = lg.color; }
   const body = document.getElementById('detail-body');
-  if (body) body.scrollTop = 0;
+  if (body) {
+    body.scrollTop = 0;
+    if (!quiet) { body.classList.remove('jb-swap'); void body.offsetWidth; body.classList.add('jb-swap'); }   // the new post fades in
+  }
   document.getElementById('drawer-role-title').innerText = item.role_title || 'Opportunity';
   document.getElementById('drawer-company-name').innerText = item.company_name || '';
   document.getElementById('drawer-location').innerText = item.location || 'Location not stated';
@@ -951,17 +962,15 @@ function bindEventHandlers() {
       setChecked('sources', []);
     }
     syncSelectAll(modal);
-    modal.classList.remove('hidden');
+    openModal(modal);
   });
-  document.getElementById('close-config-btn')?.addEventListener('click', () => {
-    modal.classList.add('hidden');
-  });
-  closeOnBackdrop(modal, () => modal.classList.add('hidden'));
+  document.getElementById('close-config-btn')?.addEventListener('click', () => closeModal(modal));
+  closeOnBackdrop(modal, () => closeModal(modal));
   closeOnBackdrop(document.getElementById('profile-modal'), closeProfileModal);   // not on the first visit
 
   document.getElementById('scrape-config-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    modal.classList.add('hidden');
+    closeModal(modal);
 
     const checkedValues = (name) => Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(cb => cb.value);
     const config = {
@@ -970,7 +979,7 @@ function bindEventHandlers() {
       field: document.getElementById('scrape-field')?.value || (profile && profile.field) || 'ai_ml',
       limit: FIRST_BATCH
     };
-    if (!config.sources.length) { showToast('error', 'Pick at least one site', 'Choose the sites to search, then start again.'); modal.classList.remove('hidden'); return; }
+    if (!config.sources.length) { showToast('error', 'Pick at least one site', 'Choose the sites to search, then start again.'); openModal(modal); return; }
 
     try {
       const res = await fetch('/api/scrape', {
@@ -1024,7 +1033,7 @@ function bindEventHandlers() {
     }
     if (e.key === 'Escape') {
       closeDetailDrawer();
-      modal?.classList.add('hidden');
+      closeModal(modal);
       closeProfileModal();
     }
   });
@@ -1537,8 +1546,28 @@ function openProfileModal(firstVisit, step) {
                                           : ([1, 2, 3, 4, 5].find(k => !sectionDone(profile, k)) || 1));
   profileStep = 0;   // so the first showProfileStep counts as a move
   showProfileStep(first);
-  modal.classList.remove('hidden');
+  openModal(modal);
   (profileStep === 1 ? document.getElementById('profile-name') : null)?.focus();
+}
+
+// Dialogs open and close with a short animation (theme.css); hidden is set after the closing one.
+function openModal(el) {
+  if (!el) return;
+  clearTimeout(el._closeTimer);
+  el.classList.remove('closing', 'hidden');
+}
+function closeModal(el) {
+  if (!el || el.classList.contains('hidden') || el.classList.contains('closing')) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('hidden'); return; }
+  el.classList.add('closing');
+  const done = () => {
+    clearTimeout(el._closeTimer);
+    el.removeEventListener('animationend', onEnd);
+    if (el.classList.contains('closing')) { el.classList.add('hidden'); el.classList.remove('closing'); }
+  };
+  const onEnd = (e) => { if (e.target === el) done(); };
+  el.addEventListener('animationend', onEnd);
+  el._closeTimer = setTimeout(done, 400);   // in case the animation never runs (hidden tab)
 }
 
 // A click on the dimmed area around a dialog closes it. Both the press and the release must be
@@ -1555,7 +1584,7 @@ function closeOnBackdrop(backdrop, close) {
 
 function closeProfileModal() {
   if (profileMandatory || !requiredDone(profile)) return;   // sections 1 and 2 must be saved first
-  document.getElementById('profile-modal').classList.add('hidden');
+  closeModal(document.getElementById('profile-modal'));
 }
 
 // "Next" / "Save and next" / "Save and finish"
@@ -1577,7 +1606,7 @@ async function onProfileNext() {
 
   writeProfile(draft);
   saveProfileToAccount(draft);
-  displayOrder.clear();
+  displayOrder.clear(); renderedIds.clear();
   updateProfileUI();
   applyFiltersAndRender();
 
@@ -1589,7 +1618,7 @@ async function onProfileNext() {
     return;
   }
   if (!finishing) { showProfileStep(profileStep + 1); return; }
-  document.getElementById('profile-modal').classList.add('hidden');
+  closeModal(document.getElementById('profile-modal'));
   // Saving the profile never starts a search: only "Search Internships" does (19 Oct)
   showToast('success', 'Profile saved', 'Your list now follows your profile. Click "Search Internships" to look for new posts.');
 }
@@ -1999,7 +2028,7 @@ function plainReason(r) {
 function setView(v) {
   showBookmarkedOnly = v === 'saved';
   showAllSaved = v === 'recent';
-  displayOrder.clear();
+  displayOrder.clear(); renderedIds.clear();
   if (window.matchMedia('(max-width: 1023px)').matches) setFilterMenu(false);
   applyFiltersAndRender(); updateViewNote();
 }

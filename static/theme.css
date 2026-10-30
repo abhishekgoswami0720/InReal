@@ -525,3 +525,34 @@ html.dark .jb-ghost i { background: #1C2433; }
 #scan-min i { transition: transform .2s; }
 html.dark .scan-resize { background: linear-gradient(45deg, transparent 45%, #475569 45%, #475569 52%, transparent 52%, transparent 64%, #475569 64%, #475569 71%, transparent 71%); }
 @media (max-width: 640px) { .scan-resize { display: none; } }
+
+/* ---- 30 Oct: motion for dialogs, lists and the empty state ---- */
+/* dialogs: the backdrop fades in, the panel rises and grows a little; closing plays it backwards */
+@keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-rise { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+#scrape-config-modal:not(.hidden), #profile-modal:not(.hidden) { animation: modal-fade .22s ease-out both; }
+#scrape-config-modal:not(.hidden) > .glass-panel, #profile-modal:not(.hidden) > .glass-panel { animation: modal-rise .32s cubic-bezier(.2, .9, .3, 1.15) both; }
+@keyframes modal-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes modal-sink { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(12px) scale(.97); } }
+#scrape-config-modal.closing, #profile-modal.closing { animation: modal-fade-out .18s ease-in both; }
+#scrape-config-modal.closing > .glass-panel, #profile-modal.closing > .glass-panel { animation: modal-sink .18s ease-in both; }
+
+/* cards: new ones slide up one after another (only cards not on screen before; see app_radar.js) */
+@keyframes card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.jb-card.jb-enter { animation: card-in .42s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 55ms); }
+
+/* the empty state, the "more found" bar and a newly opened post fade up */
+@keyframes soft-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.jb-empty.flex { animation: soft-up .38s ease-out both; }
+.jb-empty.flex .jb-empty-icon { animation: soft-up .45s .05s ease-out both; }
+.jb-empty.flex button:not(.hidden) { animation: soft-up .4s ease-out both; }
+.jb-empty.flex button:not(.hidden):nth-of-type(2) { animation-delay: .06s; }
+.jb-empty.flex button:not(.hidden):nth-of-type(3) { animation-delay: .12s; }
+.jb-empty.flex button:not(.hidden):nth-of-type(4) { animation-delay: .18s; }
+#search-more-bar:not(.hidden) { animation: soft-up .35s ease-out both; }
+.jb-swap { animation: soft-up .3s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  #scrape-config-modal, #profile-modal, #scrape-config-modal > .glass-panel, #profile-modal > .glass-panel,
+  .jb-card.jb-enter, .jb-empty.flex, .jb-empty.flex *, #search-more-bar, .jb-swap { animation: none !important; }
+}
