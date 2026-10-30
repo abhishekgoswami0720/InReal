@@ -35,6 +35,35 @@ let freshVisit = true;
 // The search on screen, exactly as it was asked for: "Search more" repeats it on the same sites only
 let lastSearch = null;
 let restoredRun = '';   // the search remembered from an earlier visit, until the first loadData checks it
+// 30 Oct: a visit two days later still opened on that old search, as if its posts were current.
+// A search older than this is not put back on screen; the page offers to run it again instead.
+const STALE_HOURS = 6;
+let staleRun = '';      // the old search that was not restored (for the "search again" offer)
+function runTime(tag) {
+  const m = (tag || '').match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
+}
+function runAgeHours(tag) {
+  const t = runTime(tag);
+  return t ? (Date.now() - t.getTime()) / 3600000 : 0;
+}
+function runWhen(tag) {
+  const t = runTime(tag);
+  if (!t) return '';
+  const hm = t.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
+  if (days <= 0) return `today at ${hm}`;
+  if (days === 1) return `yesterday at ${hm}`;
+  return `${days} days ago (${t.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${hm})`;
+}
+function dropStaleView() {
+  if (!viewRun || scrapeRunning || runAgeHours(viewRun) < STALE_HOURS) return false;
+  staleRun = viewRun;
+  viewRun = ''; freshVisit = true; lastSearch = null; restoredRun = '';
+  try { localStorage.removeItem(VIEW_KEY); } catch (e) {}
+  displayOrder.clear();
+  return true;
+}
 function startNewView(tag) {
   if (!tag) return;
   viewRun = tag; showAllSaved = false; freshVisit = false;
@@ -166,6 +195,7 @@ function startDashboard() {
   initProfile();
   // a refresh keeps the last search of this browser on screen (26 Oct: the list went empty and the
   // results were only under "Last 3 days"); loadData drops it if it has been pruned
+  dropStaleView();
   freshVisit = !viewRun;
   restoredRun = viewRun;   // checked once, by the first loadData
   if (viewRun && profile) lastSearch = { field: profile.field, sources: (profile.sources || []).slice(), regions: (profile.regions || []).slice(), run_tag: viewRun };
@@ -376,6 +406,14 @@ function skillTag(item) {
 }
 function skillChip(item) { return skillTag(item); }
 
+// the empty state's "Search Internships": the main button, or "Pick other sites" beside "Search the same sites again"
+function setSearchBtn(main) {
+  const b = document.getElementById('empty-search-btn');
+  if (!b) return;
+  b.classList.toggle('glass-btn-primary', main);
+  b.lastChild.textContent = main ? 'Search Internships' : 'Pick other sites';
+}
+
 function renderListings(items) {
   const container = document.getElementById('listings-container');
   const emptyState = document.getElementById('empty-state');
@@ -415,10 +453,24 @@ function renderListings(items) {
       }
       if (h) h.textContent = title;
       if (t) t.textContent = text;
-      btn('empty-search-btn', search); btn('empty-recent-btn', false); btn('empty-reset-btn', false);
+      btn('empty-again-btn', false); btn('empty-search-btn', search); btn('empty-recent-btn', false); btn('empty-reset-btn', false);
       if (emptyState) { emptyState.classList.remove('hidden'); emptyState.classList.add('flex'); }
       return;
     }
+    let again = false;
+    if (freshVisit && staleRun && !showAllSaved && !showBookmarkedOnly) {
+      title = `Your last search was ${runWhen(staleRun)}`;
+      text = 'Internships change every day and older posts may already be closed. Search the same sites again for live results, or pick new ones.';
+      again = canEdit; search = canEdit; recent = true;
+      if (h) h.textContent = title;
+      if (t) t.textContent = text;
+      btn('empty-again-btn', again); btn('empty-search-btn', search); btn('empty-recent-btn', recent); btn('empty-reset-btn', false);
+      setSearchBtn(!again);
+      if (emptyState) { emptyState.classList.remove('hidden'); emptyState.classList.add('flex'); }
+      return;
+    }
+    btn('empty-again-btn', false);
+    setSearchBtn(true);
     if (showBookmarkedOnly) {
       title = 'No saved internships yet';
       text = 'Tap the bookmark on any post to keep it here.';
@@ -816,6 +868,7 @@ function bindEventHandlers() {
   document.querySelectorAll('.jb-view').forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.view)));
   document.getElementById('empty-recent-btn')?.addEventListener('click', () => setView('recent'));
   document.getElementById('empty-search-btn')?.addEventListener('click', () => document.getElementById('trigger-scrape-btn')?.click());
+  document.getElementById('empty-again-btn')?.addEventListener('click', searchAgain);
 
   // Reset Filters Function
   const resetAll = () => {
@@ -1680,6 +1733,27 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+// The old search's sites again, as a new search (the person clicks it: nothing is scraped on its own)
+async function searchAgain() {
+  const p = profile || {};
+  if (!(p.sources || []).length) { document.getElementById('trigger-scrape-btn')?.click(); return; }
+  const config = { field: p.field || 'ai_ml', sources: p.sources.slice(), regions: (p.regions || []).slice(), limit: FIRST_BATCH };
+  try {
+    const res = await fetch('/api/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 403) { showToast('info', 'View-only link', 'Searching can only be started on the host laptop.'); return; }
+    if (data.status === 'running') { showToast('info', 'Already searching', 'Wait for the current search to finish.'); return; }
+    if (data.run_tag) {
+      staleRun = '';
+      startNewView(data.run_tag);
+      lastSearch = { ...config, run_tag: data.run_tag };
+      showToast('info', 'Searching again', `${config.sources.length} site(s), the same as last time. Results show up as each site finishes.`);
+    }
+  } catch (e) {
+    showToast('error', 'Search did not start', 'The app is not answering. Is python app.py running?');
+  }
+}
+
 // ==========================================
 // 13. Live scan panel: each site's state while a search runs, then the scam check
 // ==========================================
@@ -1933,12 +2007,11 @@ function setView(v) {
 function updateViewNote() {
   const view = showBookmarkedOnly ? 'saved' : showAllSaved ? 'recent' : 'search';
   document.querySelectorAll('.jb-view').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === view)));
-  const m = (viewRun || '').match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
-  const when = m ? `${m[4]}:${m[5]}` : '';
+  const when = runWhen(viewRun);
   const title = { search: 'Internships for you', recent: 'Last 3 days', saved: 'Saved' }[view];
   const check = activeModeration === 'verified' ? ' Every post here passed the scam check.' : '';
   const sub = {
-    search: freshVisit ? 'Nothing searched yet in this visit.' : `From your search${when ? ` at ${when}` : ''}.${check}`,
+    search: freshVisit ? 'Nothing searched yet in this visit.' : `From your search ${when || 'on screen'}.${check}`,
     recent: `Everything checked in the last 3 days, from all searches.${check}`,
     saved: 'Posts you saved on this account.',
   }[view];
@@ -1954,6 +2027,12 @@ window.addEventListener('resize', () => {
   if (wide !== wasWide) { wasWide = wide; if (wide) applyFiltersAndRender(); }
 });
 document.addEventListener('DOMContentLoaded', updateViewNote);
+// a tab left open for days: coming back to it drops the old search the same way a new visit does
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !showAllSaved && !showBookmarkedOnly && dropStaleView()) {
+    updateViewNote(); applyFiltersAndRender();
+  }
+});
 
 
 // ==========================================
