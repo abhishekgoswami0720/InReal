@@ -556,3 +556,14 @@ html.dark .scan-resize { background: linear-gradient(45deg, transparent 45%, #47
   #scrape-config-modal, #profile-modal, #scrape-config-modal > .glass-panel, #profile-modal > .glass-panel,
   .jb-card.jb-enter, .jb-empty.flex, .jb-empty.flex *, #search-more-bar, .jb-swap { animation: none !important; }
 }
+
+/* 30 Oct: the filter column's scrollbar sat on the cards' right edge. Keep a gap for it, and a thin
+   scrollbar that only shows clearly on hover. */
+@media (min-width: 1024px) {
+  .jb-side { scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .jb-side:hover { scrollbar-color: rgba(100, 116, 139, .45) transparent; }
+  .jb-side::-webkit-scrollbar { width: 6px; }
+  .jb-side::-webkit-scrollbar-thumb { background: transparent; border-radius: 6px; }
+  .jb-side:hover::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, .45); }
+  .jb-filters { width: calc(var(--side-open) - 20px); }
+}
