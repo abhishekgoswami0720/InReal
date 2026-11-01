@@ -530,12 +530,12 @@ html.dark .scan-resize { background: linear-gradient(45deg, transparent 45%, #47
 /* dialogs: the backdrop fades in, the panel rises and grows a little; closing plays it backwards */
 @keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-rise { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
-#scrape-config-modal:not(.hidden), #profile-modal:not(.hidden), #apps-modal:not(.hidden), #me-modal:not(.hidden), #crop-modal:not(.hidden) { animation: modal-fade .22s ease-out both; }
-#scrape-config-modal:not(.hidden) > .glass-panel, #profile-modal:not(.hidden) > .glass-panel, #apps-modal:not(.hidden) > .glass-panel, #me-modal:not(.hidden) > .glass-panel, #crop-modal:not(.hidden) > .glass-panel { animation: modal-rise .32s cubic-bezier(.2, .9, .3, 1.15) both; }
+#scrape-config-modal:not(.hidden), #profile-modal:not(.hidden), #me-modal:not(.hidden), #crop-modal:not(.hidden) { animation: modal-fade .22s ease-out both; }
+#scrape-config-modal:not(.hidden) > .glass-panel, #profile-modal:not(.hidden) > .glass-panel > .glass-panel, #me-modal:not(.hidden) > .glass-panel, #crop-modal:not(.hidden) > .glass-panel { animation: modal-rise .32s cubic-bezier(.2, .9, .3, 1.15) both; }
 @keyframes modal-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes modal-sink { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(12px) scale(.97); } }
-#scrape-config-modal.closing, #profile-modal.closing, #apps-modal.closing, #me-modal.closing, #crop-modal.closing { animation: modal-fade-out .18s ease-in both; }
-#scrape-config-modal.closing > .glass-panel, #profile-modal.closing > .glass-panel, #apps-modal.closing > .glass-panel, #me-modal.closing > .glass-panel, #crop-modal.closing > .glass-panel { animation: modal-sink .18s ease-in both; }
+#scrape-config-modal.closing, #profile-modal.closing, #me-modal.closing, #crop-modal.closing { animation: modal-fade-out .18s ease-in both; }
+#scrape-config-modal.closing > .glass-panel, #profile-modal.closing > .glass-panel > .glass-panel, #me-modal.closing > .glass-panel, #crop-modal.closing > .glass-panel { animation: modal-sink .18s ease-in both; }
 
 /* cards: new ones slide up one after another (only cards not on screen before; see app_radar.js) */
 @keyframes card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -680,7 +680,35 @@ html.dark .app-date { color: #A5B4FC; }
 html.dark .app-btn { background: #F1F5F9; color: #0F172A; }
 html.dark .app-btn-quiet { background: transparent; color: #94A3B8; }
 html.dark .app-btn-quiet:hover { background: rgba(225, 29, 72, .14); color: #FDA4AF; }
-@media (prefers-reduced-motion: reduce) { .app-row, #apps-modal, #apps-modal > .glass-panel { animation: none !important; } }
+/* My applications page (1 Nov): replaces the list under the header; body.page-apps hides the list */
+body.page-apps > main.jb { display: none; }
+.apps-page { position: relative; z-index: 1; flex: 1; width: 100%; animation: apps-page-in .28s ease-out both; }
+.apps-wrap { max-width: 860px; margin: 0 auto; padding: 22px 16px 60px; }
+.apps-back { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px 6px 6px; margin-left: -6px; border-radius: 10px; font-size: 13px; font-weight: 700; color: #475569; }
+.apps-back:hover { background: rgba(15, 23, 42, .06); color: #0F172A; }
+.apps-back i { font-size: 16px; transition: transform .15s; }
+.apps-back:hover i { transform: translateX(-2px); }
+.apps-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 14px 0 20px; }
+.apps-head h1 { font-size: 28px; font-weight: 800; letter-spacing: -.02em; color: #0F172A; outline: none; }
+.apps-head p { font-size: 13.5px; font-weight: 500; color: #64748B; margin-top: 4px; }
+.apps-stats { display: flex; gap: 8px; }
+.apps-stat { min-width: 84px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 255, 255, .8); border: 1px solid #E2E8F0; }
+.apps-stat b { display: block; font-size: 20px; font-weight: 800; color: #0F172A; line-height: 1.1; }
+.apps-stat span { font-size: 11px; font-weight: 700; color: #64748B; }
+.apps-list { display: flex; flex-direction: column; gap: 10px; }
+.apps-list .app-row { padding: 16px; gap: 14px; }
+.apps-list .app-title { font-size: 15.5px; }
+.apps-list .app-meta { font-size: 13px; }
+.apps-list .app-empty { background: rgba(255, 255, 255, .7); border: 1px dashed #CBD5E1; border-radius: 16px; padding: 56px 24px; }
+@keyframes apps-page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+html.dark .apps-back { color: #CBD5E1; }
+html.dark .apps-back:hover { background: rgba(255, 255, 255, .06); color: #F1F5F9; }
+html.dark .apps-head h1, html.dark .apps-stat b { color: #F1F5F9; }
+html.dark .apps-head p, html.dark .apps-stat span { color: #94A3B8; }
+html.dark .apps-stat { background: #161D29; border-color: #232C3B; }
+html.dark .apps-list .app-empty { background: rgba(22, 29, 41, .7); border-color: #334155; }
+@media (max-width: 560px) { .apps-head h1 { font-size: 23px; } .apps-stats { width: 100%; } .apps-stat { flex: 1; min-width: 0; } .apps-list .app-row { align-items: flex-start; } }
+@media (prefers-reduced-motion: reduce) { .app-row, .apps-page { animation: none !important; } }
 
 /* ---- My profile (1 Nov) ---- */
 .av-preset { width: 100%; height: 100%; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 1.35em; line-height: 1; }

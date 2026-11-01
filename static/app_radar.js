@@ -1039,7 +1039,6 @@ function bindEventHandlers() {
       if (!document.getElementById('crop-modal')?.classList.contains('hidden')) { closeCropper(); return; }
       closeDetailDrawer();
       closeModal(modal);
-      closeModal(document.getElementById('apps-modal'));
       closeModal(document.getElementById('me-modal'));
       closeProfileModal();
     }
@@ -1704,7 +1703,7 @@ document.addEventListener('click', (e) => {
     const what = item.dataset.pm;
     if (what === 'theme') return;   // theme.js switches it; the menu stays open and updates below
     toggleProfileMenu(false);
-    if (what === 'apps') openAppsModal();
+    if (what === 'apps') showAppsPage();
     else if (what === 'profile') openMeModal();
     else if (what === 'saved' || what === 'recent') setView(what);
     return;
@@ -2290,7 +2289,7 @@ function refreshApplied() {
   applyFiltersAndRender();
   updateDrawerApplied();
   if (profileMenuOpen()) fillProfileMenu();
-  if (!document.getElementById('apps-modal')?.classList.contains('hidden')) renderAppsList();
+  if (appsPageOpen()) renderAppsList();
 }
 
 async function markApplied(item) {
@@ -2389,10 +2388,6 @@ function hideApplyAsk() {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('apply-ask-yes')?.addEventListener('click', () => { const it = askItem; hideApplyAsk(); markApplied(it); });
   document.getElementById('apply-ask-no')?.addEventListener('click', hideApplyAsk);
-
-  const m = document.getElementById('apps-modal');
-  document.getElementById('apps-close')?.addEventListener('click', () => closeModal(m));
-  closeOnBackdrop(m, () => closeModal(m));
 });
 
 // the list, newest first
@@ -2403,6 +2398,12 @@ function renderAppsList() {
   if (sub) sub.textContent = rows.length
     ? `${rows.length} internship${rows.length === 1 ? '' : 's'} you applied to from InReal, newest first.`
     : 'Internships you applied to from InReal.';
+  const stats = document.getElementById('apps-stats');
+  if (stats) {
+    const now = Date.now(), within = (days) => rows.filter(a => now - new Date(a.applied_at).getTime() < days * 864e5).length;
+    stats.innerHTML = rows.length ? [['Total', rows.length], ['Last 7 days', within(7)], ['Last 30 days', within(30)]]
+      .map(([k, v]) => `<div class="apps-stat"><b>${v}</b><span>${k}</span></div>`).join('') : '';
+  }
   list.innerHTML = rows.length ? rows.map(a => {
     const logo = logoFor(a.company_name);
     const link = /^https?:\/\//i.test(a.apply_link || '') ? a.apply_link : '';
@@ -2422,10 +2423,55 @@ function renderAppsList() {
       <b>No applications yet</b>
       <span>Open a post and click "Apply on the original site". When you come back, InReal asks if you applied and keeps it here.</span></li>`;
 }
-function openAppsModal() {
+// My applications is its own page: /app/applications (or /admin/applications). It is shown in place of
+// the list in this same document, so Back (the link, the browser button or the logo) returns to the
+// list with the current search still there; a page load would start a new session and empty it.
+const HOME_PATH = USER_MODE ? '/app' : '/admin';
+const APPS_PATH = HOME_PATH + '/applications';
+let homeTitle = document.title, homeScroll = 0;
+function appsPageOpen() { return document.body.classList.contains('page-apps'); }
+function showAppsPage(push = true) {
+  const page = document.getElementById('apps-page');
+  if (!page) return;
+  if (!appsPageOpen()) { homeScroll = window.scrollY; homeTitle = document.title; }
+  closeDetailDrawer();
+  if (typeof setFilterMenu === 'function') setFilterMenu(false);
   renderAppsList();
-  openModal(document.getElementById('apps-modal'));
+  document.body.classList.add('page-apps');
+  page.classList.remove('hidden');
+  if (push && location.pathname !== APPS_PATH) history.pushState({ page: 'apps' }, '', APPS_PATH);
+  document.title = 'My applications · InReal';
+  window.scrollTo(0, 0);
+  document.getElementById('apps-title')?.focus({ preventScroll: true });
 }
+function hideAppsPage() {
+  if (!appsPageOpen()) return;
+  document.body.classList.remove('page-apps');
+  document.getElementById('apps-page')?.classList.add('hidden');
+  document.title = homeTitle;
+  requestAnimationFrame(() => window.scrollTo(0, homeScroll));
+}
+function leaveAppsPage() {
+  // opened from the menu: step back in history (the browser's Back stays in step); opened by link: replace
+  if (history.state && history.state.page === 'apps') history.back();
+  else { history.replaceState(null, '', HOME_PATH); hideAppsPage(); }
+}
+window.addEventListener('popstate', () => { if (location.pathname === APPS_PATH) showAppsPage(false); else hideAppsPage(); });
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('apps-back')?.addEventListener('click', (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    leaveAppsPage();
+  });
+  // the logo goes home too: from this page that is the list, without a reload
+  document.getElementById('brand-home')?.addEventListener('click', (e) => {
+    if (!appsPageOpen() || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    leaveAppsPage();
+  }, true);
+  if (location.pathname === APPS_PATH) showAppsPage(false);   // opened at /app/applications (a refresh, a link)
+});
 document.addEventListener('click', (e) => {
   const rm = e.target.closest('[data-app-remove]');
   if (rm) unmarkApplied(rm.dataset.appRemove);

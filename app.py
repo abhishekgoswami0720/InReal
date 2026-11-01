@@ -220,6 +220,7 @@ def site():
 
 
 @app.route("/app")
+@app.route("/app/applications")
 def user_app():
     """The dashboard (search, Load 5 more, scam check) behind Google sign-in. Signed out, the page
     sends the visitor back to /. The data and the searches are this laptop's, as on /admin."""
@@ -229,6 +230,7 @@ def user_app():
 
 
 @app.route("/admin")
+@app.route("/admin/applications")
 def admin():
     """The search / scam-check dashboard: this laptop only."""
     if not (is_local_request() or has_admin_token()):
