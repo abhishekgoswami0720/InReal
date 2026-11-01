@@ -414,8 +414,13 @@
             <button id="me-use-initials" type="button" class="me-chip-btn"><i class="ph ph-text-aa"></i> Just my initials</button>
           </div>
           <p id="me-photo-note" class="me-note">JPG, PNG or WebP. You can move, zoom and turn it before it is saved; the photo's hidden details (like location) are removed.</p>
-          <div class="me-sub">Or pick an avatar</div>
-          <div id="me-presets" class="me-presets"></div>
+          <div class="me-sub flex items-center justify-between gap-2">
+            <span>Or pick a character</span>
+            <button id="me-shuffle" type="button" class="me-link inline-flex items-center gap-1"><i class="ph ph-shuffle"></i> Shuffle</button>
+          </div>
+          <div id="me-styles" class="me-styles" role="tablist" aria-label="Avatar style"></div>
+          <div id="me-chars" class="me-chars" aria-live="polite"></div>
+          <p class="me-credit">Characters made with DiceBear. Art: Lorelei and Adventurer by Lisa Wischofsky, Notionists by Zoish, Avataaars and Open Peeps by Pablo Stanley.</p>
         </section>
 
         <!-- name and username -->

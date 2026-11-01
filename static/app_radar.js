@@ -2486,7 +2486,6 @@ function fillMe() {
   usernameState('');
   document.getElementById('me-use-google')?.classList.toggle('hidden', !identity.google);
   renderAvatars();
-  renderPresets();
   renderMeSummary();
 }
 function renderPresets() {
@@ -2593,7 +2592,7 @@ async function uploadPhoto(file) {
   openCropper(bmp);
 }
 
-async function savePhotoBlob(blob) {
+async function savePhotoBlob(blob, what = 'photo') {
   const note = document.getElementById('me-photo-note');
   if (note) note.textContent = 'Uploading…';
   try {
@@ -2607,7 +2606,7 @@ async function savePhotoBlob(blob) {
     renderAvatars(); renderPresets();
     const mine = `/avatars/${sbUserId}/`;
     if (old && old.includes(mine)) sb.storage.from('avatars').remove([old.slice(old.indexOf(mine) + '/avatars/'.length)]);
-    showToast('success', 'Photo updated', 'Your new picture is saved to your account.');
+    showToast('success', what === 'character' ? 'Avatar updated' : 'Photo updated', 'Your new picture is saved to your account.');
   } catch (e) {
     console.error('Photo upload failed:', e);   // the storage message is for the console, not the person
     showToast('error', 'Photo not uploaded', 'The upload did not go through. Try again in a moment, or pick another photo.');
@@ -2746,6 +2745,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('me-avatar-btn')?.addEventListener('click', () => {
     const pk = document.getElementById('me-picker');
     pk?.classList.toggle('hidden');
+    if (pk && !pk.classList.contains('hidden')) renderCharacters();
     if (pk && !pk.classList.contains('hidden')) pk.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
   document.getElementById('me-photo-input')?.addEventListener('change', (e) => { uploadPhoto(e.target.files[0]); e.target.value = ''; });
@@ -2757,7 +2757,69 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('click', (e) => {
   const pre = e.target.closest('[data-preset]');
   if (pre) { choosePreset(pre.dataset.preset); return; }
+  const st = e.target.closest('[data-char-style]');
+  if (st) { charStyle = st.dataset.charStyle; charSeeds = []; renderCharacters(); return; }
+  const ch = e.target.closest('[data-char]');
+  if (ch) { chooseCharacter(ch.dataset.char, ch); return; }
+  if (e.target.closest('#me-shuffle')) { charSeeds = []; renderCharacters(); return; }
   if (e.target.closest('[data-me-picker-close]')) { document.getElementById('me-picker')?.classList.add('hidden'); return; }
   const ed = e.target.closest('[data-me-edit]');
   if (ed) { closeModal(document.getElementById('me-modal')); openProfileModal(false, Number(ed.dataset.meEdit)); }
 });
+
+
+// ---- character avatars (1 Nov): drawn people, made in the browser with DiceBear (static/avatars.js,
+// loaded only when the picker opens). The chosen one is saved as a 256 px picture, like a photo, so
+// the rest of the page never needs the drawing code.
+const CHAR_STYLES = [['adventurer', 'Adventurer'], ['avataaars', 'Avataaars'], ['lorelei', 'Lorelei'], ['notionists', 'Notionists'], ['open-peeps', 'Open Peeps']];
+const CHAR_BG = ['ffd5dc', 'ffdfbf', 'fef3c7', 'd1fae5', 'c0aede', 'b6e3f4', 'dbeafe', 'fde68a', 'fbcfe8', 'ccfbf1', 'e9d5ff', 'fecaca'];
+let charStyle = 'adventurer', charSeeds = [], avatarLib = null;
+function loadAvatarLib() {
+  if (window.InRealAvatars) return Promise.resolve(window.InRealAvatars);
+  if (!avatarLib) avatarLib = new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = '/static/avatars.js';
+    sc.onload = () => resolve(window.InRealAvatars);
+    sc.onerror = () => { avatarLib = null; reject(new Error('avatars.js did not load')); };
+    document.head.appendChild(sc);
+  });
+  return avatarLib;
+}
+const svgUri = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+async function renderCharacters() {
+  const tabs = document.getElementById('me-styles'), grid = document.getElementById('me-chars');
+  if (!tabs || !grid) return;
+  tabs.innerHTML = CHAR_STYLES.map(([k, label]) =>
+    `<button type="button" role="tab" class="me-style${k === charStyle ? ' on' : ''}" aria-selected="${k === charStyle}" data-char-style="${k}">${label}</button>`).join('');
+  if (!charSeeds.length) charSeeds = Array.from({ length: 12 }, () => Math.random().toString(36).slice(2, 10));
+  grid.innerHTML = charSeeds.map(() => '<span class="me-char me-char-wait"></span>').join('');
+  let lib;
+  try { lib = await loadAvatarLib(); } catch (e) {
+    grid.innerHTML = '<p class="me-note">The characters could not load. Check the connection and open this again.</p>'; return;
+  }
+  grid.innerHTML = charSeeds.map((seed, i) => {
+    const bg = CHAR_BG[i % CHAR_BG.length];
+    return `<button type="button" class="me-char" data-char="${charStyle}|${seed}|${bg}" aria-label="Character ${i + 1}" style="animation-delay:${i * 30}ms">
+      <img src="${svgUri(lib.svg(charStyle, seed, bg))}" alt=""></button>`;
+  }).join('');
+}
+async function chooseCharacter(value, btn) {
+  if (!sb || !sbUserId) { showToast('info', 'Sign in first', 'Your picture is saved to your account.'); return; }
+  const [style, seed, bg] = value.split('|');
+  document.querySelectorAll('.me-char.on').forEach(b => b.classList.remove('on'));
+  btn?.classList.add('on');
+  try {
+    const lib = await loadAvatarLib();
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = svgUri(lib.svg(style, seed, bg)); });
+    const out = document.createElement('canvas');
+    out.width = out.height = 256;
+    out.getContext('2d').drawImage(img, 0, 0, 256, 256);
+    const blob = await new Promise(res => out.toBlob(res, 'image/webp', 0.92));
+    if (!blob) throw new Error('could not draw the character');
+    await savePhotoBlob(blob, 'character');
+  } catch (e) {
+    console.error('Character avatar failed:', e);
+    showToast('error', 'Avatar not saved', 'Try again in a moment.');
+  }
+}
