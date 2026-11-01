@@ -1035,6 +1035,8 @@ function bindEventHandlers() {
       document.getElementById('search-input')?.focus();
     }
     if (e.key === 'Escape') {
+      // the photo editor sits on top of My profile: Esc closes only the editor
+      if (!document.getElementById('crop-modal')?.classList.contains('hidden')) { closeCropper(); return; }
       closeDetailDrawer();
       closeModal(modal);
       closeModal(document.getElementById('apps-modal'));
@@ -2577,24 +2579,24 @@ async function useGooglePhoto() {
   if (!(await saveIdentity({ avatar_preset: null, avatar_url: /^https:\/\//.test(identity.google) ? identity.google : null }))) { Object.assign(identity, before); renderAvatars(); }
 }
 
-// a photo: cropped to a square, made 256 px and re-encoded in the browser (drops EXIF, like the
-// place the photo was taken), then stored in the account's own folder; the old upload is removed
+// a photo: first the editor (move, zoom, turn), then it is drawn at 256 px and re-encoded in the
+// browser (drops EXIF, like the place the photo was taken) and stored in the account's own folder;
+// the old upload is removed
 async function uploadPhoto(file) {
   if (!file) return;
   if (!sb || !sbUserId) { showToast('info', 'Sign in first', 'Your picture is saved to your account.'); return; }
   if (!/^image\/(png|jpe?g|webp)$/.test(file.type) || file.size > 15 * 1024 * 1024) {
     showToast('error', 'Pick another photo', 'Use a JPG, PNG or WebP photo under 15 MB.'); return;
   }
+  let bmp;
+  try { bmp = await createImageBitmap(file); } catch (e) { showToast('error', 'Pick another photo', 'This photo could not be opened.'); return; }
+  openCropper(bmp);
+}
+
+async function savePhotoBlob(blob) {
   const note = document.getElementById('me-photo-note');
   if (note) note.textContent = 'Uploading…';
   try {
-    const bmp = await createImageBitmap(file);
-    const side = Math.min(bmp.width, bmp.height), size = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    canvas.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.86));
-    if (!blob) throw new Error('could not read the photo');
     const path = `${sbUserId}/${Date.now()}.webp`;
     const up = await sb.storage.from('avatars').upload(path, blob, { contentType: 'image/webp', upsert: false });
     if (up.error) throw up.error;
@@ -2610,9 +2612,132 @@ async function uploadPhoto(file) {
     console.error('Photo upload failed:', e);   // the storage message is for the console, not the person
     showToast('error', 'Photo not uploaded', 'The upload did not go through. Try again in a moment, or pick another photo.');
   } finally {
-    if (note) note.textContent = 'JPG, PNG or WebP. It is cropped to a square and made small before upload; the photo\'s hidden details (like location) are removed.';
+    if (note) note.textContent = 'JPG, PNG or WebP. You can move, zoom and turn it before it is saved; the photo\'s hidden details (like location) are removed.';
   }
 }
+
+// ---- the photo editor: one canvas, a round window, drag / zoom / turn ----
+const crop = { bmp: null, rot: 0, zoom: 1, x: 0, y: 0, view: 300, drag: null, pinch: null };
+function cropDims() {   // the photo's width and height after turning
+  const b = crop.bmp, side = crop.rot % 180 === 0;
+  return side ? [b.width, b.height] : [b.height, b.width];
+}
+function cropScale() {   // zoom 1 = the photo just covers the round window
+  const [w, h] = cropDims();
+  return Math.max(crop.view / w, crop.view / h) * crop.zoom;
+}
+function clampCrop() {   // never show an empty edge inside the window
+  const [w, h] = cropDims(), s = cropScale();
+  const mx = Math.max(0, (w * s - crop.view) / 2), my = Math.max(0, (h * s - crop.view) / 2);
+  crop.x = Math.min(mx, Math.max(-mx, crop.x));
+  crop.y = Math.min(my, Math.max(-my, crop.y));
+}
+function paintCrop(ctx, size, withMask) {
+  const k = size / crop.view, s = cropScale() * k;
+  ctx.save();
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = '#0F172A'; ctx.fillRect(0, 0, size, size);
+  ctx.translate(size / 2 + crop.x * k, size / 2 + crop.y * k);
+  ctx.rotate(crop.rot * Math.PI / 180);
+  ctx.scale(s, s);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(crop.bmp, -crop.bmp.width / 2, -crop.bmp.height / 2);
+  ctx.restore();
+  if (withMask) {   // dim everything outside the circle, then a thin ring
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 23, 42, .55)';
+    ctx.beginPath(); ctx.rect(0, 0, size, size); ctx.arc(size / 2, size / 2, size / 2 - 2 * k, 0, Math.PI * 2, true); ctx.fill('evenodd');
+    ctx.strokeStyle = 'rgba(255, 255, 255, .9)'; ctx.lineWidth = 2 * k;
+    ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2 - 2 * k, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+}
+function drawCrop() {
+  const c = document.getElementById('crop-canvas');
+  if (!c || !crop.bmp) return;
+  const dpr = window.devicePixelRatio || 1, px = Math.round(crop.view * dpr);
+  if (c.width !== px || c.height !== px) { c.width = c.height = px; }   // a new canvas is 300 x 150: both sides
+  clampCrop();
+  paintCrop(c.getContext('2d'), px, true);
+}
+function openCropper(bmp) {
+  Object.assign(crop, { bmp, rot: 0, zoom: 1, x: 0, y: 0 });
+  const z = document.getElementById('crop-zoom'); if (z) z.value = 1;
+  openModal(document.getElementById('crop-modal'));
+  const c = document.getElementById('crop-canvas');
+  crop.view = c.clientWidth || 300;
+  drawCrop();
+}
+function setCropZoom(z, cx, cy) {   // zoom around a point (the cursor), so it doesn't jump
+  const before = cropScale();
+  crop.zoom = Math.min(4, Math.max(1, z));
+  const ratio = cropScale() / before;
+  if (cx !== undefined) { crop.x = cx - (cx - crop.x) * ratio; crop.y = cy - (cy - crop.y) * ratio; }
+  else { crop.x *= ratio; crop.y *= ratio; }
+  const zi = document.getElementById('crop-zoom'); if (zi) zi.value = crop.zoom;
+  drawCrop();
+}
+function closeCropper() {
+  closeModal(document.getElementById('crop-modal'));
+  if (crop.bmp && crop.bmp.close) crop.bmp.close();
+  crop.bmp = null;
+}
+async function saveCrop() {
+  if (!crop.bmp) return;
+  const out = document.createElement('canvas');
+  out.width = out.height = 256;
+  paintCrop(out.getContext('2d'), 256, false);
+  const blob = await new Promise(res => out.toBlob(res, 'image/webp', 0.88));
+  closeCropper();
+  if (!blob) { showToast('error', 'Photo not saved', 'Try another photo.'); return; }
+  savePhotoBlob(blob);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const c = document.getElementById('crop-canvas');
+  if (!c) return;
+  const local = (e) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2]; };
+  const pointers = new Map();
+  c.addEventListener('pointerdown', (e) => {
+    c.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    crop.drag = { x: e.clientX, y: e.clientY, ox: crop.x, oy: crop.y };
+    if (pointers.size === 2) {   // two fingers: pinch to zoom
+      const [a, b] = [...pointers.values()];
+      crop.pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), z: crop.zoom };
+    }
+  });
+  c.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (crop.pinch && pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      setCropZoom(crop.pinch.z * Math.hypot(a[0] - b[0], a[1] - b[1]) / crop.pinch.d);
+      return;
+    }
+    if (!crop.drag) return;
+    crop.x = crop.drag.ox + (e.clientX - crop.drag.x);
+    crop.y = crop.drag.oy + (e.clientY - crop.drag.y);
+    drawCrop();
+  });
+  const up = (e) => { pointers.delete(e.pointerId); if (pointers.size < 2) crop.pinch = null; if (!pointers.size) crop.drag = null; };
+  c.addEventListener('pointerup', up);
+  c.addEventListener('pointercancel', up);
+  c.addEventListener('wheel', (e) => { e.preventDefault(); const [x, y] = local(e); setCropZoom(crop.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08), x, y); }, { passive: false });
+  c.addEventListener('keydown', (e) => {   // arrows move, + / - zoom
+    const step = e.shiftKey ? 20 : 6, moves = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+    if (moves[e.key]) { e.preventDefault(); crop.x += moves[e.key][0]; crop.y += moves[e.key][1]; drawCrop(); }
+    if (e.key === '+' || e.key === '=') setCropZoom(crop.zoom * 1.1);
+    if (e.key === '-') setCropZoom(crop.zoom / 1.1);
+  });
+  c.tabIndex = 0;
+  document.getElementById('crop-zoom')?.addEventListener('input', (e) => setCropZoom(Number(e.target.value)));
+  document.getElementById('crop-rotate')?.addEventListener('click', () => { crop.rot = (crop.rot + 90) % 360; crop.x = crop.y = 0; drawCrop(); });
+  document.getElementById('crop-reset')?.addEventListener('click', () => { Object.assign(crop, { rot: 0, zoom: 1, x: 0, y: 0 }); document.getElementById('crop-zoom').value = 1; drawCrop(); });
+  document.getElementById('crop-cancel')?.addEventListener('click', closeCropper);
+  document.getElementById('crop-cancel-x')?.addEventListener('click', closeCropper);
+  document.getElementById('crop-save')?.addEventListener('click', saveCrop);
+  closeOnBackdrop(document.getElementById('crop-modal'), closeCropper);
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   const m = document.getElementById('me-modal');

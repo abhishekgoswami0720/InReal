@@ -530,12 +530,12 @@ html.dark .scan-resize { background: linear-gradient(45deg, transparent 45%, #47
 /* dialogs: the backdrop fades in, the panel rises and grows a little; closing plays it backwards */
 @keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-rise { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
-#scrape-config-modal:not(.hidden), #profile-modal:not(.hidden), #apps-modal:not(.hidden), #me-modal:not(.hidden) { animation: modal-fade .22s ease-out both; }
-#scrape-config-modal:not(.hidden) > .glass-panel, #profile-modal:not(.hidden) > .glass-panel, #apps-modal:not(.hidden) > .glass-panel, #me-modal:not(.hidden) > .glass-panel { animation: modal-rise .32s cubic-bezier(.2, .9, .3, 1.15) both; }
+#scrape-config-modal:not(.hidden), #profile-modal:not(.hidden), #apps-modal:not(.hidden), #me-modal:not(.hidden), #crop-modal:not(.hidden) { animation: modal-fade .22s ease-out both; }
+#scrape-config-modal:not(.hidden) > .glass-panel, #profile-modal:not(.hidden) > .glass-panel, #apps-modal:not(.hidden) > .glass-panel, #me-modal:not(.hidden) > .glass-panel, #crop-modal:not(.hidden) > .glass-panel { animation: modal-rise .32s cubic-bezier(.2, .9, .3, 1.15) both; }
 @keyframes modal-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes modal-sink { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(12px) scale(.97); } }
-#scrape-config-modal.closing, #profile-modal.closing, #apps-modal.closing, #me-modal.closing { animation: modal-fade-out .18s ease-in both; }
-#scrape-config-modal.closing > .glass-panel, #profile-modal.closing > .glass-panel, #apps-modal.closing > .glass-panel, #me-modal.closing > .glass-panel { animation: modal-sink .18s ease-in both; }
+#scrape-config-modal.closing, #profile-modal.closing, #apps-modal.closing, #me-modal.closing, #crop-modal.closing { animation: modal-fade-out .18s ease-in both; }
+#scrape-config-modal.closing > .glass-panel, #profile-modal.closing > .glass-panel, #apps-modal.closing > .glass-panel, #me-modal.closing > .glass-panel, #crop-modal.closing > .glass-panel { animation: modal-sink .18s ease-in both; }
 
 /* cards: new ones slide up one after another (only cards not on screen before; see app_radar.js) */
 @keyframes card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -757,3 +757,11 @@ html.dark .me-link { color: #FDBA74; }
 html.dark .me-good { color: #6EE7B7; } html.dark .me-bad { color: #FDA4AF; }
 html.dark .me-preset.on { box-shadow: 0 0 0 3px #111620, 0 0 0 5px #F97316; }
 @media (prefers-reduced-motion: reduce) { #me-modal, #me-modal > .glass-panel, #me-picker { animation: none !important; } .me-preset, .me-avatar-edit { transition: none; } }
+
+/* ---- Photo editor (1 Nov) ---- */
+.crop-stage { display: flex; justify-content: center; }
+#crop-canvas { width: 300px; height: auto; max-width: 100%; aspect-ratio: 1; border-radius: 18px; cursor: grab; touch-action: none; background: #0F172A; }
+#crop-canvas:active { cursor: grabbing; }
+#crop-canvas:focus-visible { outline: 2px solid #F97316; outline-offset: 3px; }
+.crop-range { accent-color: #F97316; }
+html.dark #crop-title { color: #F1F5F9; }

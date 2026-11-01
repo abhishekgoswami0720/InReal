@@ -413,7 +413,7 @@
             <button id="me-use-google" type="button" class="me-chip-btn hidden"><i class="ph ph-google-logo"></i> Use my Google photo</button>
             <button id="me-use-initials" type="button" class="me-chip-btn"><i class="ph ph-text-aa"></i> Just my initials</button>
           </div>
-          <p id="me-photo-note" class="me-note">JPG, PNG or WebP. It is cropped to a square and made small before upload; the photo's hidden details (like location) are removed.</p>
+          <p id="me-photo-note" class="me-note">JPG, PNG or WebP. You can move, zoom and turn it before it is saved; the photo's hidden details (like location) are removed.</p>
           <div class="me-sub">Or pick an avatar</div>
           <div id="me-presets" class="me-presets"></div>
         </section>
@@ -438,6 +438,34 @@
           <div class="me-card-head"><h3>What InReal uses to match your list</h3></div>
           <div id="me-summary" class="me-summary"></div>
         </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Photo editor: move, zoom and turn the photo before it becomes your picture (1 Nov) -->
+  <div id="crop-modal" class="fixed inset-0 bg-slate-900/60 modal-blur z-[62] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="crop-title">
+    <div class="glass-panel crop-panel max-w-md w-full shadow-2xl p-5">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 id="crop-title" class="text-base font-extrabold text-slate-900">Adjust your photo</h2>
+          <p class="text-xs text-slate-500 font-medium mt-0.5">Drag to move. Zoom with the slider or the mouse wheel.</p>
+        </div>
+        <button id="crop-cancel-x" type="button" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400" aria-label="Cancel"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="crop-stage mt-4">
+        <canvas id="crop-canvas" aria-label="Photo preview. Drag to move it."></canvas>
+      </div>
+      <div class="flex items-center gap-3 mt-4">
+        <i class="ph ph-magnifying-glass-minus text-slate-400"></i>
+        <input id="crop-zoom" type="range" min="1" max="4" step="0.01" value="1" class="crop-range flex-1" aria-label="Zoom">
+        <i class="ph ph-magnifying-glass-plus text-slate-400"></i>
+      </div>
+      <div class="flex items-center gap-2 mt-4">
+        <button id="crop-rotate" type="button" class="me-chip-btn" title="Turn 90°"><i class="ph ph-arrow-clockwise"></i> Rotate</button>
+        <button id="crop-reset" type="button" class="me-chip-btn" title="Back to the start"><i class="ph ph-arrow-counter-clockwise"></i> Reset</button>
+        <div class="flex-1"></div>
+        <button id="crop-cancel" type="button" class="glass-btn px-3.5 py-2 text-xs">Cancel</button>
+        <button id="crop-save" type="button" class="glass-btn glass-btn-primary px-4 py-2 text-xs flex items-center gap-1.5 whitespace-nowrap"><i class="ph ph-check"></i>Use photo</button>
       </div>
     </div>
   </div>
