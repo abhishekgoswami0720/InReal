@@ -2196,7 +2196,7 @@ async function requireSignIn() {
 
   const meta = user.user_metadata || {};
   sbUserId = user.id;
-  const COLS = 'name,avatar_url,username,avatar_preset,is_admin,field,experience,companies,sources,regions,study_year,roles,skills,work_mode,min_stipend,max_duration';
+  const COLS = 'name,avatar_url,username,avatar_preset,banner_url,banner_preset,is_admin,field,experience,companies,sources,regions,study_year,roles,skills,work_mode,min_stipend,max_duration';
   let { data: account, error: accountError } = await sb.from('profiles').select(COLS).eq('id', user.id).maybeSingle();
   if (!accountError && !account) {   // the row is missing (deleted by hand): make it again
     await sb.rpc('ensure_profile');
@@ -2232,6 +2232,8 @@ async function requireSignIn() {
   identity.google = meta.avatar_url || meta.picture || '';
   identity.preset = (account && account.avatar_preset) || '';
   identity.username = (account && account.username) || '';
+  identity.banner = (account && account.banner_url) || '';
+  identity.bannerPreset = (account && account.banner_preset) || '';
   renderAvatars();
   const admin = document.getElementById('admin-link');
   if (admin && account && account.is_admin) { admin.classList.remove('hidden'); admin.classList.add('inline-flex'); }
@@ -2425,7 +2427,7 @@ document.addEventListener('click', (e) => {
 // ==========================================
 // 21. My profile (1 Nov): name, @username, a photo or a drawn avatar, and what the list uses
 // ==========================================
-const identity = { photo: '', google: '', preset: '', username: '' };
+const identity = { photo: '', google: '', preset: '', username: '', banner: '', bannerPreset: '' };
 // drawn avatars: an emoji on a gradient. Stored as "p:<key>" in profiles.avatar_preset
 const AVATAR_PRESETS = [
   ['fox', '🦊', '#FB923C,#F43F5E'], ['owl', '🦉', '#A78BFA,#6366F1'], ['panda', '🐼', '#94A3B8,#334155'],
@@ -2486,6 +2488,7 @@ function fillMe() {
   usernameState('');
   document.getElementById('me-use-google')?.classList.toggle('hidden', !identity.google);
   renderAvatars();
+  applyBanner();
   renderMeSummary();
 }
 function renderPresets() {
@@ -2615,56 +2618,62 @@ async function savePhotoBlob(blob, what = 'photo') {
   }
 }
 
-// ---- the photo editor: one canvas, a round window, drag / zoom / turn ----
-const crop = { bmp: null, rot: 0, zoom: 1, x: 0, y: 0, view: 300, drag: null, pinch: null };
+// ---- the photo editor: one canvas, a round window (picture) or a wide one (banner), drag / zoom / turn ----
+const crop = { bmp: null, mode: 'avatar', rot: 0, zoom: 1, x: 0, y: 0, vw: 300, vh: 300, drag: null, pinch: null };
+const BANNER_RATIO = 4;   // 1200 x 300, the same shape as the banner on the profile
 function cropDims() {   // the photo's width and height after turning
   const b = crop.bmp, side = crop.rot % 180 === 0;
   return side ? [b.width, b.height] : [b.height, b.width];
 }
-function cropScale() {   // zoom 1 = the photo just covers the round window
+function cropScale() {   // zoom 1 = the photo just covers the window
   const [w, h] = cropDims();
-  return Math.max(crop.view / w, crop.view / h) * crop.zoom;
+  return Math.max(crop.vw / w, crop.vh / h) * crop.zoom;
 }
 function clampCrop() {   // never show an empty edge inside the window
   const [w, h] = cropDims(), s = cropScale();
-  const mx = Math.max(0, (w * s - crop.view) / 2), my = Math.max(0, (h * s - crop.view) / 2);
+  const mx = Math.max(0, (w * s - crop.vw) / 2), my = Math.max(0, (h * s - crop.vh) / 2);
   crop.x = Math.min(mx, Math.max(-mx, crop.x));
   crop.y = Math.min(my, Math.max(-my, crop.y));
 }
-function paintCrop(ctx, size, withMask) {
-  const k = size / crop.view, s = cropScale() * k;
+function paintCrop(ctx, W, H, withMask) {
+  const k = W / crop.vw, s = cropScale() * k;
   ctx.save();
-  ctx.clearRect(0, 0, size, size);
-  ctx.fillStyle = '#0F172A'; ctx.fillRect(0, 0, size, size);
-  ctx.translate(size / 2 + crop.x * k, size / 2 + crop.y * k);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0F172A'; ctx.fillRect(0, 0, W, H);
+  ctx.translate(W / 2 + crop.x * k, H / 2 + crop.y * k);
   ctx.rotate(crop.rot * Math.PI / 180);
   ctx.scale(s, s);
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(crop.bmp, -crop.bmp.width / 2, -crop.bmp.height / 2);
   ctx.restore();
-  if (withMask) {   // dim everything outside the circle, then a thin ring
+  if (withMask && crop.mode === 'avatar') {   // dim everything outside the circle, then a thin ring
     ctx.save();
     ctx.fillStyle = 'rgba(15, 23, 42, .55)';
-    ctx.beginPath(); ctx.rect(0, 0, size, size); ctx.arc(size / 2, size / 2, size / 2 - 2 * k, 0, Math.PI * 2, true); ctx.fill('evenodd');
+    ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(W / 2, H / 2, W / 2 - 2 * k, 0, Math.PI * 2, true); ctx.fill('evenodd');
     ctx.strokeStyle = 'rgba(255, 255, 255, .9)'; ctx.lineWidth = 2 * k;
-    ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2 - 2 * k, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, W / 2 - 2 * k, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 }
 function drawCrop() {
   const c = document.getElementById('crop-canvas');
   if (!c || !crop.bmp) return;
-  const dpr = window.devicePixelRatio || 1, px = Math.round(crop.view * dpr);
-  if (c.width !== px || c.height !== px) { c.width = c.height = px; }   // a new canvas is 300 x 150: both sides
+  const dpr = window.devicePixelRatio || 1, pw = Math.round(crop.vw * dpr), ph = Math.round(crop.vh * dpr);
+  if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; }   // a new canvas is 300 x 150: set both
   clampCrop();
-  paintCrop(c.getContext('2d'), px, true);
+  paintCrop(c.getContext('2d'), pw, ph, true);
 }
-function openCropper(bmp) {
-  Object.assign(crop, { bmp, rot: 0, zoom: 1, x: 0, y: 0 });
+function openCropper(bmp, mode = 'avatar') {
+  Object.assign(crop, { bmp, mode, rot: 0, zoom: 1, x: 0, y: 0 });
   const z = document.getElementById('crop-zoom'); if (z) z.value = 1;
-  openModal(document.getElementById('crop-modal'));
+  const modal = document.getElementById('crop-modal');
+  modal.classList.toggle('crop-banner', mode === 'banner');
+  document.getElementById('crop-title').textContent = mode === 'banner' ? 'Adjust your banner' : 'Adjust your photo';
+  const use = document.querySelector('#crop-save'); if (use) use.lastChild.textContent = mode === 'banner' ? 'Use banner' : 'Use photo';
+  openModal(modal);
   const c = document.getElementById('crop-canvas');
-  crop.view = c.clientWidth || 300;
+  crop.vw = c.clientWidth || 300;
+  crop.vh = mode === 'banner' ? crop.vw / BANNER_RATIO : crop.vw;
   drawCrop();
 }
 function setCropZoom(z, cx, cy) {   // zoom around a point (the cursor), so it doesn't jump
@@ -2683,13 +2692,14 @@ function closeCropper() {
 }
 async function saveCrop() {
   if (!crop.bmp) return;
+  const banner = crop.mode === 'banner';
   const out = document.createElement('canvas');
-  out.width = out.height = 256;
-  paintCrop(out.getContext('2d'), 256, false);
-  const blob = await new Promise(res => out.toBlob(res, 'image/webp', 0.88));
+  out.width = banner ? 1200 : 256; out.height = banner ? 1200 / BANNER_RATIO : 256;
+  paintCrop(out.getContext('2d'), out.width, out.height, false);
+  const blob = await new Promise(res => out.toBlob(res, 'image/webp', banner ? 0.85 : 0.88));
   closeCropper();
-  if (!blob) { showToast('error', 'Photo not saved', 'Try another photo.'); return; }
-  savePhotoBlob(blob);
+  if (!blob) { showToast('error', 'Not saved', 'Try another picture.'); return; }
+  if (banner) saveBannerBlob(blob); else savePhotoBlob(blob);
 }
 document.addEventListener('DOMContentLoaded', () => {
   const c = document.getElementById('crop-canvas');
@@ -2823,3 +2833,92 @@ async function chooseCharacter(value, btn) {
     showToast('error', 'Avatar not saved', 'Try again in a moment.');
   }
 }
+
+
+// ---- banner (1 Nov): a picture of your own (1200 x 300, same editor as the photo) or a drawn one ----
+const BANNERS = [
+  ['sunset', 'linear-gradient(120deg, #F97316, #F59E0B 45%, #FB7185)'],
+  ['ocean', 'linear-gradient(120deg, #0EA5E9, #6366F1)'],
+  ['forest', 'linear-gradient(120deg, #34D399, #065F46)'],
+  ['grape', 'linear-gradient(120deg, #8B5CF6, #EC4899)'],
+  ['lava', 'linear-gradient(120deg, #7F1D1D, #DC2626 50%, #F97316)'],
+  ['peach', 'linear-gradient(120deg, #FED7AA, #FDA4AF 60%, #F9A8D4)'],
+  ['mint', 'linear-gradient(120deg, #99F6E4, #A7F3D0 50%, #D9F99D)'],
+  ['night', 'radial-gradient(circle at 80% 20%, rgba(99,102,241,.55), transparent 45%), radial-gradient(circle at 15% 90%, rgba(236,72,153,.45), transparent 40%), linear-gradient(120deg, #0F172A, #1E293B)'],
+  ['aurora', 'radial-gradient(circle at 20% 30%, rgba(52,211,153,.8), transparent 45%), radial-gradient(circle at 75% 70%, rgba(99,102,241,.8), transparent 45%), linear-gradient(120deg, #0B1120, #134E4A)'],
+  ['dots', 'radial-gradient(circle, rgba(255,255,255,.35) 1.5px, transparent 1.8px) 0 0 / 16px 16px, linear-gradient(120deg, #F97316, #EA580C)'],
+  ['stripes', 'repeating-linear-gradient(135deg, rgba(255,255,255,.14) 0 12px, transparent 12px 24px), linear-gradient(120deg, #2563EB, #7C3AED)'],
+  ['paper', 'radial-gradient(circle at 10% 20%, #FDE68A, transparent 40%), radial-gradient(circle at 90% 80%, #FBCFE8, transparent 45%), #FFF7ED'],
+];
+const bannerCss = (key) => (BANNERS.find(b => b[0] === String(key || '').replace(/^b:/, '')) || BANNERS[0])[1];
+function applyBanner() {
+  const cover = document.getElementById('me-cover');
+  if (!cover) return;
+  if (/^https:\/\//i.test(identity.banner)) {
+    cover.style.background = `center / cover no-repeat url(${JSON.stringify(identity.banner)})`;
+    cover.classList.add('has-photo');
+  } else {
+    cover.style.background = bannerCss(identity.bannerPreset);
+    cover.classList.remove('has-photo');
+  }
+}
+function renderBanners() {
+  const box = document.getElementById('me-banners');
+  if (!box) return;
+  const current = identity.banner ? '' : (identity.bannerPreset || 'b:sunset');
+  box.innerHTML = BANNERS.map(([k, css], i) => `<button type="button" class="me-banner${current === 'b:' + k ? ' on' : ''}" data-banner="${k}"
+      aria-label="Banner ${k}" aria-pressed="${current === 'b:' + k}" style="background:${css};animation-delay:${i * 25}ms"></button>`).join('');
+}
+async function chooseBanner(key) {
+  const before = { banner: identity.banner, bannerPreset: identity.bannerPreset };
+  const old = identity.banner;
+  identity.banner = ''; identity.bannerPreset = `b:${key}`;
+  applyBanner(); renderBanners();
+  if (!(await saveIdentity({ banner_preset: identity.bannerPreset, banner_url: null }))) { Object.assign(identity, before); applyBanner(); renderBanners(); return; }
+  removeOwnUpload(old);
+}
+function removeOwnUpload(url) {   // a picture we uploaded before and no longer use
+  const mine = `/avatars/${sbUserId}/`;
+  if (sb && url && url.includes(mine)) sb.storage.from('avatars').remove([url.slice(url.indexOf(mine) + '/avatars/'.length)]);
+}
+async function uploadBanner(file) {
+  if (!file) return;
+  if (!sb || !sbUserId) { showToast('info', 'Sign in first', 'Your banner is saved to your account.'); return; }
+  if (!/^image\/(png|jpe?g|webp)$/.test(file.type) || file.size > 15 * 1024 * 1024) {
+    showToast('error', 'Pick another picture', 'Use a JPG, PNG or WebP picture under 15 MB.'); return;
+  }
+  let bmp;
+  try { bmp = await createImageBitmap(file); } catch (e) { showToast('error', 'Pick another picture', 'This picture could not be opened.'); return; }
+  openCropper(bmp, 'banner');
+}
+async function saveBannerBlob(blob) {
+  try {
+    const path = `${sbUserId}/banner-${Date.now()}.webp`;
+    const up = await sb.storage.from('avatars').upload(path, blob, { contentType: 'image/webp', upsert: false });
+    if (up.error) throw up.error;
+    const url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+    const old = identity.banner;
+    if (!(await saveIdentity({ banner_url: url, banner_preset: null }))) return;
+    identity.banner = url; identity.bannerPreset = '';
+    applyBanner(); renderBanners();
+    removeOwnUpload(old);
+    showToast('success', 'Banner updated', 'Your new banner is saved to your account.');
+  } catch (e) {
+    console.error('Banner upload failed:', e);
+    showToast('error', 'Banner not uploaded', 'The upload did not go through. Try again in a moment, or pick another picture.');
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('me-banner-btn')?.addEventListener('click', () => {
+    const pk = document.getElementById('me-banner-picker');
+    pk?.classList.toggle('hidden');
+    if (pk && !pk.classList.contains('hidden')) { renderBanners(); pk.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  });
+  document.getElementById('me-banner-input')?.addEventListener('change', (e) => { uploadBanner(e.target.files[0]); e.target.value = ''; });
+  document.getElementById('me-banner-default')?.addEventListener('click', () => chooseBanner('sunset'));
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-banner]');
+  if (b) { chooseBanner(b.dataset.banner); return; }
+  if (e.target.closest('[data-me-banner-close]')) document.getElementById('me-banner-picker')?.classList.add('hidden');
+});

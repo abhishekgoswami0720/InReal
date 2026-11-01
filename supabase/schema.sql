@@ -227,3 +227,12 @@ create policy "avatars: own folder upload" on storage.objects for insert to auth
     and private.my_avatar_count() < 10);
 create policy "avatars: own folder delete" on storage.objects for delete to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- My profile banner (1 Nov 2026): an uploaded picture (in the avatars bucket) or one of the drawn ones.
+alter table public.profiles add column if not exists banner_url text;
+alter table public.profiles add column if not exists banner_preset text;
+alter table public.profiles drop constraint if exists profiles_banner_url_https, drop constraint if exists profiles_banner_preset_len;
+alter table public.profiles
+  add constraint profiles_banner_url_https check (banner_url is null or (char_length(banner_url) <= 600 and banner_url ~* '^https://')),
+  add constraint profiles_banner_preset_len check (banner_preset is null or char_length(banner_preset) <= 40);
+grant update (banner_url, banner_preset) on public.profiles to authenticated;

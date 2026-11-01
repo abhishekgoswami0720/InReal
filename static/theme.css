@@ -683,7 +683,7 @@ html.dark .app-btn-quiet:hover { background: rgba(225, 29, 72, .14); color: #FDA
 .pm-avatar .av-preset { font-size: 22px; }
 .av-initials { font-weight: 800; }
 .me-panel { padding: 0; }
-.me-cover { position: relative; height: 96px; flex: none; background: linear-gradient(120deg, #F97316, #F59E0B 45%, #FB7185); }
+.me-cover { position: relative; aspect-ratio: 4 / 1; min-height: 96px; flex: none; background: linear-gradient(120deg, #F97316, #F59E0B 45%, #FB7185); }
 .me-cover::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 20% 120%, rgba(255,255,255,.35), transparent 45%), radial-gradient(circle at 85% -20%, rgba(255,255,255,.3), transparent 40%); }
 .me-close { position: absolute; top: 12px; right: 12px; z-index: 3; width: 34px; height: 34px; border-radius: 10px; color: #fff; background: rgba(15,23,42,.25); display: flex; align-items: center; justify-content: center; }
 .me-close:hover { background: rgba(15,23,42,.45); }
@@ -787,3 +787,22 @@ html.dark .me-char { background: #1C2433; }
 html.dark .me-char.on { box-shadow: 0 0 0 3px #111620, 0 0 0 6px #F97316; }
 html.dark .me-credit { color: #64748B; }
 @media (prefers-reduced-motion: reduce) { .me-char, .me-char-wait { animation: none; transition: none; } }
+
+/* ---- banner (1 Nov) ---- */
+.me-cover { transition: background .35s ease; }
+.me-cover.has-photo::after { background: linear-gradient(180deg, rgba(15,23,42,.25), transparent 45%); }
+.me-banner-btn { position: absolute; left: 14px; top: 12px; z-index: 2; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 10px;
+  font-size: 12px; font-weight: 700; color: #fff; background: rgba(15,23,42,.32); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); transition: background .15s, transform .15s; }
+.me-banner-btn:hover { background: rgba(15,23,42,.55); transform: translateY(-1px); }
+.me-banner-btn i { font-size: 15px; }
+#me-banner-picker:not(.hidden) { animation: soft-up .3s ease-out both; }
+.me-banners { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.me-banner { height: 44px; border-radius: 11px; box-shadow: inset 0 0 0 1px rgba(15,23,42,.08), 0 6px 14px -10px rgba(15,23,42,.6);
+  animation: char-pop .3s ease-out both; transition: transform .15s, box-shadow .15s; }
+.me-banner:hover { transform: translateY(-2px) scale(1.03); }
+.me-banner.on { box-shadow: 0 0 0 3px #fff, 0 0 0 5px #F97316; }
+html.dark .me-banner.on { box-shadow: 0 0 0 3px #111620, 0 0 0 5px #F97316; }
+/* the editor in banner mode: a wide window */
+#crop-modal.crop-banner .crop-panel { max-width: 40rem; }
+#crop-modal.crop-banner #crop-canvas { width: 100%; aspect-ratio: 4 / 1; border-radius: 14px; }
+@media (prefers-reduced-motion: reduce) { .me-banner, #me-banner-picker { animation: none !important; } .me-cover { transition: none; } }

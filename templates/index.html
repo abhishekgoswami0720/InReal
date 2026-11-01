@@ -385,7 +385,9 @@
     <div class="glass-panel me-panel relative max-w-2xl w-full shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
       <button id="me-close" type="button" class="me-close" aria-label="Close"><i class="ph ph-x"></i></button>
       <div class="overflow-y-auto">
-        <div class="me-cover"></div>
+        <div id="me-cover" class="me-cover">
+          <button id="me-banner-btn" type="button" class="me-banner-btn"><i class="ph ph-image-square"></i><span>Edit banner</span></button>
+        </div>
         <div class="me-hero">
           <button id="me-avatar-btn" type="button" class="me-avatar" aria-label="Change your picture" title="Change your picture">
             <span id="me-avatar" class="me-avatar-img"></span>
@@ -404,6 +406,18 @@
           <div><b id="me-verified">0</b><span>verified for you</span></div>
           <div><b id="me-scams">0</b><span>scams kept away</span></div>
         </div>
+
+        <!-- banner: a picture of your own or one of the drawn ones -->
+        <section id="me-banner-picker" class="me-card hidden">
+          <div class="me-card-head"><h3>Your banner</h3><button type="button" class="me-link" data-me-banner-close>Done</button></div>
+          <div class="flex flex-wrap gap-2">
+            <label class="me-chip-btn"><i class="ph ph-upload-simple"></i> Upload a picture<input id="me-banner-input" type="file" accept="image/png,image/jpeg,image/webp" class="sr-only"></label>
+            <button id="me-banner-default" type="button" class="me-chip-btn"><i class="ph ph-arrow-counter-clockwise"></i> Back to the default</button>
+          </div>
+          <p class="me-note">A wide picture works best. You can move and zoom it before it is saved.</p>
+          <div class="me-sub">Or pick one</div>
+          <div id="me-banners" class="me-banners"></div>
+        </section>
 
         <!-- picture: photo or one of the drawn avatars -->
         <section id="me-picker" class="me-card hidden">
