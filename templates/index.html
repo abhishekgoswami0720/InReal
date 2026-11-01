@@ -120,10 +120,11 @@
           <div class="pm-stats">
             <div><b id="pm-verified">0</b><span>verified for you</span></div>
             <div><b id="pm-scams">0</b><span>scams kept away</span></div>
-            <div><b id="pm-saved">0</b><span>saved</span></div>
+            <div><b id="pm-applied">0</b><span>applied</span></div>
           </div>
           <div class="pm-items">
             <button type="button" role="menuitem" data-pm="profile"><i class="ph ph-user-circle"></i><span>My profile</span></button>
+            <button type="button" role="menuitem" data-pm="apps"><i class="ph ph-paper-plane-tilt"></i><span>My applications</span><em id="pm-apps-count">0</em></button>
             <button type="button" role="menuitem" data-pm="saved"><i class="ph ph-bookmark-simple"></i><span>My bookmarks</span><em id="pm-saved-count">0</em></button>
             <button type="button" role="menuitem" data-pm="recent"><i class="ph ph-clock-counter-clockwise"></i><span>Last 3 days</span></button>
             <button type="button" role="menuitem" data-pm="theme" data-theme-toggle><i class="ph ph-moon"></i><span id="pm-theme-label">Dark theme</span></button>
@@ -366,6 +367,8 @@
           </div>
         </div>
 
+        <!-- Applied or not: the "did you apply?" answer, with a way to correct it (1 Nov) -->
+        <div id="drawer-applied" class="jb-applied-line hidden"></div>
         <div id="detail-actions" class="p-4 border-t border-slate-200 flex items-center gap-2.5">
           <button id="drawer-bookmark-btn" type="button" aria-label="Save" class="w-12 h-12 glass-btn flex items-center justify-center">
             <i class="ph ph-bookmark text-base"></i>
@@ -377,6 +380,34 @@
       </div>
     </div>
   </main>
+
+  <!-- "Did you apply?" after coming back from a post's own site (1 Nov) -->
+  <div id="apply-ask" class="apply-ask hidden" role="dialog" aria-live="polite" aria-labelledby="apply-ask-q">
+    <div class="apply-ask-icon"><i class="ph ph-paper-plane-tilt"></i></div>
+    <div class="min-w-0 flex-1">
+      <div id="apply-ask-q" class="apply-ask-q">Did you apply?</div>
+      <div id="apply-ask-sub" class="apply-ask-sub"></div>
+      <div class="flex gap-2 mt-2.5">
+        <button id="apply-ask-yes" type="button" class="glass-btn glass-btn-primary px-3.5 py-2 text-xs flex items-center gap-1.5"><i class="ph ph-check"></i>Yes, applied</button>
+        <button id="apply-ask-no" type="button" class="glass-btn px-3.5 py-2 text-xs">Not yet</button>
+      </div>
+    </div>
+    <button id="apply-ask-close" type="button" class="apply-ask-x" aria-label="Close"><i class="ph ph-x"></i></button>
+  </div>
+
+  <!-- My applications: every internship you said you applied to, newest first (1 Nov) -->
+  <div id="apps-modal" class="fixed inset-0 bg-slate-900/40 modal-blur z-[57] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="apps-title">
+    <div class="glass-panel max-w-lg w-full shadow-2xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="px-5 pt-5 pb-3 flex items-start justify-between gap-3 border-b border-slate-200">
+        <div>
+          <h2 id="apps-title" class="text-lg font-extrabold text-slate-900">My applications</h2>
+          <p id="apps-sub" class="text-xs text-slate-500 font-medium mt-0.5">Internships you applied to from InReal.</p>
+        </div>
+        <button id="apps-close" type="button" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400" aria-label="Close"><i class="ph ph-x"></i></button>
+      </div>
+      <ul id="apps-list" class="overflow-y-auto p-3 space-y-2"></ul>
+    </div>
+  </div>
 
   <!-- Search Internships dialog: field, sites and regions for one search -->
   <div id="scrape-config-modal" class="fixed inset-0 bg-slate-900/30 modal-blur z-50 hidden flex items-center justify-center p-4">

@@ -206,6 +206,7 @@ function startDashboard() {
   pollAlerts();
   pollModeration();
   updateBookmarkCounter();
+  loadApplications();
 }
 
 // ==========================================
@@ -537,6 +538,7 @@ function renderListings(items) {
             ${stipendTag(item)}
             ${verdictTag(item)}
             ${isPreferred(item) ? '<span class="jb-tag jb-tag-pick"><i class="ph ph-star"></i>Your pick</span>' : ''}
+            ${appliedTag(item)}
             ${skillTag(item)}
             ${item.trust_flags ? `<span class="jb-tag jb-tag-warn" title="${escapeHtml(item.trust_flags)}"><i class="ph ph-warning"></i>Note</span>` : ''}
           </div>
@@ -714,6 +716,7 @@ function openDetailDrawer(id, opts) {
   }
 
   updateDrawerBookmarkIcon();
+  updateDrawerApplied();
   if (quiet || isWide()) return;   // wide screens: the panel is already beside the list
 
   const overlay = document.getElementById('detail-drawer-overlay');
@@ -1034,6 +1037,8 @@ function bindEventHandlers() {
     if (e.key === 'Escape') {
       closeDetailDrawer();
       closeModal(modal);
+      closeModal(document.getElementById('apps-modal'));
+      hideApplyAsk();
       closeProfileModal();
     }
   });
@@ -1664,7 +1669,8 @@ function fillProfileMenu() {
   const count = (st) => allInternships.filter(r => r.moderation_status === st).length;
   document.getElementById('pm-verified').textContent = count('approved');
   document.getElementById('pm-scams').textContent = count('blocked');
-  document.getElementById('pm-saved').textContent = bookmarks.length;
+  document.getElementById('pm-applied').textContent = applications.size;
+  document.getElementById('pm-apps-count').textContent = applications.size;
   document.getElementById('pm-saved-count').textContent = bookmarks.length;
   const dark = document.documentElement.classList.contains('dark');
   document.getElementById('pm-theme-label').textContent = dark ? 'Light theme' : 'Dark theme';
@@ -1693,7 +1699,8 @@ document.addEventListener('click', (e) => {
     const what = item.dataset.pm;
     if (what === 'theme') return;   // theme.js switches it; the menu stays open and updates below
     toggleProfileMenu(false);
-    if (what === 'profile') openProfileModal(false);
+    if (what === 'apps') openAppsModal();
+    else if (what === 'profile') openProfileModal(false);
     else if (what === 'saved' || what === 'recent') setView(what);
     return;
   }
@@ -2235,3 +2242,179 @@ async function requireSignIn() {
   return true;
 }
 
+
+
+// ==========================================
+// 20. My applications (1 Nov): InReal can't see the other site, so it asks "did you apply?" when you
+//     come back, keeps the answer in your account, and marks the post "Applied" wherever it shows up
+// ==========================================
+const applications = new Map();   // listing_id -> { listing_id, role_title, company_name, source_platform, apply_link, applied_at }
+const appsKey = () => `inreal_applications:${sbUserId || 'laptop'}`;   // this browser, when there is no account (/admin)
+const normKey = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const shortDate = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); };
+
+function saveAppsLocally() {
+  try { localStorage.setItem(appsKey(), JSON.stringify([...applications.values()])); } catch (e) { /* private window */ }
+}
+async function loadApplications() {
+  let rows = null;
+  if (sb && sbUserId) {
+    const { data, error } = await sb.from('applications')
+      .select('listing_id,role_title,company_name,source_platform,apply_link,applied_at').order('applied_at', { ascending: false });
+    if (!error && Array.isArray(data)) rows = data;
+  }
+  if (!rows) { try { rows = JSON.parse(localStorage.getItem(appsKey()) || '[]'); } catch (e) { rows = []; } }
+  applications.clear();
+  rows.forEach(r => applications.set(r.listing_id, r));
+  refreshApplied();
+}
+// the same internship found again (same company and role, maybe on another site) counts as applied too
+function appliedFor(item) {
+  if (!item) return null;
+  const direct = applications.get(item.id);
+  if (direct) return direct;
+  const co = normKey(item.company_name), role = normKey(item.role_title);
+  if (!co || !role) return null;
+  for (const a of applications.values()) if (normKey(a.company_name) === co && normKey(a.role_title) === role) return a;
+  return null;
+}
+function appliedTag(item) {
+  const a = appliedFor(item);
+  return a ? `<span class="jb-tag jb-tag-applied"><i class="ph ph-check-circle"></i>Applied ${escapeHtml(shortDate(a.applied_at))}</span>` : '';
+}
+function refreshApplied() {
+  applyFiltersAndRender();
+  updateDrawerApplied();
+  if (profileMenuOpen()) fillProfileMenu();
+  if (!document.getElementById('apps-modal')?.classList.contains('hidden')) renderAppsList();
+}
+
+async function markApplied(item) {
+  if (!item || applications.has(item.id)) return;
+  const row = {
+    listing_id: String(item.id).slice(0, 200),
+    role_title: String(item.role_title || '').slice(0, 300),
+    company_name: String(item.company_name || '').slice(0, 200),
+    source_platform: String(item.source_platform || '').slice(0, 100),
+    apply_link: /^https?:\/\//i.test(item.apply_link || '') ? String(item.apply_link).slice(0, 2000) : null,
+    applied_at: new Date().toISOString(),
+  };
+  applications.set(row.listing_id, row);
+  refreshApplied();
+  if (sb && sbUserId) {
+    const { error } = await sb.from('applications').insert(row);
+    if (error && error.code !== '23505') {   // 23505: already there
+      applications.delete(row.listing_id); refreshApplied();
+      showToast('error', 'Not saved', 'Your application could not be saved. Check the connection and try again.');
+      return;
+    }
+  } else saveAppsLocally();
+  showToast('success', 'Added to My applications', `${row.role_title || 'Internship'}${row.company_name ? ` at ${row.company_name}` : ''}. It's marked "Applied" if it shows up again.`);
+}
+async function unmarkApplied(id) {
+  const row = applications.get(id);
+  if (!row) return;
+  applications.delete(id);
+  refreshApplied();
+  if (sb && sbUserId) {
+    const { error } = await sb.from('applications').delete().eq('listing_id', id);
+    if (error) { applications.set(id, row); refreshApplied(); showToast('error', 'Not removed', 'Try again in a moment.'); }
+  } else saveAppsLocally();
+}
+
+// the line above Apply in the open post: "Applied on 1 Nov · Undo" or "Already applied? Mark it"
+function updateDrawerApplied() {
+  const box = document.getElementById('drawer-applied');
+  if (!box) return;
+  const item = activeDrawerJob;
+  if (!item) { box.classList.add('hidden'); return; }
+  const a = appliedFor(item);
+  box.classList.remove('hidden');
+  box.classList.toggle('is-applied', !!a);
+  box.innerHTML = a
+    ? `<i class="ph ph-check-circle"></i><span>You applied on <b>${escapeHtml(shortDate(a.applied_at))}</b></span><button type="button" data-applied-undo>Undo</button>`
+    : `<i class="ph ph-paper-plane-tilt"></i><span>Already applied?</span><button type="button" data-applied-mark>Mark as applied</button>`;
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-applied-mark]')) markApplied(activeDrawerJob);
+  const undo = e.target.closest('[data-applied-undo]');
+  if (undo && activeDrawerJob) { const a = appliedFor(activeDrawerJob); if (a) unmarkApplied(a.listing_id); }
+});
+
+// "Apply" opens the post's own site in a new tab; coming back to InReal asks if you applied
+let pendingApply = null;
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#drawer-apply-link') || !activeDrawerJob) return;
+  if (!/^https?:\/\//i.test(activeDrawerJob.apply_link || '') || appliedFor(activeDrawerJob)) return;
+  pendingApply = { item: activeDrawerJob, at: Date.now() };
+});
+function cameBack() {
+  if (!pendingApply || document.visibilityState !== 'visible') return;
+  const { item, at } = pendingApply;
+  pendingApply = null;
+  if (Date.now() - at < 4000) return;   // back within seconds: the page was only glanced at
+  showApplyAsk(item);
+}
+document.addEventListener('visibilitychange', cameBack);
+window.addEventListener('focus', cameBack);
+
+let askItem = null;
+function showApplyAsk(item) {
+  const box = document.getElementById('apply-ask');
+  if (!box || appliedFor(item)) return;
+  askItem = item;
+  document.getElementById('apply-ask-q').textContent = 'Did you apply?';
+  document.getElementById('apply-ask-sub').textContent = `${item.role_title || 'Internship'}${item.company_name ? ` at ${item.company_name}` : ''}`;
+  box.classList.remove('hidden', 'leaving');
+}
+function hideApplyAsk() {
+  const box = document.getElementById('apply-ask');
+  if (!box || box.classList.contains('hidden')) return;
+  box.classList.add('leaving');
+  setTimeout(() => { box.classList.add('hidden'); box.classList.remove('leaving'); }, 180);
+  askItem = null;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('apply-ask-yes')?.addEventListener('click', () => { const it = askItem; hideApplyAsk(); markApplied(it); });
+  document.getElementById('apply-ask-no')?.addEventListener('click', hideApplyAsk);
+  document.getElementById('apply-ask-close')?.addEventListener('click', hideApplyAsk);
+  const m = document.getElementById('apps-modal');
+  document.getElementById('apps-close')?.addEventListener('click', () => closeModal(m));
+  closeOnBackdrop(m, () => closeModal(m));
+});
+
+// the list, newest first
+function renderAppsList() {
+  const list = document.getElementById('apps-list'), sub = document.getElementById('apps-sub');
+  if (!list) return;
+  const rows = [...applications.values()].sort((a, b) => String(b.applied_at).localeCompare(String(a.applied_at)));
+  if (sub) sub.textContent = rows.length
+    ? `${rows.length} internship${rows.length === 1 ? '' : 's'} you applied to from InReal, newest first.`
+    : 'Internships you applied to from InReal.';
+  list.innerHTML = rows.length ? rows.map(a => {
+    const logo = logoFor(a.company_name);
+    const link = /^https?:\/\//i.test(a.apply_link || '') ? a.apply_link : '';
+    return `<li class="app-row">
+      <div class="jb-logo" style="background:${logo.color}" aria-hidden="true">${logo.initials}</div>
+      <div class="min-w-0 flex-1">
+        <div class="app-title">${escapeHtml(a.role_title || 'Internship')}</div>
+        <div class="app-meta">${escapeHtml(a.company_name || '')}${a.source_platform ? ` · ${escapeHtml(a.source_platform)}` : ''}</div>
+        <div class="app-date"><i class="ph ph-check-circle"></i> Applied ${escapeHtml(shortDate(a.applied_at))}</div>
+      </div>
+      <div class="flex flex-col gap-1.5 shrink-0">
+        ${link ? `<a class="app-btn" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">Open <i class="ph ph-arrow-up-right"></i></a>` : ''}
+        <button type="button" class="app-btn app-btn-quiet" data-app-remove="${escapeHtml(a.listing_id)}">Remove</button>
+      </div>
+    </li>`;
+  }).join('') : `<li class="app-empty"><i class="ph ph-paper-plane-tilt"></i>
+      <b>No applications yet</b>
+      <span>Open a post and click "Apply on the original site". When you come back, InReal asks if you applied and keeps it here.</span></li>`;
+}
+function openAppsModal() {
+  renderAppsList();
+  openModal(document.getElementById('apps-modal'));
+}
+document.addEventListener('click', (e) => {
+  const rm = e.target.closest('[data-app-remove]');
+  if (rm) unmarkApplied(rm.dataset.appRemove);
+});

@@ -154,3 +154,31 @@ alter table public.profiles
   add constraint profiles_stipend_range check (min_stipend is null or min_stipend between 0 and 10000000);
 drop function if exists public.is_pro();
 drop function if exists public.my_field();
+
+-- ---------------------------------------------------------------------------
+-- "My applications" (1 Nov 2026): internships a user says they applied to. The post's title,
+-- company, site and link are copied, because the post itself leaves the list after a few days.
+create table if not exists public.applications (
+  user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  listing_id text not null check (char_length(listing_id) between 1 and 200),
+  role_title text check (char_length(role_title) <= 300),
+  company_name text check (char_length(company_name) <= 200),
+  source_platform text check (char_length(source_platform) <= 100),
+  apply_link text check (char_length(apply_link) <= 2000 and apply_link ~* '^https?://'),
+  applied_at timestamptz not null default now(),
+  primary key (user_id, listing_id)
+);
+alter table public.applications enable row level security;
+revoke all on public.applications from anon;
+revoke all on public.applications from authenticated;
+grant select, insert, delete on public.applications to authenticated;
+drop policy if exists "own applications: read" on public.applications;
+drop policy if exists "own applications: add" on public.applications;
+drop policy if exists "own applications: remove" on public.applications;
+create policy "own applications: read" on public.applications for select to authenticated
+  using ((select auth.uid()) = user_id);
+create policy "own applications: add" on public.applications for insert to authenticated
+  with check ((select auth.uid()) = user_id
+    and (select count(*) from public.applications a where a.user_id = (select auth.uid())) < 2000);
+create policy "own applications: remove" on public.applications for delete to authenticated
+  using ((select auth.uid()) = user_id);

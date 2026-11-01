@@ -530,12 +530,12 @@ html.dark .scan-resize { background: linear-gradient(45deg, transparent 45%, #47
 /* dialogs: the backdrop fades in, the panel rises and grows a little; closing plays it backwards */
 @keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-rise { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
-#scrape-config-modal:not(.hidden), #profile-modal:not(.hidden) { animation: modal-fade .22s ease-out both; }
-#scrape-config-modal:not(.hidden) > .glass-panel, #profile-modal:not(.hidden) > .glass-panel { animation: modal-rise .32s cubic-bezier(.2, .9, .3, 1.15) both; }
+#scrape-config-modal:not(.hidden), #profile-modal:not(.hidden), #apps-modal:not(.hidden) { animation: modal-fade .22s ease-out both; }
+#scrape-config-modal:not(.hidden) > .glass-panel, #profile-modal:not(.hidden) > .glass-panel, #apps-modal:not(.hidden) > .glass-panel { animation: modal-rise .32s cubic-bezier(.2, .9, .3, 1.15) both; }
 @keyframes modal-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes modal-sink { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(12px) scale(.97); } }
-#scrape-config-modal.closing, #profile-modal.closing { animation: modal-fade-out .18s ease-in both; }
-#scrape-config-modal.closing > .glass-panel, #profile-modal.closing > .glass-panel { animation: modal-sink .18s ease-in both; }
+#scrape-config-modal.closing, #profile-modal.closing, #apps-modal.closing { animation: modal-fade-out .18s ease-in both; }
+#scrape-config-modal.closing > .glass-panel, #profile-modal.closing > .glass-panel, #apps-modal.closing > .glass-panel { animation: modal-sink .18s ease-in both; }
 
 /* cards: new ones slide up one after another (only cards not on screen before; see app_radar.js) */
 @keyframes card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -618,3 +618,61 @@ html.dark .pm-items > button:hover, html.dark .pm-items > a:hover, html.dark .pm
 html.dark .pm-items em { background: #232C3B; color: #CBD5E1; }
 html.dark .pm-signout:hover, html.dark .pm-signout:focus-visible { background: rgba(225, 29, 72, .12); color: #FB7185; }
 @media (prefers-reduced-motion: reduce) { .pm:not(.hidden), .pm.pm-closing { animation: none; } .pm-bar span { transition: none; } }
+
+/* ---- My applications (1 Nov) ---- */
+.jb-tag-applied { background: #EEF2FF; color: #4338CA; border-color: #C7D2FE; }
+html.dark .jb-tag-applied { background: rgba(99, 102, 241, .16); color: #A5B4FC; border-color: rgba(99, 102, 241, .4); }
+/* the line above Apply in an open post */
+.jb-applied-line { display: flex; align-items: center; gap: 8px; margin: 0 16px; padding: 9px 12px; border-radius: 12px; font-size: 12.5px; font-weight: 600;
+  color: #475569; background: #F8FAFC; border: 1px dashed #CBD5E1; }
+.jb-applied-line.hidden { display: none; }
+.jb-applied-line i { font-size: 16px; color: #94A3B8; }
+.jb-applied-line button { margin-left: auto; font-weight: 800; color: #C2410C; white-space: nowrap; }
+.jb-applied-line button:hover { text-decoration: underline; }
+.jb-applied-line.is-applied { color: #3730A3; background: #EEF2FF; border: 1px solid #C7D2FE; }
+.jb-applied-line.is-applied i { color: #4F46E5; }
+.jb-applied-line.is-applied button { color: #6366F1; font-weight: 700; }
+html.dark .jb-applied-line { color: #CBD5E1; background: #161D29; border-color: #334155; }
+html.dark .jb-applied-line.is-applied { color: #C7D2FE; background: rgba(99, 102, 241, .14); border-color: rgba(99, 102, 241, .4); }
+html.dark .jb-applied-line.is-applied i, html.dark .jb-applied-line.is-applied button { color: #A5B4FC; }
+html.dark .jb-applied-line button { color: #FDBA74; }
+/* "Did you apply?" card, bottom centre */
+.apply-ask { position: fixed; left: 50%; bottom: 24px; z-index: 65; width: min(420px, calc(100vw - 24px)); transform: translateX(-50%);
+  display: flex; gap: 12px; align-items: flex-start; padding: 14px 14px 14px 16px; border-radius: 18px; background: rgba(255, 255, 255, .98);
+  border: 1px solid #E2E8F0; box-shadow: 0 24px 60px -16px rgba(15, 23, 42, .45); animation: ask-in .35s cubic-bezier(.2, .9, .3, 1.2) both; }
+.apply-ask.hidden { display: none; }
+.apply-ask.leaving { animation: ask-out .18s ease-in both; }
+@keyframes ask-in { from { opacity: 0; transform: translate(-50%, 24px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes ask-out { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, 16px); } }
+.apply-ask-icon { width: 40px; height: 40px; flex: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: #EEF2FF; color: #4F46E5; }
+.apply-ask-q { font-size: 14.5px; font-weight: 800; color: #0F172A; }
+.apply-ask-sub { font-size: 12.5px; font-weight: 600; color: #64748B; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.apply-ask-x { width: 28px; height: 28px; flex: none; border-radius: 8px; color: #94A3B8; display: flex; align-items: center; justify-content: center; }
+.apply-ask-x:hover { background: #F1F5F9; color: #0F172A; }
+html.dark .apply-ask { background: rgba(17, 22, 32, .98); border-color: #263042; box-shadow: 0 24px 60px -16px rgba(0, 0, 0, .8); }
+html.dark .apply-ask-icon { background: rgba(99, 102, 241, .16); color: #A5B4FC; }
+html.dark .apply-ask-q { color: #F1F5F9; }
+html.dark .apply-ask-sub { color: #94A3B8; }
+html.dark .apply-ask-x:hover { background: #1C2433; color: #F1F5F9; }
+/* the list */
+.app-row { display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 14px; background: #fff; border: 1px solid #E2E8F0; animation: card-in .35s ease-out both; }
+.app-row:nth-child(2) { animation-delay: .04s; } .app-row:nth-child(3) { animation-delay: .08s; } .app-row:nth-child(4) { animation-delay: .12s; } .app-row:nth-child(n+5) { animation-delay: .16s; }
+.app-title { font-size: 14px; font-weight: 800; color: #0F172A; line-height: 1.3; }
+.app-meta { font-size: 12px; font-weight: 600; color: #64748B; margin-top: 2px; }
+.app-date { display: inline-flex; align-items: center; gap: 4px; margin-top: 5px; font-size: 11.5px; font-weight: 700; color: #4F46E5; }
+.app-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 5px 10px; border-radius: 9px; font-size: 12px; font-weight: 700;
+  background: #0F172A; color: #fff; }
+.app-btn:hover { background: #1E293B; }
+.app-btn-quiet { background: transparent; color: #64748B; }
+.app-btn-quiet:hover { background: #FFF1F2; color: #BE123C; }
+.app-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 36px 20px; text-align: center; color: #64748B; font-size: 13px; }
+.app-empty i { font-size: 30px; color: #A5B4FC; }
+.app-empty b { color: #0F172A; font-size: 14px; }
+html.dark .app-row { background: #161D29; border-color: #232C3B; }
+html.dark .app-title, html.dark .app-empty b { color: #F1F5F9; }
+html.dark .app-meta, html.dark .app-empty { color: #94A3B8; }
+html.dark .app-date { color: #A5B4FC; }
+html.dark .app-btn { background: #F1F5F9; color: #0F172A; }
+html.dark .app-btn-quiet { background: transparent; color: #94A3B8; }
+html.dark .app-btn-quiet:hover { background: rgba(225, 29, 72, .14); color: #FDA4AF; }
+@media (prefers-reduced-motion: reduce) { .apply-ask, .apply-ask.leaving, .app-row, #apps-modal, #apps-modal > .glass-panel { animation: none !important; } }
