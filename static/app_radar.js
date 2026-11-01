@@ -1663,7 +1663,8 @@ function fillProfileMenu() {
   set('pm-name', p.name || 'You');
   set('pm-email', sbUserEmail || (USER_MODE ? '' : 'This laptop'));
   const av = document.getElementById('pm-avatar'), src = document.getElementById('profile-avatar');
-  if (av && src) av.innerHTML = src.innerHTML;   // the photo or the initials, same as the button
+  if (av && src) av.innerHTML = avatarHtml();   // the photo or the initials, same as the button
+  requestAnimationFrame(sharpenAvatars);
   set('pm-level', PROFILE_LEVELS[done]);
   set('pm-pct', `${pct}%`);
   requestAnimationFrame(() => { const bar = document.getElementById('pm-bar-fill'); if (bar) bar.style.width = `${pct}%`; });
@@ -2453,7 +2454,66 @@ function avatarHtml() {
 function renderAvatars() {
   const html = avatarHtml();
   ['profile-avatar', 'pm-avatar', 'me-avatar'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = html; });
+  sharpenAvatars();
 }
+
+// A 256 px photo shown at 40 px (less when the browser is zoomed out) is shrunk by the browser in one
+// rough step, which looks blurred and jagged (1 Nov). Each slot gets its own copy, shrunk in halves
+// to exactly the pixels it has, and made again when the zoom changes.
+const avatarThumbs = new Map();   // "url|px" -> data URL (or the url itself when the picture can't be read)
+function loadImg(src) {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    im.referrerPolicy = 'no-referrer';
+    im.onload = () => res(im); im.onerror = rej;
+    im.src = src;
+  });
+}
+async function thumbFor(src, px) {
+  const key = `${src}|${px}`;
+  if (avatarThumbs.has(key)) return avatarThumbs.get(key);
+  let out = src;
+  try {
+    const im = await loadImg(src);
+    let canvas = document.createElement('canvas'), w = im.naturalWidth, h = im.naturalHeight;
+    const side = Math.min(w, h);
+    canvas.width = canvas.height = side;
+    canvas.getContext('2d').drawImage(im, (w - side) / 2, (h - side) / 2, side, side, 0, 0, side, side);
+    while (canvas.width / 2 >= px) {   // halve until one step from the size wanted
+      const half = document.createElement('canvas');
+      half.width = half.height = Math.floor(canvas.width / 2);
+      const ctx = half.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(canvas, 0, 0, half.width, half.height);
+      canvas = half;
+    }
+    const fin = document.createElement('canvas');
+    fin.width = fin.height = px;
+    const ctx = fin.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(canvas, 0, 0, px, px);
+    out = fin.toDataURL('image/png');
+  } catch (e) { /* a picture that can't be read (no CORS): the browser shrinks it as before */ }
+  avatarThumbs.set(key, out);
+  return out;
+}
+function sharpenAvatars() {
+  const src = (() => { const p = identity.preset === 'p:none' ? '' : (identity.photo || identity.google); return /^https:\/\//i.test(p) && !presetFor(identity.preset) ? p : ''; })();
+  if (!src) return;
+  const dpr = window.devicePixelRatio || 1;
+  ['profile-avatar', 'pm-avatar', 'me-avatar'].forEach(async (id) => {
+    const img = document.querySelector(`#${id} img`);
+    if (!img) return;
+    const cssSize = img.offsetWidth || img.parentElement?.offsetWidth || 0;   // layout size: ignores the opening animation's scale
+    if (!cssSize) return;   // not on screen yet (menu closed): done when it opens
+    const px = Math.max(16, Math.ceil(cssSize * dpr));
+    if (px >= 256) return;   // big enough to use the picture itself
+    const thumb = await thumbFor(src, px);
+    if (img.isConnected) img.src = thumb;
+  });
+}
+// zooming the browser changes the pixels per slot
+let lastDpr = window.devicePixelRatio;
+window.addEventListener('resize', () => { if (window.devicePixelRatio !== lastDpr) { lastDpr = window.devicePixelRatio; renderAvatars(); } });
 
 async function saveIdentity(fields) {
   if (!sb || !sbUserId) { showToast('info', 'Sign in first', 'Your picture and username are saved to your account.'); return false; }
@@ -2469,6 +2529,7 @@ async function saveIdentity(fields) {
 function openMeModal() {
   fillMe();
   openModal(document.getElementById('me-modal'));
+  requestAnimationFrame(sharpenAvatars);
 }
 function fillMe() {
   const p = profile || {};
