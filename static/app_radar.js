@@ -1041,7 +1041,6 @@ function bindEventHandlers() {
       closeModal(modal);
       closeModal(document.getElementById('apps-modal'));
       closeModal(document.getElementById('me-modal'));
-      hideApplyAsk();
       closeProfileModal();
     }
   });
@@ -2378,6 +2377,7 @@ function showApplyAsk(item) {
   document.getElementById('apply-ask-q').textContent = 'Did you apply?';
   document.getElementById('apply-ask-sub').textContent = `${item.role_title || 'Internship'}${item.company_name ? ` at ${item.company_name}` : ''}`;
   box.classList.remove('hidden', 'leaving');
+  setTimeout(() => document.getElementById('apply-ask-yes')?.focus({ preventScroll: true }), 50);
 }
 function hideApplyAsk() {
   const box = document.getElementById('apply-ask');
@@ -2389,7 +2389,7 @@ function hideApplyAsk() {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('apply-ask-yes')?.addEventListener('click', () => { const it = askItem; hideApplyAsk(); markApplied(it); });
   document.getElementById('apply-ask-no')?.addEventListener('click', hideApplyAsk);
-  document.getElementById('apply-ask-close')?.addEventListener('click', hideApplyAsk);
+
   const m = document.getElementById('apps-modal');
   document.getElementById('apps-close')?.addEventListener('click', () => closeModal(m));
   closeOnBackdrop(m, () => closeModal(m));
@@ -2998,3 +2998,16 @@ document.addEventListener('click', (e) => {
   if (b) { chooseBanner(b.dataset.banner); return; }
   if (e.target.closest('[data-me-banner-close]')) document.getElementById('me-banner-picker')?.classList.add('hidden');
 });
+
+// the question needs an answer: Esc and Tab stay inside it (1 Nov)
+document.addEventListener('keydown', (e) => {
+  const box = document.getElementById('apply-ask');
+  if (!box || box.classList.contains('hidden')) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (e.key === 'Tab') {
+    const btns = [document.getElementById('apply-ask-no'), document.getElementById('apply-ask-yes')];
+    const at = btns.indexOf(document.activeElement);
+    e.preventDefault();
+    btns[(at + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
+  }
+}, true);

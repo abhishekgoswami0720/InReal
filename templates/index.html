@@ -487,18 +487,19 @@
     </div>
   </div>
 
-  <!-- "Did you apply?" after coming back from a post's own site (1 Nov) -->
-  <div id="apply-ask" class="apply-ask hidden" role="dialog" aria-live="polite" aria-labelledby="apply-ask-q">
-    <div class="apply-ask-icon"><i class="ph ph-paper-plane-tilt"></i></div>
-    <div class="min-w-0 flex-1">
+  <!-- "Did you apply?" after coming back from a post's own site: a question that needs an answer,
+       centred over a blurred page (1 Nov) -->
+  <div id="apply-ask" class="apply-ask hidden" role="alertdialog" aria-modal="true" aria-labelledby="apply-ask-q" aria-describedby="apply-ask-sub">
+    <div class="apply-ask-card">
+      <div class="apply-ask-icon"><i class="ph ph-paper-plane-tilt"></i></div>
       <div id="apply-ask-q" class="apply-ask-q">Did you apply?</div>
       <div id="apply-ask-sub" class="apply-ask-sub"></div>
-      <div class="flex gap-2 mt-2.5">
-        <button id="apply-ask-yes" type="button" class="glass-btn glass-btn-primary px-3.5 py-2 text-xs flex items-center gap-1.5"><i class="ph ph-check"></i>Yes, applied</button>
-        <button id="apply-ask-no" type="button" class="glass-btn px-3.5 py-2 text-xs">Not yet</button>
+      <p class="apply-ask-note">Your answer keeps My applications right, and marks this post "Applied" if it shows up again.</p>
+      <div class="apply-ask-btns">
+        <button id="apply-ask-no" type="button" class="glass-btn px-4 py-2.5 text-sm">Not yet</button>
+        <button id="apply-ask-yes" type="button" class="glass-btn glass-btn-primary px-4 py-2.5 text-sm flex items-center justify-center gap-1.5"><i class="ph ph-check"></i>Yes, I applied</button>
       </div>
     </div>
-    <button id="apply-ask-close" type="button" class="apply-ask-x" aria-label="Close"><i class="ph ph-x"></i></button>
   </div>
 
   <!-- My applications: every internship you said you applied to, newest first (1 Nov) -->
