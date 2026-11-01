@@ -56,6 +56,9 @@ def has_admin_token() -> bool:
 
 
 app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024   # no request body here needs more than a few KB
+# a changed page is used at once, without restarting the app (1 Nov: an old page with the new script
+# broke the avatar menu until the restart)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["JSON_SORT_KEYS"] = False
 
 

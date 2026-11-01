@@ -1652,28 +1652,30 @@ function updateProfileRing() {
 let sbUserEmail = '';
 const PROFILE_LEVELS = ['Newbie', 'Newbie', 'Explorer', 'Scout', 'Hunter', 'Internship Pro'];   // by sections done (0-5)
 function fillProfileMenu() {
+  // a missing element must never stop the menu from opening (1 Nov: an old page + new script did)
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
   const { pct, missing } = profileCompletion(profile);
   const done = pct / 20;
   const p = profile || {};
-  document.getElementById('pm-name').textContent = p.name || 'You';
-  document.getElementById('pm-email').textContent = sbUserEmail || (USER_MODE ? '' : 'This laptop');
+  set('pm-name', p.name || 'You');
+  set('pm-email', sbUserEmail || (USER_MODE ? '' : 'This laptop'));
   const av = document.getElementById('pm-avatar'), src = document.getElementById('profile-avatar');
   if (av && src) av.innerHTML = src.innerHTML;   // the photo or the initials, same as the button
-  document.getElementById('pm-level').textContent = PROFILE_LEVELS[done];
-  document.getElementById('pm-pct').textContent = `${pct}%`;
-  requestAnimationFrame(() => { document.getElementById('pm-bar-fill').style.width = `${pct}%`; });
-  document.getElementById('pm-next').textContent = missing.length
+  set('pm-level', PROFILE_LEVELS[done]);
+  set('pm-pct', `${pct}%`);
+  requestAnimationFrame(() => { const bar = document.getElementById('pm-bar-fill'); if (bar) bar.style.width = `${pct}%`; });
+  set('pm-next', missing.length
     ? `Add ${missing[0]} to reach ${PROFILE_LEVELS[done + 1]}.`
-    : 'Profile complete. Your list is matched as well as it can be.';
+    : 'Profile complete. Your list is matched as well as it can be.');
   // the numbers come from the posts on this laptop (the last 3 days of searches)
   const count = (st) => allInternships.filter(r => r.moderation_status === st).length;
-  document.getElementById('pm-verified').textContent = count('approved');
-  document.getElementById('pm-scams').textContent = count('blocked');
-  document.getElementById('pm-applied').textContent = applications.size;
-  document.getElementById('pm-apps-count').textContent = applications.size;
-  document.getElementById('pm-saved-count').textContent = bookmarks.length;
+  set('pm-verified', count('approved'));
+  set('pm-scams', count('blocked'));
+  set('pm-applied', applications.size);
+  set('pm-apps-count', applications.size);
+  set('pm-saved-count', bookmarks.length);
   const dark = document.documentElement.classList.contains('dark');
-  document.getElementById('pm-theme-label').textContent = dark ? 'Light theme' : 'Dark theme';
+  set('pm-theme-label', dark ? 'Light theme' : 'Dark theme');
   const ti = document.querySelector('[data-pm="theme"] i');
   if (ti) ti.className = `ph ${dark ? 'ph-sun' : 'ph-moon'}`;
 }
