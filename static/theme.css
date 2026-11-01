@@ -407,6 +407,13 @@ html.dark .jb-rule.off { background: transparent; color: #64748B; border-color: 
 .jb-save { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #94A3B8; font-size: 18px; transition: background .15s, color .15s; }
 .jb-save:hover { background: #FFF1F2; color: #E11D48; }
 .jb-save.on { color: #E11D48; }
+/* 1 Nov: the empty bookmark on every card was clutter next to the open post's Save. With a mouse it
+   shows only on the card under the pointer, the selected card or keyboard focus; a saved card keeps
+   its filled one. Touch screens have no hover, so there it stays. */
+@media (hover: hover) and (pointer: fine) {
+  .jb-save:not(.on) { opacity: 0; transition: opacity .15s, background .15s, color .15s; }
+  .jb-card:hover .jb-save, .jb-card.is-selected .jb-save, .jb-card:focus-within .jb-save, .jb-save:focus-visible { opacity: 1; }
+}
 .jb-source { font-size: 11px; font-weight: 600; color: #94A3B8; margin-top: 8px; }
 
 .jb-logo { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: #fff; flex: none; text-transform: uppercase; }
