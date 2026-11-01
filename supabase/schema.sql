@@ -90,9 +90,15 @@ create table public.bookmarks (
 );
 alter table public.bookmarks enable row level security;
 create policy "own bookmarks: read" on public.bookmarks for select to authenticated using ((select auth.uid()) = user_id);
+-- the cap is counted in a definer function: a count of a table inside its own policy is infinite recursion
+create or replace function private.my_bookmark_count() returns bigint
+language sql stable security definer set search_path = '' as $$
+  select count(*) from public.bookmarks b where b.user_id = (select auth.uid());
+$$;
+revoke execute on function private.my_bookmark_count() from public, anon;
+grant execute on function private.my_bookmark_count() to authenticated;
 create policy "own bookmarks: add" on public.bookmarks for insert to authenticated with check (
-  (select auth.uid()) = user_id
-  and (select count(*) from public.bookmarks b where b.user_id = (select auth.uid())) < 500);   -- abuse cap only
+  (select auth.uid()) = user_id and private.my_bookmark_count() < 500);   -- abuse cap only
 create policy "own bookmarks: remove" on public.bookmarks for delete to authenticated using ((select auth.uid()) = user_id);
 
 -- Left over from the first migration, no longer used and executable by no one:
@@ -177,9 +183,14 @@ drop policy if exists "own applications: add" on public.applications;
 drop policy if exists "own applications: remove" on public.applications;
 create policy "own applications: read" on public.applications for select to authenticated
   using ((select auth.uid()) = user_id);
+create or replace function private.my_application_count() returns bigint
+language sql stable security definer set search_path = '' as $$
+  select count(*) from public.applications a where a.user_id = (select auth.uid());
+$$;
+revoke execute on function private.my_application_count() from public, anon;
+grant execute on function private.my_application_count() to authenticated;
 create policy "own applications: add" on public.applications for insert to authenticated
-  with check ((select auth.uid()) = user_id
-    and (select count(*) from public.applications a where a.user_id = (select auth.uid())) < 2000);
+  with check ((select auth.uid()) = user_id and private.my_application_count() < 2000);
 create policy "own applications: remove" on public.applications for delete to authenticated
   using ((select auth.uid()) = user_id);
 
