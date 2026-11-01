@@ -2346,22 +2346,29 @@ document.addEventListener('click', (e) => {
   if (undo && activeDrawerJob) { const a = appliedFor(activeDrawerJob); if (a) unmarkApplied(a.listing_id); }
 });
 
-// "Apply" opens the post's own site in a new tab; coming back to InReal asks if you applied
+// "Apply" opens the post's own site in a new tab; coming back to InReal asks if you applied.
+// Coming back is noticed in every way a browser reports it: the tab shows again, the window gets the
+// focus back, or (where neither fires) the first mouse move or key press after leaving (1 Nov: the
+// card did not appear; a quick look also counted as "only glanced", now that is 1.5 s, not 4 s).
 let pendingApply = null;
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#drawer-apply-link') || !activeDrawerJob) return;
   if (!/^https?:\/\//i.test(activeDrawerJob.apply_link || '') || appliedFor(activeDrawerJob)) return;
-  pendingApply = { item: activeDrawerJob, at: Date.now() };
+  pendingApply = { item: activeDrawerJob, at: Date.now(), away: false };
 });
+function wentAway() { if (pendingApply) pendingApply.away = true; }
 function cameBack() {
   if (!pendingApply || document.visibilityState !== 'visible') return;
+  if (!pendingApply.away && Date.now() - pendingApply.at < 1500) return;   // still the click itself
   const { item, at } = pendingApply;
   pendingApply = null;
-  if (Date.now() - at < 4000) return;   // back within seconds: the page was only glanced at
+  if (Date.now() - at < 1500) return;   // back at once: the page was only glanced at
   showApplyAsk(item);
 }
-document.addEventListener('visibilitychange', cameBack);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') wentAway(); else cameBack(); });
+window.addEventListener('blur', wentAway);
 window.addEventListener('focus', cameBack);
+['pointermove', 'keydown'].forEach(t => document.addEventListener(t, () => { if (pendingApply && pendingApply.away) cameBack(); }, { passive: true }));
 
 let askItem = null;
 function showApplyAsk(item) {
