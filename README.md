@@ -9,7 +9,7 @@
 ![Playwright](https://img.shields.io/badge/Playwright-Chromium-2EAD33?logo=playwright&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Auth%20%2B%20Postgres-3ECF8E?logo=supabase&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-scam%20check%20agent-1C3C3C?logo=langchain&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-173%20passing-2ea043)
+![Tests](https://img.shields.io/badge/tests-177%20passing-2ea043)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 </div>
@@ -82,6 +82,9 @@ The home page has a 30-second game. One of these two posts is a scam. Which one?
   Posts below your minimum stipend or outside your work mode are hidden, and each of those rules is
   shown as a chip above the list, so you can switch one off for a moment without editing your profile.
 - **Your profile is saved to your account,** so it follows you to any browser.
+- **Make it yours:** a unique @username, and a profile photo you crop and turn before it's uploaded.
+  No photo? Pick a drawn character (five styles, with shuffle) or keep your initials. The banner at the
+  top of your profile is one of 12 designs or your own picture.
 
 ---
 
@@ -92,9 +95,28 @@ The home page has a 30-second game. One of these two posts is a scam. Which one?
 - **First results without a click:** the first 10 internships appear by themselves as soon as the
   fastest sites finish and pass the scam check; the rest wait behind **Load 5 more**, so the check is
   only paid for posts you actually want to see.
+- **Load 5 more means 5 more on screen:** about half the checked posts don't pass, so one click keeps
+  checking until 5 more are shown (at most 15 checked per click, so a click can't run up the bill).
+  It works while slow sites are still being searched.
+- **No stale lists:** a search older than 6 hours isn't reopened as if it were live. The page offers to
+  search the same sites again instead.
 - **Readable posts:** the *About the internship* text is split into headings, points and short paragraphs.
 - **Search progress panel:** each site's status, live. Drag its corner to resize it, or fold it down to its header.
+- **Account menu** under your picture: your profile level and how complete it is, how many posts were
+  verified, flagged as scams and saved, and links to My profile and My applications.
 - **Light and dark theme,** with a toggle in the header. It follows your device until you pick one.
+
+### Remember what you applied to
+
+<p align="center"><img src="docs/readme/screen-applications.png" alt="My applications page (example data): the internships you applied to, with total, last 7 days and last 30 days" width="100%"></p>
+
+InReal can't see what you do on the other site, so it asks. Click **Apply on the original site**, and
+when you come back to InReal it asks **"Did you apply?"**. Say yes, and:
+
+- the post gets an **Applied** tag, also when the same internship turns up again on another site;
+- it's added to **My applications** (`/app/applications`), your list with the date you applied and how
+  many you sent in the last 7 and 30 days;
+- applied somewhere else? Open the post and click **Mark it** under the Apply button. **Undo** fixes a mistake.
 
 ---
 
@@ -109,6 +131,9 @@ The home page has a 30-second game. One of these two posts is a scam. Which one?
 ---
 
 ## For developers
+
+New to the code? Read [`flow.md`](flow.md) for how a request moves through the files, and
+[`Decision.md`](Decision.md) for why each part is built the way it is (and what was given up for it).
 
 <details>
 <summary><b>How the pipeline works</b></summary>
@@ -150,7 +175,8 @@ flowchart LR
 |---|---|---|
 | `/` | Everyone | Landing page: live stats, a moving ticker of checked posts, a *Spot the scam* mini-game, a scroll-animated *How the check works*, and Google sign-in. |
 | `/app` | Signed-in users | The dashboard: search, results with the full post beside them, bookmarks, profile. Signed-in users are sent here from `/`. |
-| `/admin` | This computer only | The admin dashboard, reachable from `localhost` only. |
+| `/app/applications` | Signed-in users | My applications. Shown inside the dashboard page, so going back keeps your search on screen. |
+| `/admin` | This computer only | The admin dashboard, reachable from `localhost` only (`/admin/applications` keeps applications in this browser). |
 
 </details>
 
@@ -176,7 +202,7 @@ cp .env.example .env        # then fill in your own keys (see below)
 
 Then:
 
-1. **Database.** In the Supabase SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). It creates `profiles`, `listings` and `bookmarks` with row-level security. Details: [`supabase/README.md`](supabase/README.md).
+1. **Database.** In the Supabase SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). It creates `profiles`, `listings`, `bookmarks` and `applications` with row-level security, the unique-username check, and the `avatars` storage bucket for profile photos and banners. Details: [`supabase/README.md`](supabase/README.md).
 2. **Google sign-in.** In Supabase → Authentication → Providers, turn on Google with your OAuth client, and add `http://localhost:5000` to the redirect URLs.
 3. **Turn off email sign-up.** In Supabase → Authentication → Providers, switch **Email** off. Sign-in is Google only, and an open email provider lets anyone create accounts through the API.
 4. **Scam check.** Fill in the Azure keys in `.env`, then build the pattern index once: `python -m moderation.build_index`. Check that everything is connected with `python -m moderation.pipeline --sample` (3 made-up posts, nothing saved).
@@ -232,16 +258,19 @@ InReal/
 ├── supabase/              # schema.sql + access notes
 ├── templates/
 │   ├── site.html          # Landing page  (/)
-│   └── index.html         # Dashboard     (/app, /admin)
+│   └── index.html         # Dashboard     (/app, /app/applications, /admin)
 ├── static/
 │   ├── site.js            # Landing: ticker, Spot the scam, sign-in modal
-│   ├── app_radar.js       # Dashboard: search, results, matching, profile sections
+│   ├── app_radar.js       # Dashboard: search, results, matching, applications, My profile, photo editor
+│   ├── avatars.js         # Drawn characters (DiceBear, bundled), loaded only when you open the picker
 │   ├── onboarding.js      # One-question-at-a-time onboarding
 │   ├── profile_options.js # Roles and skills per field, skill autocomplete
 │   ├── background.js      # Animated glass background
 │   ├── theme.js           # Light / dark toggle; adds the app's header to every /api call
 │   └── theme.css          # Shared theme, dark mode, dashboard layout
 ├── tests/                 # pytest suite with saved HTML fixtures and the scam check's recorded answers
+├── Decision.md            # Why things are built the way they are: each decision, its reason and tradeoff
+├── flow.md                # How the code runs: entry points, startup order, which function calls which
 ├── run_public.bat         # Optional: share a read-only public link (Cloudflare tunnel)
 └── autopilot.py           # Old automatic run. Not started by the app; don't use.
 ```
@@ -292,10 +321,10 @@ Checked and fixed in a full review (27 Oct 2026). No app is unhackable; these ar
 | A post's text running script in the dashboard (XSS) | Everything from a post is escaped; cards no longer put ids inside `onclick` |
 | A post trying to talk the AI into "genuine" (prompt injection) | Such a post always goes to *review*; it can't fake another post or our findings inside a batch |
 | Framing, sniffing, leaks | CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, no error details sent to the browser, 1 MB request limit |
-| Database | Row-level security on every table, only the grants the app needs, size limits on profiles, email sign-up off |
+| Database | Row-level security on every table, only the grants the app needs, size limits on profiles, caps on bookmarks (500), applications (2,000) and uploaded pictures (10, 1 MB each), email sign-up off |
 | Public link visitors | Read-only: no scraping, clearing, scam-check buttons, logs or `/admin` |
 
-Known gaps: the CSP still allows inline scripts (the Tailwind CDN and inline handlers need it), and
+Known gaps: the CSP still allows inline scripts and `eval` (the Tailwind CDN and inline handlers need it), and
 `internships.csv` is not protected against spreadsheet formulas if you open it in Excel.
 The tests for all of this are in `tests/test_security.py` and `tests/test_public_guard.py`.
 
@@ -339,7 +368,7 @@ Selector notes for each site are in [`SELECTOR_TRACKER.md`](SELECTOR_TRACKER.md)
 
 It started as a fork of the open-source **AI/ML Internship Radar** (MIT licence). The first commit in
 this repository is that original code, unchanged; every later commit is our work: rebuilt scrapers,
-the scam check and its agent, Supabase accounts, the profile, the new interface and the security work.
+the scam check and its agent, Supabase accounts, the profile, application tracking, the new interface and the security work.
 
 ### License
 
