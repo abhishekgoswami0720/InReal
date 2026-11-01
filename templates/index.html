@@ -381,6 +381,68 @@
     </div>
   </main>
 
+  <!-- My profile: who you are on InReal, your avatar, and a summary of what the list uses (1 Nov) -->
+  <div id="me-modal" class="fixed inset-0 bg-slate-900/45 modal-blur z-[57] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="me-title">
+    <div class="glass-panel me-panel relative max-w-2xl w-full shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+      <button id="me-close" type="button" class="me-close" aria-label="Close"><i class="ph ph-x"></i></button>
+      <div class="overflow-y-auto">
+        <div class="me-cover"></div>
+        <div class="me-hero">
+          <button id="me-avatar-btn" type="button" class="me-avatar" aria-label="Change your picture" title="Change your picture">
+            <span id="me-avatar" class="me-avatar-img"></span>
+            <span class="me-avatar-edit"><i class="ph ph-camera"></i></span>
+          </button>
+          <div class="min-w-0 flex-1 me-hero-text">
+            <h2 id="me-title" class="me-name">You</h2>
+            <div class="me-handle"><span id="me-username">@pick-a-username</span> · <span id="me-field"></span></div>
+            <div class="me-level"><i class="ph ph-trophy"></i> <span id="me-level">Newbie</span> · <span id="me-pct">0%</span></div>
+          </div>
+        </div>
+
+        <div class="me-stats">
+          <div><b id="me-applied">0</b><span>applied</span></div>
+          <div><b id="me-saved">0</b><span>saved</span></div>
+          <div><b id="me-verified">0</b><span>verified for you</span></div>
+          <div><b id="me-scams">0</b><span>scams kept away</span></div>
+        </div>
+
+        <!-- picture: photo or one of the drawn avatars -->
+        <section id="me-picker" class="me-card hidden">
+          <div class="me-card-head"><h3>Your picture</h3><button type="button" class="me-link" data-me-picker-close>Done</button></div>
+          <div class="flex flex-wrap gap-2">
+            <label class="me-chip-btn"><i class="ph ph-upload-simple"></i> Upload a photo<input id="me-photo-input" type="file" accept="image/png,image/jpeg,image/webp" class="sr-only"></label>
+            <button id="me-use-google" type="button" class="me-chip-btn hidden"><i class="ph ph-google-logo"></i> Use my Google photo</button>
+            <button id="me-use-initials" type="button" class="me-chip-btn"><i class="ph ph-text-aa"></i> Just my initials</button>
+          </div>
+          <p id="me-photo-note" class="me-note">JPG, PNG or WebP. It is cropped to a square and made small before upload; the photo's hidden details (like location) are removed.</p>
+          <div class="me-sub">Or pick an avatar</div>
+          <div id="me-presets" class="me-presets"></div>
+        </section>
+
+        <!-- name and username -->
+        <section class="me-card">
+          <div class="me-card-head"><h3>Name and username</h3></div>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <label class="me-field"><span>Name</span><input id="me-name-input" type="text" maxlength="60" autocomplete="name"></label>
+            <label class="me-field"><span>Username</span>
+              <div class="me-at"><b>@</b><input id="me-username-input" type="text" maxlength="20" autocomplete="off" spellcheck="false" placeholder="your_name"></div>
+            </label>
+          </div>
+          <div class="flex items-center gap-3 mt-3">
+            <span id="me-username-state" class="me-note flex-1">3 to 20 letters, numbers, _ or . (lowercase)</span>
+            <button id="me-save-identity" type="button" class="glass-btn glass-btn-primary px-4 py-2 text-xs">Save</button>
+          </div>
+        </section>
+
+        <!-- what the list uses, each part with its own Edit -->
+        <section class="me-card">
+          <div class="me-card-head"><h3>What InReal uses to match your list</h3></div>
+          <div id="me-summary" class="me-summary"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <!-- "Did you apply?" after coming back from a post's own site (1 Nov) -->
   <div id="apply-ask" class="apply-ask hidden" role="dialog" aria-live="polite" aria-labelledby="apply-ask-q">
     <div class="apply-ask-icon"><i class="ph ph-paper-plane-tilt"></i></div>

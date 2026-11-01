@@ -182,3 +182,40 @@ create policy "own applications: add" on public.applications for insert to authe
     and (select count(*) from public.applications a where a.user_id = (select auth.uid())) < 2000);
 create policy "own applications: remove" on public.applications for delete to authenticated
   using ((select auth.uid()) = user_id);
+
+-- ---------------------------------------------------------------------------
+-- My profile (1 Nov 2026): a username, a chosen avatar, and an uploaded photo.
+alter table public.profiles add column if not exists username text;
+alter table public.profiles add column if not exists avatar_preset text;
+alter table public.profiles drop constraint if exists profiles_username_format,
+  drop constraint if exists profiles_avatar_preset_len, drop constraint if exists profiles_avatar_url_https;
+alter table public.profiles
+  add constraint profiles_username_format check (username is null or username ~ '^[a-z0-9_.]{3,20}$'),
+  add constraint profiles_avatar_preset_len check (avatar_preset is null or char_length(avatar_preset) <= 40),
+  add constraint profiles_avatar_url_https check (avatar_url is null or (char_length(avatar_url) <= 600 and avatar_url ~* '^https://'));
+create unique index if not exists profiles_username_unique on public.profiles (lower(username)) where username is not null;
+grant update (username, avatar_preset, avatar_url) on public.profiles to authenticated;
+
+create or replace function public.username_available(name text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select name ~ '^[a-z0-9_.]{3,20}$'
+     and not exists (select 1 from public.profiles p where lower(p.username) = lower(name) and p.id <> (select auth.uid()));
+$$;
+revoke execute on function public.username_available(text) from public, anon;
+grant execute on function public.username_available(text) to authenticated;
+
+-- photos: public to read (profile pictures); each user writes only in a folder named after their id, 10 files at most
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 1048576, array['image/webp', 'image/jpeg', 'image/png'])
+on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+drop policy if exists "avatars: own folder read" on storage.objects;
+drop policy if exists "avatars: own folder upload" on storage.objects;
+drop policy if exists "avatars: own folder delete" on storage.objects;
+create policy "avatars: own folder read" on storage.objects for select to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+create policy "avatars: own folder upload" on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text
+    and (select count(*) from storage.objects o where o.bucket_id = 'avatars'
+         and (storage.foldername(o.name))[1] = (select auth.uid())::text) < 10);
+create policy "avatars: own folder delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);

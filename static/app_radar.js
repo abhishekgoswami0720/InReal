@@ -1038,6 +1038,7 @@ function bindEventHandlers() {
       closeDetailDrawer();
       closeModal(modal);
       closeModal(document.getElementById('apps-modal'));
+      closeModal(document.getElementById('me-modal'));
       hideApplyAsk();
       closeProfileModal();
     }
@@ -1702,7 +1703,7 @@ document.addEventListener('click', (e) => {
     if (what === 'theme') return;   // theme.js switches it; the menu stays open and updates below
     toggleProfileMenu(false);
     if (what === 'apps') openAppsModal();
-    else if (what === 'profile') openProfileModal(false);
+    else if (what === 'profile') openMeModal();
     else if (what === 'saved' || what === 'recent') setView(what);
     return;
   }
@@ -1731,11 +1732,9 @@ function updateProfileUI() {
   }
   const field = fieldLabels[profile.field] || profile.field;
   if (label) label.textContent = profile.name ? `${profile.name} · ${field}` : field;
-  const avatar = document.getElementById('profile-avatar');
-  const initials = (profile.name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
-  if (avatar && !avatar.dataset.photo) avatar.innerHTML = initials ? escapeHtml(initials) : '<i class="ph ph-user text-lg"></i>';
+  renderAvatars();
   if (box) {
-    const year = profile.study_year ? `${escapeHtml(profile.study_year)}${{ 1: 'st', 2: 'nd', 3: 'rd' }[profile.study_year] || 'th'} year` : '';
+    const year = profile.study_year === 'grad' ? 'Graduated' : profile.study_year ? `${escapeHtml(profile.study_year)}${{ 1: 'st', 2: 'nd', 3: 'rd' }[profile.study_year] || 'th'} year` : '';
     const exp = { '0': 'No experience yet', '1-2': '1–2 years experience', '3+': '3+ years experience' }[profile.experience] || '';
     const lines = [
       (profile.roles || []).length ? `Roles: ${profile.roles.slice(0, 3).map(escapeHtml).join(', ')}${profile.roles.length > 3 ? '…' : ''}` : '',
@@ -2195,7 +2194,7 @@ async function requireSignIn() {
 
   const meta = user.user_metadata || {};
   sbUserId = user.id;
-  const COLS = 'name,avatar_url,is_admin,field,experience,companies,sources,regions,study_year,roles,skills,work_mode,min_stipend,max_duration';
+  const COLS = 'name,avatar_url,username,avatar_preset,is_admin,field,experience,companies,sources,regions,study_year,roles,skills,work_mode,min_stipend,max_duration';
   let { data: account, error: accountError } = await sb.from('profiles').select(COLS).eq('id', user.id).maybeSingle();
   if (!accountError && !account) {   // the row is missing (deleted by hand): make it again
     await sb.rpc('ensure_profile');
@@ -2227,12 +2226,11 @@ async function requireSignIn() {
   }
   BOOKMARK_KEY = `inreal_bookmarks:${user.id}`;
   try { bookmarks = JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]'); } catch (e) { bookmarks = []; }
-  const photo = (account && account.avatar_url) || meta.avatar_url;
-  const avatar = document.getElementById('profile-avatar');
-  if (avatar && photo && /^https:\/\//.test(photo)) {
-    avatar.innerHTML = `<img src="${escapeHtml(photo)}" alt="" referrerpolicy="no-referrer" class="w-full h-full rounded-full object-cover">`;
-    avatar.dataset.photo = '1';
-  }
+  identity.photo = (account && account.avatar_url) || '';
+  identity.google = meta.avatar_url || meta.picture || '';
+  identity.preset = (account && account.avatar_preset) || '';
+  identity.username = (account && account.username) || '';
+  renderAvatars();
   const admin = document.getElementById('admin-link');
   if (admin && account && account.is_admin) { admin.classList.remove('hidden'); admin.classList.add('inline-flex'); }
   if (account && account.is_admin) document.getElementById('pm-admin')?.classList.remove('hidden');
@@ -2419,4 +2417,221 @@ function openAppsModal() {
 document.addEventListener('click', (e) => {
   const rm = e.target.closest('[data-app-remove]');
   if (rm) unmarkApplied(rm.dataset.appRemove);
+});
+
+
+// ==========================================
+// 21. My profile (1 Nov): name, @username, a photo or a drawn avatar, and what the list uses
+// ==========================================
+const identity = { photo: '', google: '', preset: '', username: '' };
+// drawn avatars: an emoji on a gradient. Stored as "p:<key>" in profiles.avatar_preset
+const AVATAR_PRESETS = [
+  ['fox', '🦊', '#FB923C,#F43F5E'], ['owl', '🦉', '#A78BFA,#6366F1'], ['panda', '🐼', '#94A3B8,#334155'],
+  ['tiger', '🐯', '#FBBF24,#F97316'], ['octo', '🐙', '#F472B6,#A855F7'], ['whale', '🐳', '#38BDF8,#2563EB'],
+  ['rocket', '🚀', '#818CF8,#0EA5E9'], ['brain', '🧠', '#F9A8D4,#EC4899'], ['bolt', '⚡', '#FDE047,#F59E0B'],
+  ['cactus', '🌵', '#86EFAC,#16A34A'], ['ufo', '🛸', '#5EEAD4,#0D9488'], ['game', '🎮', '#C4B5FD,#7C3AED'],
+  ['music', '🎧', '#FDA4AF,#E11D48'], ['penguin', '🐧', '#BAE6FD,#0369A1'], ['unicorn', '🦄', '#F0ABFC,#818CF8'],
+  ['sakura', '🌸', '#FBCFE8,#F472B6'], ['laptop', '💻', '#CBD5E1,#475569'], ['coffee', '☕', '#FCD34D,#92400E'],
+];
+const presetFor = (v) => { const k = String(v || '').replace(/^p:/, ''); return AVATAR_PRESETS.find(p => p[0] === k) || null; };
+const initialsOf = (name) => (name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+function avatarHtml() {
+  const pre = presetFor(identity.preset);
+  if (pre) {
+    const [c1, c2] = pre[2].split(',');
+    return `<span class="av-preset" style="background:linear-gradient(135deg,${c1},${c2})">${pre[1]}</span>`;
+  }
+  const photo = identity.preset === 'p:none' ? '' : (identity.photo || identity.google);
+  if (/^https:\/\//i.test(photo)) return `<img src="${escapeHtml(photo)}" alt="" referrerpolicy="no-referrer" class="w-full h-full rounded-full object-cover">`;
+  const ini = initialsOf(profile && profile.name);
+  return ini ? `<span class="av-initials">${escapeHtml(ini)}</span>` : '<i class="ph ph-user text-lg"></i>';
+}
+function renderAvatars() {
+  const html = avatarHtml();
+  ['profile-avatar', 'pm-avatar', 'me-avatar'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = html; });
+}
+
+async function saveIdentity(fields) {
+  if (!sb || !sbUserId) { showToast('info', 'Sign in first', 'Your picture and username are saved to your account.'); return false; }
+  const { error } = await sb.from('profiles').update(fields).eq('id', sbUserId);
+  if (error) {
+    const taken = /unique|duplicate/i.test(error.message || '');
+    showToast('error', taken ? 'Username taken' : 'Not saved', taken ? 'Someone already has that username. Try another.' : 'Check the connection and try again.');
+    return false;
+  }
+  return true;
+}
+
+function openMeModal() {
+  fillMe();
+  openModal(document.getElementById('me-modal'));
+}
+function fillMe() {
+  const p = profile || {};
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  const { pct } = profileCompletion(profile);
+  set('me-title', p.name || 'You');
+  set('me-username', identity.username ? `@${identity.username}` : '@pick-a-username');
+  set('me-field', fieldLabels[p.field] || p.field || 'No field yet');
+  set('me-level', PROFILE_LEVELS[pct / 20]);
+  set('me-pct', `${pct}% profile`);
+  const count = (st) => allInternships.filter(r => r.moderation_status === st).length;
+  set('me-applied', applications.size); set('me-saved', bookmarks.length);
+  set('me-verified', count('approved')); set('me-scams', count('blocked'));
+  const nameIn = document.getElementById('me-name-input'), userIn = document.getElementById('me-username-input');
+  if (nameIn && document.activeElement !== nameIn) nameIn.value = p.name || '';
+  if (userIn && document.activeElement !== userIn) userIn.value = identity.username || '';
+  usernameState('');
+  document.getElementById('me-use-google')?.classList.toggle('hidden', !identity.google);
+  renderAvatars();
+  renderPresets();
+  renderMeSummary();
+}
+function renderPresets() {
+  const box = document.getElementById('me-presets');
+  if (!box) return;
+  box.innerHTML = AVATAR_PRESETS.map(([k, emoji, colors]) => {
+    const [c1, c2] = colors.split(',');
+    const on = identity.preset === `p:${k}`;
+    return `<button type="button" class="me-preset${on ? ' on' : ''}" data-preset="${k}" aria-label="Avatar ${k}" aria-pressed="${on}" style="background:linear-gradient(135deg,${c1},${c2})">${emoji}</button>`;
+  }).join('');
+}
+function renderMeSummary() {
+  const box = document.getElementById('me-summary');
+  if (!box) return;
+  const p = profile || {};
+  const roleLabels = Object.fromEntries(((window.PROFILE_ROLES || {})[p.field] || []).map(r => [r.key, r.label]));
+  const chips = (list) => (list || []).length ? (list || []).map(x => `<span class="me-tag">${escapeHtml(x)}</span>`).join('') : '<span class="me-empty">Not set</span>';
+  const year = p.study_year ? (p.study_year === 'grad' ? 'Graduated' : `${p.study_year}${{ 1: 'st', 2: 'nd', 3: 'rd' }[p.study_year] || 'th'} year`) : '';
+  const exp = { '0': 'No experience yet', '1-2': '1–2 years', '3+': '3+ years' }[p.experience] || '';
+  const mode = { remote: 'Remote only', office: 'Office / hybrid', any: 'Any work mode' }[p.work_mode] || '';
+  const stipend = Number(p.min_stipend) > 0 ? `₹${Number(p.min_stipend).toLocaleString('en-IN')}+ a month` : (p.min_stipend === 0 || p.min_stipend === '0' ? 'Any stipend' : '');
+  const dur = p.max_duration && p.max_duration !== 'any' ? `Up to ${p.max_duration} months` : (p.max_duration === 'any' ? 'Any length' : '');
+  const parts = [
+    [1, 'About you', chips([year, exp].filter(Boolean))],
+    [2, 'What you want', chips([fieldLabels[p.field] || p.field, ...(p.roles || []).map(r => roleLabels[r] || r)].filter(Boolean))],
+    [3, 'Skills', chips(p.skills)],
+    [4, 'Preferences', chips([mode, stipend, dur, ...(p.companies || []).map(c => `★ ${c}`)].filter(Boolean))],
+    [5, 'Search', chips((p.regions || []).map(r => r.charAt(0).toUpperCase() + r.slice(1)))],
+  ];
+  box.innerHTML = parts.map(([step, title, body]) => `<div class="me-row">
+      <div class="me-row-head"><span>${sectionDone(p, step) ? '<i class="ph ph-check-circle me-ok"></i>' : '<i class="ph ph-circle-dashed me-todo"></i>'}${title}</span>
+        <button type="button" class="me-link" data-me-edit="${step}">Edit</button></div>
+      <div class="me-tags">${body}</div></div>`).join('');
+}
+
+// username: lowercase as you type, and ask the account if it's free
+let usernameTimer = null, usernameOk = true;
+function usernameState(kind, text) {
+  const el = document.getElementById('me-username-state');
+  if (!el) return;
+  el.className = `me-note flex-1 ${kind ? 'me-' + kind : ''}`;
+  el.textContent = text || '3 to 20 letters, numbers, _ or . (lowercase)';
+}
+function checkUsername() {
+  const input = document.getElementById('me-username-input');
+  const v = input.value.toLowerCase().replace(/[^a-z0-9_.]/g, '');
+  if (input.value !== v) input.value = v;
+  clearTimeout(usernameTimer);
+  if (!v || v === identity.username) { usernameOk = true; usernameState(''); return; }
+  if (v.length < 3) { usernameOk = false; usernameState('bad', 'At least 3 characters.'); return; }
+  usernameOk = false;
+  usernameState('', 'Checking…');
+  usernameTimer = setTimeout(async () => {
+    if (!sb) { usernameOk = true; usernameState(''); return; }
+    const { data, error } = await sb.rpc('username_available', { name: v });
+    if (input.value !== v) return;   // typed on meanwhile
+    usernameOk = !error && data === true;
+    usernameState(usernameOk ? 'good' : 'bad', error ? 'Could not check right now.' : usernameOk ? `@${v} is free` : `@${v} is taken`);
+  }, 350);
+}
+async function saveNameAndUsername() {
+  const name = (document.getElementById('me-name-input').value || '').trim().slice(0, 60);
+  const username = document.getElementById('me-username-input').value.trim();
+  if (!name) { showToast('error', 'Name is empty', 'Write the name you want on InReal.'); return; }
+  if (username && (!/^[a-z0-9_.]{3,20}$/.test(username) || !usernameOk)) { showToast('error', 'Pick another username', 'It must be free and 3 to 20 characters.'); return; }
+  const fields = { name, username: username || null };
+  if (!(await saveIdentity(fields))) return;
+  identity.username = username;
+  if (profile) { writeProfile({ ...profile, name }); updateProfileUI(); }
+  fillMe(); fillProfileMenu();
+  showToast('success', 'Saved', username ? `You're @${username} on InReal.` : 'Your name is updated.');
+}
+
+async function choosePreset(key) {
+  const before = identity.preset;
+  identity.preset = `p:${key}`;
+  renderAvatars(); renderPresets();
+  if (!(await saveIdentity({ avatar_preset: identity.preset }))) { identity.preset = before; renderAvatars(); renderPresets(); }
+}
+async function useInitials() {
+  const before = { ...identity };
+  identity.preset = 'p:none'; identity.photo = '';
+  renderAvatars(); renderPresets();
+  if (!(await saveIdentity({ avatar_preset: 'p:none', avatar_url: null }))) { Object.assign(identity, before); renderAvatars(); }
+}
+async function useGooglePhoto() {
+  const before = { ...identity };
+  identity.preset = ''; identity.photo = identity.google;
+  renderAvatars(); renderPresets();
+  if (!(await saveIdentity({ avatar_preset: null, avatar_url: /^https:\/\//.test(identity.google) ? identity.google : null }))) { Object.assign(identity, before); renderAvatars(); }
+}
+
+// a photo: cropped to a square, made 256 px and re-encoded in the browser (drops EXIF, like the
+// place the photo was taken), then stored in the account's own folder; the old upload is removed
+async function uploadPhoto(file) {
+  if (!file) return;
+  if (!sb || !sbUserId) { showToast('info', 'Sign in first', 'Your picture is saved to your account.'); return; }
+  if (!/^image\/(png|jpe?g|webp)$/.test(file.type) || file.size > 15 * 1024 * 1024) {
+    showToast('error', 'Pick another photo', 'Use a JPG, PNG or WebP photo under 15 MB.'); return;
+  }
+  const note = document.getElementById('me-photo-note');
+  if (note) note.textContent = 'Uploading…';
+  try {
+    const bmp = await createImageBitmap(file);
+    const side = Math.min(bmp.width, bmp.height), size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    canvas.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.86));
+    if (!blob) throw new Error('could not read the photo');
+    const path = `${sbUserId}/${Date.now()}.webp`;
+    const up = await sb.storage.from('avatars').upload(path, blob, { contentType: 'image/webp', upsert: false });
+    if (up.error) throw up.error;
+    const url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+    const old = identity.photo;
+    if (!(await saveIdentity({ avatar_url: url, avatar_preset: null }))) return;
+    identity.photo = url; identity.preset = '';
+    renderAvatars(); renderPresets();
+    const mine = `/avatars/${sbUserId}/`;
+    if (old && old.includes(mine)) sb.storage.from('avatars').remove([old.slice(old.indexOf(mine) + '/avatars/'.length)]);
+    showToast('success', 'Photo updated', 'Your new picture is saved to your account.');
+  } catch (e) {
+    showToast('error', 'Photo not uploaded', (e && e.message) ? String(e.message).slice(0, 120) : 'Try another photo.');
+  } finally {
+    if (note) note.textContent = 'JPG, PNG or WebP. It is cropped to a square and made small before upload; the photo\'s hidden details (like location) are removed.';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const m = document.getElementById('me-modal');
+  document.getElementById('me-close')?.addEventListener('click', () => closeModal(m));
+  closeOnBackdrop(m, () => closeModal(m));
+  document.getElementById('me-avatar-btn')?.addEventListener('click', () => {
+    const pk = document.getElementById('me-picker');
+    pk?.classList.toggle('hidden');
+    if (pk && !pk.classList.contains('hidden')) pk.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+  document.getElementById('me-photo-input')?.addEventListener('change', (e) => { uploadPhoto(e.target.files[0]); e.target.value = ''; });
+  document.getElementById('me-use-google')?.addEventListener('click', useGooglePhoto);
+  document.getElementById('me-use-initials')?.addEventListener('click', useInitials);
+  document.getElementById('me-username-input')?.addEventListener('input', checkUsername);
+  document.getElementById('me-save-identity')?.addEventListener('click', saveNameAndUsername);
+});
+document.addEventListener('click', (e) => {
+  const pre = e.target.closest('[data-preset]');
+  if (pre) { choosePreset(pre.dataset.preset); return; }
+  if (e.target.closest('[data-me-picker-close]')) { document.getElementById('me-picker')?.classList.add('hidden'); return; }
+  const ed = e.target.closest('[data-me-edit]');
+  if (ed) { closeModal(document.getElementById('me-modal')); openProfileModal(false, Number(ed.dataset.meEdit)); }
 });
