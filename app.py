@@ -171,7 +171,7 @@ def same_origin_for_sign_in():
     so the pages move to localhost first."""
     from flask import redirect
     host = request.host.split(":")[0]
-    if request.method == "GET" and host in ("127.0.0.1", "[::1]") and request.path in ("/", "/app"):
+    if request.method == "GET" and host in ("127.0.0.1", "[::1]") and request.path in ("/", "/app", "/app/applications"):
         port = request.host.split(":")[-1] if ":" in request.host.replace("[::1]", "") else ""
         return redirect(f"http://localhost{':' + port if port else ''}{request.full_path.rstrip('?')}", code=302)
 
