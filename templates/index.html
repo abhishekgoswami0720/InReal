@@ -364,15 +364,15 @@
           </div>
         </div>
 
-        <!-- Applied or not: the "did you apply?" answer, with a way to correct it (1 Nov) -->
-        <div id="drawer-applied" class="jb-applied-line hidden"></div>
-        <div id="detail-actions" class="p-4 border-t border-slate-200 flex items-center gap-2.5">
+        <div id="detail-actions" class="p-4 border-t border-slate-200 flex flex-wrap items-center gap-2.5">
           <button id="drawer-bookmark-btn" type="button" aria-label="Save" class="w-12 h-12 glass-btn flex items-center justify-center">
             <i class="ph ph-bookmark text-base"></i>
           </button>
           <a id="drawer-apply-link" href="#" target="_blank" rel="noopener noreferrer" class="flex-1 h-12 glass-btn glass-btn-primary text-center text-sm font-bold flex items-center justify-center gap-1.5">
             <span>Apply on the original site</span><i class="ph ph-arrow-up-right"></i>
           </a>
+          <!-- Applied or not: a quiet line under Apply, with a way to correct it (1 Nov) -->
+          <div id="drawer-applied" class="jb-applied-line hidden"></div>
         </div>
       </div>
     </div>

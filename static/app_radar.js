@@ -2335,8 +2335,8 @@ function updateDrawerApplied() {
   box.classList.remove('hidden');
   box.classList.toggle('is-applied', !!a);
   box.innerHTML = a
-    ? `<i class="ph ph-check-circle"></i><span>You applied on <b>${escapeHtml(shortDate(a.applied_at))}</b></span><button type="button" data-applied-undo>Undo</button>`
-    : `<i class="ph ph-paper-plane-tilt"></i><span>Already applied?</span><button type="button" data-applied-mark>Mark as applied</button>`;
+    ? `<i class="ph-fill ph-check-circle"></i><span>You applied on ${escapeHtml(shortDate(a.applied_at))}</span><span class="dot">·</span><button type="button" data-applied-undo>Undo</button>`
+    : `<span>Already applied?</span><button type="button" data-applied-mark>Mark it</button>`;
 }
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-applied-mark]')) markApplied(activeDrawerJob);
