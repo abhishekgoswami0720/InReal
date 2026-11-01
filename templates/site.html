@@ -144,6 +144,32 @@
     }
 
     /* Spot the scam */
+    /* hero preview: one verified post, one hidden scam */
+    .hp { display: flex; flex-direction: column; gap: 12px; }
+    .hp-card { display: flex; gap: 12px; padding: 14px; border-radius: 16px; background: #fff; border: 1px solid #E2E8F0;
+      box-shadow: 0 12px 28px -18px rgba(15, 23, 42, .35); text-align: left; }
+    .hp-bad { margin-left: 28px; background: #FFFBFB; border-color: #FECDD3; }
+    .hp-logo { width: 40px; height: 40px; flex: none; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 800; font-size: 14px; }
+    .hp-title { font-size: 14px; font-weight: 800; color: #0F172A; line-height: 1.3; }
+    .hp-bad .hp-title { color: #64748B; text-decoration: line-through; text-decoration-color: #FDA4AF; }
+    .hp-meta { font-size: 12px; font-weight: 600; color: #64748B; margin-top: 2px; }
+    .hp-quote { font-size: 12px; color: #475569; margin-top: 8px; line-height: 1.45; }
+    .hp-quote mark { background: #FFE4E6; color: #9F1239; border-radius: 4px; padding: 0 3px; }
+    .hp-tag { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 3px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 800; border: 1px solid; }
+    .hp-ok { color: #047857; background: #ECFDF5; border-color: #A7F3D0; }
+    .hp-no { color: #BE123C; background: #FFF1F2; border-color: #FECDD3; }
+    html.dark .hp-card { background: #161D29; border-color: #232C3B; box-shadow: 0 12px 28px -18px rgba(0, 0, 0, .8); }
+    html.dark .hp-bad { background: #1B1A22; border-color: rgba(244, 63, 94, .3); }
+    html.dark .hp-title { color: #F1F5F9; }
+    html.dark .hp-bad .hp-title { color: #94A3B8; text-decoration-color: rgba(244, 63, 94, .6); }
+    html.dark .hp-meta { color: #94A3B8; }
+    html.dark .hp-quote { color: #CBD5E1; }
+    html.dark .hp-quote mark { background: rgba(244, 63, 94, .22); color: #FECDD3; }
+    html.dark .hp-ok { color: #6EE7B7; background: rgba(16, 185, 129, .12); border-color: rgba(16, 185, 129, .35); }
+    html.dark .hp-no { color: #FDA4AF; background: rgba(244, 63, 94, .12); border-color: rgba(244, 63, 94, .35); }
+    @media (max-width: 767px) { .hp-bad { margin-left: 0; } }
     .spot-card { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
     .spot-card:not([disabled]):hover { transform: translateY(-4px); border-color: #FDBA74; box-shadow: 0 16px 32px -12px rgba(15, 23, 42, .18); }
     .spot-card mark { background: #FECACA; color: #7F1D1D; border-radius: 4px; padding: 0 3px; }
@@ -227,7 +253,7 @@
           Internships you can trust, from <span data-sites>many</span> sites in one place.
         </h1>
         <p class="text-sm md:text-base text-slate-600 mt-3 max-w-xl font-medium leading-relaxed">
-          InReal collects internships from Internshala, Unstop, Naukri, LinkedIn, company career pages and more. Each post is checked for registration fees, paid "training", task-for-money schemes and requests for your Aadhaar or bank details. The ones that fail are hidden.
+          Internshala, Unstop, Naukri, LinkedIn, company career pages and more. Posts that ask for a fee, sell paid "training" or want your Aadhaar or bank details are hidden.
         </p>
         <div class="flex flex-wrap items-center gap-3 mt-6">
           <button type="button" data-signin="signup" class="glass-btn glass-btn-primary px-5 py-3 flex items-center gap-2.5 text-sm">
@@ -236,12 +262,24 @@
           </button>
         </div>
       </div>
-      <div class="shrink-0 z-10 w-full md:w-80 lg:w-96">
-        <div class="relative rounded-2xl overflow-hidden border-2 border-slate-900 shadow-[5px_5px_0px_#0F172A] bg-amber-400">
-          <img src="{{ url_for('static', filename='hero_team.png') }}" alt="Illustration of students working together" class="w-full h-auto object-cover object-center">
-          <div class="absolute bottom-2.5 left-2.5 right-2.5 p-2 bg-white/95 backdrop-blur-md rounded-lg border border-slate-900/30 flex items-center justify-between text-xs font-bold text-slate-900">
-            <span class="flex items-center gap-1.5"><i class="ph ph-shield-check text-emerald-600"></i> Scam check on every post</span>
-            <span class="text-orange-600 font-extrabold">Free</span>
+      <!-- What the check does, shown instead of told (1 Nov: the stock illustration was the loudest thing
+           on the page and said nothing about scams). Made-up companies; static, not live data. -->
+      <div class="hp shrink-0 z-10 w-full md:w-[22rem] lg:w-[26rem]" aria-hidden="true">
+        <div class="hp-card">
+          <div class="hp-logo" style="background:#0EA5E9">NL</div>
+          <div class="min-w-0">
+            <div class="hp-title">Machine Learning Intern</div>
+            <div class="hp-meta">Northwind Labs · Bengaluru · ₹25,000/month</div>
+            <span class="hp-tag hp-ok"><i class="ph ph-shield-check"></i>Verified</span>
+          </div>
+        </div>
+        <div class="hp-card hp-bad">
+          <div class="hp-logo" style="background:#94A3B8">SC</div>
+          <div class="min-w-0">
+            <div class="hp-title">Python Developer Intern</div>
+            <div class="hp-meta">SkillRise Careers · Work from home</div>
+            <div class="hp-quote">&ldquo;<mark>Pay a one-time registration fee of ₹999</mark> to confirm your seat&rdquo;</div>
+            <span class="hp-tag hp-no"><i class="ph ph-eye-slash"></i>Likely scam, hidden from your list</span>
           </div>
         </div>
       </div>

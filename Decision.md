@@ -401,6 +401,18 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
 - **Tradeoff:** none worth noting.
 - **Commit:** `4e7debe`
 
+### G5. Landing hero shows the check, not a stock illustration
+- **Date:** 1 Nov
+- **Decision:** the bright cartoon crowd on the landing page was replaced. The hero now shows two small post cards: one verified post, and one scam post with its fee line highlighted and a "Likely scam, hidden" tag. The intro text was cut to two lines.
+- **Why:**
+  - The saturated yellow picture with its black offset border was the loudest thing on the page, louder than the headline.
+  - It said nothing about scams.
+  - Its overlay chip covered the drawing and showed a cut-off corner.
+  - The two cards explain the product in one look and use the dashboard's own card style.
+- **Tradeoff:**
+  - The page has less colour and warmth.
+  - The cards are a made-up example (fictional companies), not live data.
+
 ---
 
 ## H. My applications and My profile
