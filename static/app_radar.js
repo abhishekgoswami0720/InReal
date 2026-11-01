@@ -2607,7 +2607,8 @@ async function uploadPhoto(file) {
     if (old && old.includes(mine)) sb.storage.from('avatars').remove([old.slice(old.indexOf(mine) + '/avatars/'.length)]);
     showToast('success', 'Photo updated', 'Your new picture is saved to your account.');
   } catch (e) {
-    showToast('error', 'Photo not uploaded', (e && e.message) ? String(e.message).slice(0, 120) : 'Try another photo.');
+    console.error('Photo upload failed:', e);   // the storage message is for the console, not the person
+    showToast('error', 'Photo not uploaded', 'The upload did not go through. Try again in a moment, or pick another photo.');
   } finally {
     if (note) note.textContent = 'JPG, PNG or WebP. It is cropped to a square and made small before upload; the photo\'s hidden details (like location) are removed.';
   }

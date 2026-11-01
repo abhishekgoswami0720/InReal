@@ -213,9 +213,17 @@ drop policy if exists "avatars: own folder upload" on storage.objects;
 drop policy if exists "avatars: own folder delete" on storage.objects;
 create policy "avatars: own folder read" on storage.objects for select to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+-- the cap is counted in a definer function: a count of storage.objects inside a policy on
+-- storage.objects is infinite recursion (1 Nov: every upload failed)
+create or replace function private.my_avatar_count() returns bigint
+language sql stable security definer set search_path = '' as $$
+  select count(*) from storage.objects o
+  where o.bucket_id = 'avatars' and (storage.foldername(o.name))[1] = (select auth.uid())::text;
+$$;
+revoke execute on function private.my_avatar_count() from public, anon;
+grant execute on function private.my_avatar_count() to authenticated;
 create policy "avatars: own folder upload" on storage.objects for insert to authenticated
   with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text
-    and (select count(*) from storage.objects o where o.bucket_id = 'avatars'
-         and (storage.foldername(o.name))[1] = (select auth.uid())::text) < 10);
+    and private.my_avatar_count() < 10);
 create policy "avatars: own folder delete" on storage.objects for delete to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
