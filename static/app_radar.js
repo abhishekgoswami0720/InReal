@@ -2457,7 +2457,7 @@ function renderAvatars() {
   sharpenAvatars();
 }
 
-// A 256 px photo shown at 40 px (less when the browser is zoomed out) is shrunk by the browser in one
+// A 512 px photo shown at 40 px (less when the browser is zoomed out) is shrunk by the browser in one
 // rough step, which looks blurred and jagged (1 Nov). Each slot gets its own copy, shrunk in halves
 // to exactly the pixels it has, and made again when the zoom changes.
 const avatarThumbs = new Map();   // "url|px" -> data URL (or the url itself when the picture can't be read)
@@ -2505,15 +2505,23 @@ function sharpenAvatars() {
     if (!img) return;
     const cssSize = img.offsetWidth || img.parentElement?.offsetWidth || 0;   // layout size: ignores the opening animation's scale
     if (!cssSize) return;   // not on screen yet (menu closed): done when it opens
-    const px = Math.max(16, Math.ceil(cssSize * dpr));
-    if (px >= 256) return;   // big enough to use the picture itself
+    // twice the pixels the slot has right now: the browser then only halves it (which stays sharp),
+    // and zooming in up to 2x still has real pixels even before the copy is remade (1 Nov: exactly
+    // 1x looked blurred after zooming in)
+    const px = Math.max(32, Math.ceil(cssSize * dpr * 2));
+    if (px >= 512) return;   // big enough to use the picture itself
     const thumb = await thumbFor(src, px);
     if (img.isConnected) img.src = thumb;
   });
 }
 // zooming the browser changes the pixels per slot
 let lastDpr = window.devicePixelRatio;
-window.addEventListener('resize', () => { if (window.devicePixelRatio !== lastDpr) { lastDpr = window.devicePixelRatio; renderAvatars(); } });
+function onZoom() { if (window.devicePixelRatio !== lastDpr) { lastDpr = window.devicePixelRatio; renderAvatars(); } }
+window.addEventListener('resize', onZoom);
+(function watchDpr() {   // also when the zoom changes without a resize event
+  const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+  mq.addEventListener('change', () => { onZoom(); watchDpr(); }, { once: true });
+})();
 
 async function saveIdentity(fields) {
   if (!sb || !sbUserId) { showToast('info', 'Sign in first', 'Your picture and username are saved to your account.'); return false; }
@@ -2642,7 +2650,7 @@ async function useGooglePhoto() {
   if (!(await saveIdentity({ avatar_preset: null, avatar_url: /^https:\/\//.test(identity.google) ? identity.google : null }))) { Object.assign(identity, before); renderAvatars(); }
 }
 
-// a photo: first the editor (move, zoom, turn), then it is drawn at 256 px and re-encoded in the
+// a photo: first the editor (move, zoom, turn), then it is drawn at 512 px and re-encoded in the
 // browser (drops EXIF, like the place the photo was taken) and stored in the account's own folder;
 // the old upload is removed
 async function uploadPhoto(file) {
@@ -2755,7 +2763,7 @@ async function saveCrop() {
   if (!crop.bmp) return;
   const banner = crop.mode === 'banner';
   const out = document.createElement('canvas');
-  out.width = banner ? 1200 : 256; out.height = banner ? 1200 / BANNER_RATIO : 256;
+  out.width = banner ? 1200 : 512; out.height = banner ? 1200 / BANNER_RATIO : 512;   // 512: sharp on big, high-density screens too
   paintCrop(out.getContext('2d'), out.width, out.height, false);
   const blob = await new Promise(res => out.toBlob(res, 'image/webp', banner ? 0.85 : 0.88));
   closeCropper();
@@ -2840,7 +2848,7 @@ document.addEventListener('click', (e) => {
 
 
 // ---- character avatars (1 Nov): drawn people, made in the browser with DiceBear (static/avatars.js,
-// loaded only when the picker opens). The chosen one is saved as a 256 px picture, like a photo, so
+// loaded only when the picker opens). The chosen one is saved as a 512 px picture, like a photo, so
 // the rest of the page never needs the drawing code.
 const CHAR_STYLES = [['adventurer', 'Adventurer'], ['avataaars', 'Avataaars'], ['lorelei', 'Lorelei'], ['notionists', 'Notionists'], ['open-peeps', 'Open Peeps']];
 const CHAR_BG = ['ffd5dc', 'ffdfbf', 'fef3c7', 'd1fae5', 'c0aede', 'b6e3f4', 'dbeafe', 'fde68a', 'fbcfe8', 'ccfbf1', 'e9d5ff', 'fecaca'];
@@ -2884,8 +2892,8 @@ async function chooseCharacter(value, btn) {
     const img = new Image();
     await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = svgUri(lib.svg(style, seed, bg)); });
     const out = document.createElement('canvas');
-    out.width = out.height = 256;
-    out.getContext('2d').drawImage(img, 0, 0, 256, 256);
+    out.width = out.height = 512;
+    out.getContext('2d').drawImage(img, 0, 0, 512, 512);
     const blob = await new Promise(res => out.toBlob(res, 'image/webp', 0.92));
     if (!blob) throw new Error('could not draw the character');
     await savePhotoBlob(blob, 'character');
