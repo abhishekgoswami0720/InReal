@@ -93,8 +93,9 @@
 
         <button type="button" data-theme-toggle class="theme-toggle" aria-label="Switch to dark theme" title="Switch to dark theme"><i class="ph ph-moon" aria-hidden="true"></i><i class="ph ph-sun" aria-hidden="true"></i></button>
 
-        <!-- Profile avatar: initials of the name, opens the profile -->
-        <button id="edit-profile-btn" type="button" title="Set up profile" aria-label="Set up profile"
+        <!-- Profile avatar: opens the account menu (profile, bookmarks, theme, sign out) -->
+        <div class="relative shrink-0" id="profile-menu-wrap">
+        <button id="edit-profile-btn" type="button" title="Your account" aria-label="Your account" aria-haspopup="menu" aria-expanded="false" aria-controls="profile-menu"
           class="profile-ring relative w-12 h-12 rounded-full p-1 shrink-0">
           <span id="profile-avatar" class="w-full h-full rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-white font-extrabold text-sm flex items-center justify-center select-none ring-2 ring-white overflow-hidden">
             <i class="ph ph-user text-lg"></i>
@@ -102,12 +103,39 @@
           <span id="profile-pct" class="hidden absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-1.5 py-px rounded-full bg-orange-500 text-white text-[9px] font-extrabold leading-tight shadow ring-2 ring-white">0%</span>
           <span id="profile-btn-label" class="sr-only">Set up profile</span>
         </button>
-        {% if user_mode %}
-        <button id="sign-out-btn" type="button" title="Sign out" aria-label="Sign out"
-          class="w-11 h-11 rounded-full bg-white border border-slate-200 hover:border-rose-300 hover:text-rose-600 text-slate-500 flex items-center justify-center transition shrink-0">
-          <i class="ph ph-sign-out text-lg"></i>
-        </button>
-        {% endif %}
+
+        <div id="profile-menu" class="pm hidden" role="menu" aria-label="Your account">
+          <div class="pm-head">
+            <div id="pm-avatar" class="pm-avatar"><i class="ph ph-user"></i></div>
+            <div class="min-w-0">
+              <div id="pm-name" class="pm-name">You</div>
+              <div id="pm-email" class="pm-email"></div>
+            </div>
+          </div>
+          <div class="pm-level">
+            <div class="pm-level-row"><span><i class="ph ph-trophy"></i> <span id="pm-level">Newbie</span></span><span id="pm-pct" class="pm-pct">0%</span></div>
+            <div class="pm-bar"><span id="pm-bar-fill"></span></div>
+            <div id="pm-next" class="pm-next"></div>
+          </div>
+          <div class="pm-stats">
+            <div><b id="pm-verified">0</b><span>verified for you</span></div>
+            <div><b id="pm-scams">0</b><span>scams kept away</span></div>
+            <div><b id="pm-saved">0</b><span>saved</span></div>
+          </div>
+          <div class="pm-items">
+            <button type="button" role="menuitem" data-pm="profile"><i class="ph ph-user-circle"></i><span>My profile</span></button>
+            <button type="button" role="menuitem" data-pm="saved"><i class="ph ph-bookmark-simple"></i><span>My bookmarks</span><em id="pm-saved-count">0</em></button>
+            <button type="button" role="menuitem" data-pm="recent"><i class="ph ph-clock-counter-clockwise"></i><span>Last 3 days</span></button>
+            <button type="button" role="menuitem" data-pm="theme" data-theme-toggle><i class="ph ph-moon"></i><span id="pm-theme-label">Dark theme</span></button>
+            {% if user_mode %}
+            <a href="/admin" role="menuitem" data-pm="admin" id="pm-admin" class="hidden"><i class="ph ph-gear-six"></i><span>Admin</span></a>
+            {% endif %}
+          </div>
+          {% if user_mode %}
+          <button id="sign-out-btn" type="button" role="menuitem" class="pm-signout"><i class="ph ph-sign-out"></i><span>Sign out</span></button>
+          {% endif %}
+        </div>
+        </div>
       </div>
     </div>
   </header>

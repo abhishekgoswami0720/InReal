@@ -1328,7 +1328,7 @@ async function initProfile() {
     ['profile-field', 'scrape-field'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = options; });
   } catch (e) { /* app restarting: the defaults still work */ }
 
-  document.getElementById('edit-profile-btn')?.addEventListener('click', () => openProfileModal(false));
+  document.getElementById('edit-profile-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleProfileMenu(); });
   document.getElementById('close-profile-btn')?.addEventListener('click', closeProfileModal);
   bindProfileForm();
 
@@ -1640,8 +1640,76 @@ function updateProfileRing() {
   const tip = pct === 100 ? 'Profile complete · Edit profile'
     : `Profile ${pct}% complete · add ${missing.join(', ')}`;
   btn.title = tip;
-  btn.setAttribute('aria-label', tip);
+  btn.setAttribute('aria-label', `Your account · ${tip}`);
 }
+
+// ---- Account menu under the avatar (1 Nov): profile level, a few numbers, and the account actions ----
+let sbUserEmail = '';
+const PROFILE_LEVELS = ['Newbie', 'Newbie', 'Explorer', 'Scout', 'Hunter', 'Internship Pro'];   // by sections done (0-5)
+function fillProfileMenu() {
+  const { pct, missing } = profileCompletion(profile);
+  const done = pct / 20;
+  const p = profile || {};
+  document.getElementById('pm-name').textContent = p.name || 'You';
+  document.getElementById('pm-email').textContent = sbUserEmail || (USER_MODE ? '' : 'This laptop');
+  const av = document.getElementById('pm-avatar'), src = document.getElementById('profile-avatar');
+  if (av && src) av.innerHTML = src.innerHTML;   // the photo or the initials, same as the button
+  document.getElementById('pm-level').textContent = PROFILE_LEVELS[done];
+  document.getElementById('pm-pct').textContent = `${pct}%`;
+  requestAnimationFrame(() => { document.getElementById('pm-bar-fill').style.width = `${pct}%`; });
+  document.getElementById('pm-next').textContent = missing.length
+    ? `Add ${missing[0]} to reach ${PROFILE_LEVELS[done + 1]}.`
+    : 'Profile complete. Your list is matched as well as it can be.';
+  // the numbers come from the posts on this laptop (the last 3 days of searches)
+  const count = (st) => allInternships.filter(r => r.moderation_status === st).length;
+  document.getElementById('pm-verified').textContent = count('approved');
+  document.getElementById('pm-scams').textContent = count('blocked');
+  document.getElementById('pm-saved').textContent = bookmarks.length;
+  document.getElementById('pm-saved-count').textContent = bookmarks.length;
+  const dark = document.documentElement.classList.contains('dark');
+  document.getElementById('pm-theme-label').textContent = dark ? 'Light theme' : 'Dark theme';
+  const ti = document.querySelector('[data-pm="theme"] i');
+  if (ti) ti.className = `ph ${dark ? 'ph-sun' : 'ph-moon'}`;
+}
+function profileMenuOpen() { return !document.getElementById('profile-menu')?.classList.contains('hidden'); }
+function toggleProfileMenu(force) {
+  const menu = document.getElementById('profile-menu'), btn = document.getElementById('edit-profile-btn');
+  if (!menu) return;
+  const open = force === undefined ? !profileMenuOpen() : force;
+  if (open) {
+    fillProfileMenu();
+    menu.classList.remove('hidden', 'pm-closing');
+    menu.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+  } else if (profileMenuOpen()) {
+    menu.classList.add('pm-closing');
+    setTimeout(() => { if (menu.classList.contains('pm-closing')) menu.classList.add('hidden'); menu.classList.remove('pm-closing'); }, 150);
+  }
+  btn?.setAttribute('aria-expanded', String(open));
+}
+document.addEventListener('click', (e) => {
+  if (!profileMenuOpen()) return;
+  const item = e.target.closest('#profile-menu [data-pm]');
+  if (item) {
+    const what = item.dataset.pm;
+    if (what === 'theme') return;   // theme.js switches it; the menu stays open and updates below
+    toggleProfileMenu(false);
+    if (what === 'profile') openProfileModal(false);
+    else if (what === 'saved' || what === 'recent') setView(what);
+    return;
+  }
+  if (!e.target.closest('#profile-menu')) toggleProfileMenu(false);   // a click anywhere else closes it
+});
+// the theme changes a moment after the click (theme.js animates it): relabel the menu item when it does
+new MutationObserver(() => { if (profileMenuOpen()) fillProfileMenu(); })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+document.addEventListener('keydown', (e) => {
+  if (!profileMenuOpen()) return;
+  const items = [...document.querySelectorAll('#profile-menu [role="menuitem"]')].filter(i => !i.classList.contains('hidden'));
+  const at = items.indexOf(document.activeElement);
+  if (e.key === 'Escape') { toggleProfileMenu(false); document.getElementById('edit-profile-btn')?.focus(); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); items[(at + 1) % items.length]?.focus(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); items[(at - 1 + items.length) % items.length]?.focus(); }
+});
 
 function updateProfileUI() {
   const label = document.getElementById('profile-btn-label');
@@ -2114,6 +2182,7 @@ async function requireSignIn() {
   });
   const btn = document.getElementById('sign-out-btn');
   if (btn && user.email) btn.title = `Sign out (${user.email})`;
+  sbUserEmail = user.email || '';
 
   const meta = user.user_metadata || {};
   sbUserId = user.id;
@@ -2157,6 +2226,7 @@ async function requireSignIn() {
   }
   const admin = document.getElementById('admin-link');
   if (admin && account && account.is_admin) { admin.classList.remove('hidden'); admin.classList.add('inline-flex'); }
+  if (account && account.is_admin) document.getElementById('pm-admin')?.classList.remove('hidden');
   // first visit: the profile form starts with the Google name
   if (!profile) {
     const name = document.getElementById('profile-name');
