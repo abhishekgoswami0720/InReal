@@ -22,6 +22,7 @@ CSV_HEADERS = [
     "description", "moderation_status", "scam_risk", "moderation_reasons", "moderated_at",
     "field",   # which field of study the run searched for (fields.py); empty on old rows = ai_ml
     "last_run",   # tag of the latest search that found this post; the dashboard shows one search at a time
+    "company_logo",   # the logo link the source site showed (logos.py keeps a local copy); empty = initials
 ]
 MODERATION_FIELDS = ["moderation_status", "scam_risk", "moderation_reasons", "moderated_at"]
 # If any of these change, the listing is a different post and must be moderated again

@@ -245,6 +245,11 @@ def process_and_save(source_name: str, raw_listings: list, max_new: int = None):
             released = release_held(_release["left"], RUN_TAG["value"])
             _release["left"] -= released
     HELD[source_name] = res.get("held", 0)
+    try:
+        import logos
+        logos.prefetch(valid_listings)   # background: a local copy of each company logo (logos.py)
+    except Exception as e:   # a logo must never stop a search
+        logger.warning(f"[{source_name}] logos skipped: {e}")
     if not valid_listings:
         logger.info(f"[{source_name}] Searched through {len(raw_listings)} listings, but none matched our criteria.")
     extra = []

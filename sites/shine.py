@@ -26,6 +26,7 @@ from playwright_stealth import Stealth
 from filters import calculate_match_score, internship_rejection_reason
 from scraper_utils import get_playwright_stealth_args, human_delay
 from sites import budget
+from sites._common import logo_in_card, logo_in_json
 
 BASE = "https://www.shine.com"
 SEARCH = "https://www.shine.com/job-search/ai-machine-learning-internship-jobs"
@@ -96,6 +97,7 @@ def parse_search_page(html: str):
             records.append({
                 "id": hashlib.md5(f"shine-{job_id or title + location}".encode()).hexdigest(),
                 "company_name": _text(card.select_one(SEL["company"])) or "Unknown",
+                "company_logo": logo_in_card(card, _text(card.select_one(SEL["company"])), BASE),
                 "role_title": title,
                 "location": location,
                 "location_type": "Remote" if re.search(r"remote|work from home|wfh", location, re.I) else "India",

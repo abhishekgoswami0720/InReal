@@ -418,6 +418,11 @@ html.dark .jb-rule.off { background: transparent; color: #64748B; border-color: 
 
 .jb-logo { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: #fff; flex: none; text-transform: uppercase; }
 .jb-logo-lg { width: 52px; height: 52px; border-radius: 14px; font-size: 19px; }
+/* the company's logo over its initials (1 Nov): white tile, so dark logos read in dark mode too */
+.jb-logo { position: relative; overflow: hidden; }
+.jb-logo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 5px; background: #fff;
+  border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .08); }
+html.dark .jb-logo img { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); }
 
 .jb-empty { display: none; padding: 48px 20px; border-radius: 18px; border: 1.5px dashed #CBD5E1; background: rgba(255, 255, 255, .6); }
 .jb-empty.flex { display: flex; }

@@ -25,6 +25,9 @@ dateparser
 fake-useragent
 tenacity
 
+# ── Company logos (logos.py: checks and shrinks each logo to a 128 px WebP copy) ──
+pillow
+
 # ── Logging ────────────────────────────────────────────────────────────────────
 loguru
 

@@ -27,6 +27,7 @@ from playwright_stealth import Stealth
 from filters import calculate_match_score, internship_rejection_reason
 from scraper_utils import get_playwright_stealth_args, human_delay
 from sites import budget
+from sites._common import logo_in_card, logo_in_json
 
 BASE = "https://apna.co"
 SEARCH = BASE + "/jobs?search=true&text={q}&page={page}"
@@ -86,6 +87,7 @@ def parse_search_page(html: str):
             records.append({
                 "id": hashlib.md5(f"apna-{job_id}".encode()).hexdigest(),
                 "company_name": _text(company_el) or "Unknown",
+                "company_logo": logo_in_card(card, _text(company_el), BASE),
                 "role_title": title,
                 "location": location,
                 "location_type": "Remote" if re.search(r"remote|work from home", " ".join([location] + chips), re.I) else "India",

@@ -247,7 +247,11 @@ def get_internships():
         # Read under the writers' lock: on Windows an open reader makes the writer's file replace fail
         from output_handler import read_all_rows
         rows = read_all_rows()
+        import logos
         for r in rows:
+            # the page gets only InReal's own copy of the logo, never the other site's link
+            r["logo"] = logos.cached(logos.source_logo(r))
+            r.pop("company_logo", None)
             for k in ("match_score", "stipend_numeric"):
                 try:
                     if r.get(k) not in (None, ""):
@@ -511,6 +515,12 @@ def start_publish_loop():
 
 if __name__ == "__main__":
     _hold_old_listings()
+    try:   # logos of posts saved before (or whose copy was deleted), in the background
+        import logos
+        from output_handler import read_all_rows
+        logos.prefetch(read_all_rows())
+    except Exception as e:
+        print(f"Logos skipped: {e}")
     # No automatic searching: sites are scraped only when someone presses Search Internships
     # (19 Oct: rounds at 17:24 and 23:24 opened 23 sites nobody asked for). autopilot.py stays
     # for a later server setup; nothing starts it here, whatever AUTO_UPDATE says.

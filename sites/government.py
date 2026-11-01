@@ -30,6 +30,7 @@ from loguru import logger
 from filters import calculate_match_score
 from scraper_utils import human_delay
 from sites import budget
+from sites._common import logo_in_card, logo_in_json
 
 BASE = "https://internship.aicte-india.org"
 API = BASE + "/api/v1/catalogue/internships?{query}&sort=best&page={page}&pageSize=60"
@@ -86,6 +87,7 @@ def parse_items(payload: dict):
             records.append({
                 "id": hashlib.md5(f"aicte-{x.get('id') or title + location}".encode()).hexdigest(),
                 "company_name": (x.get("organization") or "Unknown").strip(),
+                "company_logo": logo_in_json(x),
                 "role_title": title,
                 "location": location,
                 "location_type": "Remote" if re.search(r"remote|work from home", mode + " " + location, re.I) else "India",

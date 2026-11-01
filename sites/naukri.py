@@ -30,6 +30,7 @@ from playwright_stealth import Stealth
 
 from filters import calculate_match_score, internship_rejection_reason, stipend_rejection_reason
 from scraper_utils import action_required, action_resolved, human_delay, launch_browser, save_debug
+from sites._common import logo_in_card, logo_in_json
 
 PAID_RANGES = ["0To10", "10To20", "20To30", "30To40", "40To50"]
 SLUGS = [
@@ -112,6 +113,7 @@ def parse_list_page(html: str):
             records.append({
                 "id": hashlib.md5(f"naukri-{job_id or role_title}".encode()).hexdigest(),
                 "company_name": _text(card.select_one(SEL["company"])) or "Unknown",
+                "company_logo": logo_in_card(card, _text(card.select_one(SEL["company"]))),
                 "role_title": role_title,
                 "location": location,
                 "location_type": "Remote" if re.search(r"remote|work from home|wfh", location, re.I) else "India",

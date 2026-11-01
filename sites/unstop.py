@@ -27,6 +27,7 @@ from playwright_stealth import Stealth
 from filters import calculate_match_score
 from scraper_utils import get_playwright_stealth_args, human_delay
 from sites import budget
+from sites._common import logo_in_card, logo_in_json
 
 BASE = "https://unstop.com"
 LIST_PAGE = "https://unstop.com/internships"
@@ -99,6 +100,7 @@ def parse_api_record(x: dict):
     return {
         "id": hashlib.md5(f"unstop-{x.get('id')}".encode()).hexdigest(),
         "company_name": company,
+        "company_logo": logo_in_json(x.get("organisation") or {}) or logo_in_json(x, 1),
         "role_title": title,
         "location": location,
         "location_type": location_type,
@@ -160,6 +162,7 @@ def parse_list_html(html: str):
         records.append({
             "id": hashlib.md5(f"unstop-{href.rstrip('/').split('-')[-1]}".encode()).hexdigest(),
             "company_name": company_el.get_text(" ", strip=True) if company_el else "Unknown",
+            "company_logo": logo_in_card(card, base=BASE),
             "role_title": title,
             "location": location,
             "location_type": "Remote" if "work from home" in location.lower() else "India",

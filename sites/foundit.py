@@ -24,6 +24,7 @@ from playwright_stealth import Stealth
 
 from filters import calculate_match_score, internship_rejection_reason
 from scraper_utils import human_delay, launch_browser, save_debug
+from sites._common import logo_in_card, logo_in_json
 
 BASE = "https://www.foundit.in"
 SEARCH_API = BASE + "/middleware/jobsearch?sort=1&limit=60&query={q}"
@@ -68,6 +69,7 @@ def parse_search_json(payload: dict):
                 "id": hashlib.md5(f"foundit-{job_id or title + location}".encode()).hexdigest(),
                 "job_id": job_id,
                 "company_name": (x.get("companyName") or "Unknown").strip(),
+                "company_logo": logo_in_json(x),
                 "role_title": title,
                 "location": location,
                 "location_type": "Remote" if re.search(r"remote|work from home|wfh", location, re.I) else "India",

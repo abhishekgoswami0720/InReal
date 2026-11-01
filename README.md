@@ -9,7 +9,7 @@
 ![Playwright](https://img.shields.io/badge/Playwright-Chromium-2EAD33?logo=playwright&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Auth%20%2B%20Postgres-3ECF8E?logo=supabase&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-scam%20check%20agent-1C3C3C?logo=langchain&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-177%20passing-2ea043)
+![Tests](https://img.shields.io/badge/tests-190%20passing-2ea043)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 </div>
@@ -100,6 +100,8 @@ The home page has a 30-second game. One of these two posts is a scam. Which one?
   It works while slow sites are still being searched.
 - **No stale lists:** a search older than 6 hours isn't reopened as if it were live. The page offers to
   search the same sites again instead.
+- **Company logos:** the logo the source site shows, kept as a small copy on your computer (never looked up by
+  name, so a fake "Google" post can't borrow Google's logo). No logo? The company's initials.
 - **Readable posts:** the *About the internship* text is split into headings, points and short paragraphs.
 - **Search progress panel:** each site's status, live. Drag its corner to resize it, or fold it down to its header.
 - **Account menu** under your picture: your profile level and how complete it is, how many posts were
@@ -252,6 +254,7 @@ InReal/
 ├── filters.py, genuine.py # Title checks and the genuine-only rules
 ├── output_handler.py      # internships.csv store: statuses, de-duplication, 3-day pruning
 ├── supabase_sync.py       # Pushes checked posts to Supabase
+├── logos.py               # Company logos: the source site's logo, checked and kept as a small local copy
 ├── moderation/            # Scam pattern bank, vector index, link check, judge evals, re-checks
 │   ├── safe_http.py       # Opens scraped links without reaching this computer or the home network
 │   └── pipeline/          # The scam check: rules, vectors, judge, fuse, runner, agent

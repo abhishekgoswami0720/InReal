@@ -90,7 +90,7 @@ def search_words(limit=3):
 
 def record(source, title, company, location, link, *, job_id="", stipend="", stipend_numeric=0.0,
            currency="", skills=None, description="", posted="", org_type="Company", duration="",
-           labelled_internship=False):
+           labelled_internship=False, logo=""):
     """One listing in the shape scraper.py expects. Empty stays empty: nothing is guessed."""
     title = re.sub(r"\s+", " ", title or "").strip()
     company = re.sub(r"\s+", " ", company or "").strip() or "Unknown"
@@ -119,10 +119,67 @@ def record(source, title, company, location, link, *, job_id="", stipend="", sti
         "match_score": calculate_match_score(title, skills, org_type, numeric),
         "posted": posted,
         "description": description,
+        "company_logo": logo_url(logo),
     }
     if labelled_internship:
         rec["labelled_internship"] = True
     return rec
+
+
+# ---------- company logos (1 Nov 2026) ----------
+# Only the logo the source site itself shows with the post. Never looked up by company name: a fake
+# "Google internship" must not get Google's real logo. logos.py downloads it once and serves a copy.
+_LOGO_ATTRS = ("data-delayed-url", "data-ghost-url", "data-src", "data-lazy-src", "src")
+
+
+def logo_url(value, base="") -> str:
+    """An absolute http(s) image link, or "" (data: URLs, placeholders and relative junk are dropped)."""
+    if isinstance(value, dict):
+        value = value.get("url") or value.get("src") or ""
+    url = str(value or "").strip()
+    if url.startswith("//"):
+        url = "https:" + url
+    elif url.startswith("/") and base:
+        url = base.rstrip("/") + url
+    if not re.match(r"^https?://[^\s\"'<>]+$", url, re.I) or len(url) > 600:
+        return ""
+    if re.search(r"ghost|placeholder|default[-_]?(company|logo)|no[-_]?logo|blank\.(png|gif)", url, re.I):
+        return ""
+    return url
+
+
+def logo_in_card(card, company="", base="") -> str:
+    """The company logo <img> inside one search-result card (class, alt or address says "logo",
+    or the alt text is the company's name)."""
+    if card is None:
+        return ""
+    company = (company or "").strip().lower()
+    for img in card.select("img"):
+        hint = " ".join([" ".join(img.get("class") or []), img.get("alt") or "", img.get("src") or "",
+                         img.get("data-delayed-url") or ""]).lower()
+        if "logo" in hint or "entity-image" in hint or (company and (img.get("alt") or "").strip().lower() == company):
+            for attr in _LOGO_ATTRS:
+                url = logo_url(img.get(attr), base)
+                if url:
+                    return url
+    return ""
+
+
+def logo_in_json(obj, depth=3) -> str:
+    """The first value under a key containing "logo" in a site's JSON record (nested a few levels)."""
+    if depth < 0 or not isinstance(obj, dict):
+        return ""
+    for key, value in obj.items():
+        if "logo" in str(key).lower():
+            url = logo_url(value)
+            if url:
+                return url
+    for value in obj.values():
+        if isinstance(value, dict):
+            url = logo_in_json(value, depth - 1)
+            if url:
+                return url
+    return ""
 
 
 def dedupe(records):

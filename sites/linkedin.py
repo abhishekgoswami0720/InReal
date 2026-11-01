@@ -29,6 +29,7 @@ from playwright_stealth import Stealth
 
 from filters import calculate_match_score, internship_rejection_reason
 from scraper_utils import get_playwright_stealth_args, human_delay
+from sites._common import logo_in_card, logo_in_json
 
 # ── Every major location × every major AI/ML keyword ─────────────────────────
 # LinkedIn's f_JT=I = Internship job type, f_E=1 = Entry level
@@ -207,6 +208,7 @@ def parse_search_html(html: str, label: str):
                 "id": hashlib.md5(f"linkedin-{job_id or title + location}".encode()).hexdigest(),
                 "job_id": job_id,
                 "company_name": _text(card.select_one(SEL["company"])) or "Unknown",
+                "company_logo": logo_in_card(card, _text(card.select_one(SEL["company"]))),
                 "role_title": title,
                 "location": location,
                 "location_type": location_type,

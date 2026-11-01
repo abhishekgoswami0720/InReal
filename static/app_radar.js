@@ -384,6 +384,18 @@ function logoFor(name) {
   for (const ch of clean.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return { initials: escapeHtml(initials), color: LOGO_COLORS[h % LOGO_COLORS.length] };
 }
+// The company's logo over its initials (1 Nov). Only InReal's own copy (/static/logos/, made by
+// logos.py from the logo the source site showed); while it loads, or if it fails, the initials show.
+function logoImg(src) {
+  return /^\/static\/logos\/[a-f0-9]{20}\.webp$/.test(String(src || '')) ? `<img src="${src}" alt="" loading="lazy" decoding="async">` : '';
+}
+function logoHtml(name, src, extra = '') {
+  const lg = logoFor(name);
+  return `<div class="jb-logo${extra ? ' ' + extra : ''}" style="background:${lg.color}" aria-hidden="true">${lg.initials}${logoImg(src)}</div>`;
+}
+document.addEventListener('error', (e) => {
+  if (e.target && e.target.tagName === 'IMG' && e.target.parentElement?.classList.contains('jb-logo')) e.target.remove();
+}, true);
 const isWide = () => window.matchMedia('(min-width: 1280px)').matches;
 
 function stipendTag(item) {
@@ -519,7 +531,6 @@ function renderListings(items) {
     const enter = !renderedIds.has(item.id);
     const delay = enter ? Math.min(fresh++, 10) : 0;
     const saved = bookmarks.includes(item.id);
-    const logo = logoFor(item.company_name);
     const id = escapeHtml(item.id);
     const meta = [
       item.company_name ? `<span class="font-bold text-slate-700">${escapeHtml(item.company_name)}</span>` : '',
@@ -529,7 +540,7 @@ function renderListings(items) {
     return `
       <article class="jb-card${selected === item.id ? ' is-selected' : ''}${enter ? ' jb-enter' : ''}"${enter ? ` style="--i:${delay}"` : ''} data-id="${id}" tabindex="0" role="button"
         aria-label="${escapeHtml(item.role_title || 'Internship')} at ${escapeHtml(item.company_name || 'company')}">
-        <div class="jb-logo" style="background:${logo.color}" aria-hidden="true">${logo.initials}</div>
+        ${logoHtml(item.company_name, item.logo)}
         <div class="min-w-0">
           <h3 class="jb-card-title">${escapeHtml(item.role_title || 'Internship')}</h3>
           <div class="jb-card-meta">${meta}</div>
@@ -645,7 +656,7 @@ function openDetailDrawer(id, opts) {
   document.querySelectorAll('.jb-card.is-selected').forEach(c => c.classList.remove('is-selected'));
   document.querySelector(`.jb-card[data-id="${CSS.escape(String(id))}"]`)?.classList.add('is-selected');
   const logoBox = document.getElementById('drawer-logo');
-  if (logoBox) { const lg = logoFor(item.company_name); logoBox.innerHTML = lg.initials; logoBox.style.background = lg.color; }
+  if (logoBox) { const lg = logoFor(item.company_name); logoBox.innerHTML = lg.initials + logoImg(item.logo); logoBox.style.background = lg.color; }
   const body = document.getElementById('detail-body');
   if (body) {
     body.scrollTop = 0;
@@ -2405,10 +2416,10 @@ function renderAppsList() {
       .map(([k, v]) => `<div class="apps-stat"><b>${v}</b><span>${k}</span></div>`).join('') : '';
   }
   list.innerHTML = rows.length ? rows.map(a => {
-    const logo = logoFor(a.company_name);
     const link = /^https?:\/\//i.test(a.apply_link || '') ? a.apply_link : '';
+    const post = allInternships.find(r => r.id === a.listing_id);   // the logo, if the post is still in the list
     return `<li class="app-row">
-      <div class="jb-logo" style="background:${logo.color}" aria-hidden="true">${logo.initials}</div>
+      ${logoHtml(a.company_name, post && post.logo)}
       <div class="min-w-0 flex-1">
         <div class="app-title">${escapeHtml(a.role_title || 'Internship')}</div>
         <div class="app-meta">${escapeHtml(a.company_name || '')}${a.source_platform ? ` · ${escapeHtml(a.source_platform)}` : ''}</div>

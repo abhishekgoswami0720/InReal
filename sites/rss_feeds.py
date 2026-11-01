@@ -55,7 +55,7 @@ def parse_remotive(jobs):
             j.get("url", ""), job_id=j.get("id", ""),
             stipend=j.get("salary") or "", skills=j.get("tags") or [],
             description=html_to_text(j.get("description")), posted=(j.get("publication_date") or "")[:10],
-            labelled_internship="intern" in jtype.lower()))
+            labelled_internship="intern" in jtype.lower(), logo=j.get("company_logo") or j.get("company_logo_url") or ""))
     return dedupe(out)
 
 

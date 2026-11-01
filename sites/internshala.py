@@ -24,6 +24,7 @@ from playwright_stealth import Stealth
 from filters import calculate_match_score, internship_rejection_reason, stipend_rejection_reason
 from scraper_utils import get_playwright_stealth_args, human_delay
 from sites import budget
+from sites._common import logo_in_card, logo_in_json
 
 BASE = "https://internshala.com"
 URLS = [
@@ -116,6 +117,7 @@ def parse_list_page(html: str):
             records.append({
                 "id": hashlib.md5(f"internshala-{internship_id or company_name + role_title}".encode()).hexdigest(),
                 "company_name": company_name,
+                "company_logo": logo_in_card(card, company_name, BASE),
                 "role_title": role_title,
                 "location": location,
                 "location_type": location_type,

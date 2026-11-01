@@ -478,6 +478,23 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
 - **Tradeoff:** a small race between two users picking the same name at the same moment, which the constraint catches.
 - **Commit:** `827f72f`
 
+### H9. Company logos: only the source site's logo, kept as a checked local copy
+- **Date:** 1 Nov
+- **Decision:**
+  - Scrapers record the logo the source site shows with the post (`company_logo`). Big-tech posts get the company's own icon, because they come from its own careers site.
+  - The laptop downloads each logo once in the background (`logos.py`, through `safe_get`).
+  - It is accepted only if it decodes as a real picture (no SVG, ≤ 600 KB, ≤ 4 MP). It is re-encoded as a 128 px WebP in `static/logos/`.
+  - The page gets only that copy's path. Initials show underneath until it loads, and stay if there is none.
+- **Why:**
+  - **Not looked up by company name** (logo services, favicons): a fake "Google internship" would get Google's real logo, and a scam-check app would then make scams look more real.
+  - **Not hotlinked:** LinkedIn's logo links expire, and every viewer's IP would go to those sites.
+  - **Re-encoded:** a file from another site is never served as it came, so a disguised SVG or HTML can't run on InReal's address.
+- **Tradeoff:**
+  - Posts whose site shows no logo keep initials (for example the AICTE portal).
+  - A logo appears a few seconds after the post.
+  - New dependency: Pillow.
+  - The logo selectors for each site were written without access to the live sites. Which sites actually return logos must be checked after a real search on the laptop.
+
 ---
 
 ## I. Process

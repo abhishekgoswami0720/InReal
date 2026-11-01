@@ -67,3 +67,6 @@ moderation/pattern_index.json
 .cache/
 internships*.backup-*.csv
 internships_log*.backup-*.json
+
+# local copies of company logos (logos.py), remade from the source links
+static/logos/

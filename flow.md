@@ -90,6 +90,7 @@ Then the `__main__` block runs:
 
 ```
 _hold_old_listings()            # output_handler.hold_unreleased(): unchecked rows → "held"
+logos.prefetch(read_all_rows()) # thread "logos": local copies of logos still missing
 start_publish_loop()            # thread "supabase-backfill": supabase_sync.publish(all rows), every 15 min
 moderation.pipeline.start_worker()   # thread "scam-check": runner._loop(), waits for wake() or 30 min
 waitress.serve(app, 127.0.0.1:PORT, threads=8)   # blocks here; each request runs on a waitress thread
@@ -181,6 +182,7 @@ output_handler.sync_listings(kept, dropped_ids, max_new, hold=True, run_tag)
     # under _CSV_LOCK: new → added as "held"; seen before → fields refreshed, verdict kept
     # unless the text changed; dropped on re-check → removed
 release_held(_release["left"], run_tag)               # the first 10 of a new search → queue ("")
+logos.prefetch(valid_listings)                        # thread "logos": download → check → 128 px WebP in static/logos/
 moderation.notify.start_scam_check(source)            # → pipeline.wake(): checks this site now
 ```
 
@@ -349,6 +351,7 @@ avatars everywhere: renderAvatars() → sharpenAvatars() → thumbFor(src, px)  
 | scraper | `/api/scrape` | one search | `run_scrapers` + up to 6 site threads inside it |
 | `load-more` | `/api/moderation/load-more` | one click | `load_more.fill` |
 | `second-look` | first `agent.look_later()` | always after that | one review post at a time |
+| `logos` | first `logos.prefetch()` | always after that | downloads each company logo once (`safe_get`), checks and shrinks it |
 | short publish threads | `save_verdict` → `publish_later` | one upsert | Supabase |
 
 The scraper and the scam check both write `internships.csv`. Every read and write takes `output_handler._CSV_LOCK` (an RLock). `pending_moderation(claim=True)` marks rows "checking" so that two overlapping rounds never take the same posts.
@@ -365,6 +368,7 @@ The scraper and the scam check both write `internships.csv`. Every read and writ
 | Shared judged list | Supabase `listings` | `supabase_sync.publish` (secret key, laptop) | landing page, `/app` |
 | Profiles, bookmarks, applications | Supabase tables (RLS) | the browser (publishable key) | the browser |
 | Photos and banners | Supabase Storage `avatars` | the browser | `<img>` |
+| Company logos | `static/logos/<sha1>.webp` (git-ignored) | `logos.download` | `/api/internships` adds `logo` → `logoHtml()` on cards, drawer, My applications |
 | Remembered search, theme, panel sizes | browser `localStorage` | `app_radar.js`, `theme.js` | same |
 
 ---
@@ -398,5 +402,6 @@ app.py ─► scraper ─► sites/* ─► sites/_common, sites/details, sites/
        │                         ├► fuse
        │                         └► agent ─► safe_http, langgraph, langchain-openai
        ├► moderation/load_more ─► output_handler
+       ├► logos ─► moderation/safe_http, Pillow
        └► moderation/env (load .env), sites/registry, fields
 ```
