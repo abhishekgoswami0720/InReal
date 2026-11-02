@@ -566,6 +566,19 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
   - The status is only what the user says (H1).
   - Only sites that give a date (AICTE, Unstop, Foundit) get the tag. On the laptop's current list, only the AICTE posts have one.
 
+### H11. Up to 3 fields per user; each search is still for one field
+- **Date:** 2 Nov
+- **Decision:**
+  - Onboarding and the profile form allow up to 3 fields. The first one picked is the main field (`profiles.field`); all of them are kept in `profiles.fields`.
+  - Roles and skill suggestions come from all chosen fields.
+  - The Search dialog lists "Your fields" first, then "Explore another field".
+  - A search for a field outside your list doesn't change your profile.
+- **Why:**
+  - The user wanted to explore more than one field.
+  - Every scraper builds its searches from one field. AI/ML has hand-tuned queries per site.
+  - "One search covers all fields" would have meant running every site once per field: about 2–3× the time, 2–3× the Chrome windows and LinkedIn rate limits, and more Azure checks. That option was offered and declined.
+- **Tradeoff:** to see a second field you run a second search (the field is one click in the Search dialog).
+
 ---
 
 ## I. Process

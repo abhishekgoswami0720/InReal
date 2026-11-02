@@ -79,6 +79,16 @@ let verifiedSeen = null;          // ids that had passed the check at the last r
 const PROFILE_KEY = 'inreal_profile';
 let profile = readProfile();
 let fieldLabels = { ai_ml: 'AI / Machine Learning' };
+// Up to 3 fields (2 Nov): the first is the main one; a search is still for one field at a time
+const MAX_FIELDS = 3;
+const myFields = (p) => (p && Array.isArray(p.fields) && p.fields.length ? p.fields : (p && p.field ? [p.field] : []));
+const fieldsLabel = (p) => myFields(p).map(f => fieldLabels[f] || f).join(', ');
+const rolesFor = (fieldsList) => {   // the role choices of every chosen field, each role once
+  const seen = new Set(), out = [];
+  (fieldsList || []).forEach(f => ((window.PROFILE_ROLES || {})[f] || []).forEach(r => { if (!seen.has(r.key)) { seen.add(r.key); out.push(r); } }));
+  return out;
+};
+const skillsFor = (fieldsList) => [...new Set((fieldsList || []).flatMap(f => (window.PROFILE_SKILLS || {})[f] || []))];
 function readProfile() {
   try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { return null; }
 }
@@ -149,7 +159,7 @@ function matchedSkills(item, p) {
 function roleHit(item, p) {
   const roles = (p && p.roles) || [];
   if (!roles.length) return false;
-  const defs = ((window.PROFILE_ROLES || {})[p.field] || []).filter(r => roles.includes(r.key));
+  const defs = rolesFor(myFields(p)).filter(r => roles.includes(r.key));
   const title = ` ${String(item.role_title || '').toLowerCase()} `;
   return defs.some(r => r.words.some(w => title.includes(w)));
 }
@@ -447,7 +457,7 @@ function renderListings(items) {
     let title, text, search = false, recent = false, reset = false;
     const inScope = (viewRun && !showAllSaved) ? allInternships.filter(r => r.last_run === viewRun) : allInternships;
     const inReview = inScope.filter(r => r.moderation_status === 'review').length;
-    const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').includes(profile.field));
+    const fieldEmpty = profile && !allInternships.some(r => String(r.field || 'ai_ml').split(';').some(f => myFields(profile).includes(f)));
     const runRows = (viewRun && !showAllSaved && !showBookmarkedOnly) ? allInternships.filter(r => r.last_run === viewRun) : [];
     const runChecked = runRows.filter(r => ['approved', 'review', 'blocked', 'expired'].includes(r.moderation_status)).length;
     const runChecking = runRows.filter(r => ['', 'checking'].includes(r.moderation_status || '')).length;
@@ -515,7 +525,7 @@ function renderListings(items) {
         : 'Posts show up here as each site finishes.';
       recent = true;
     } else {
-      title = fieldEmpty ? `No ${fieldLabels[profile.field] || profile.field} internships yet` : 'Nothing here yet';
+      title = fieldEmpty ? `No ${fieldsLabel(profile)} internships yet` : 'Nothing here yet';
       text = 'Search the sites for your field. New posts show up as each site finishes.';
       search = canEdit;
     }
@@ -973,7 +983,7 @@ function bindEventHandlers() {
     // (19 Oct: the dialog opened with all 23 sites ticked, one click searched them all)
     if (profile) {
       const f = document.getElementById('scrape-field');
-      if (f) f.value = profile.field;
+      if (f) { fillFieldSelect(f); f.value = (lastSearch && lastSearch.field) || profile.field; }
       setChecked('sources', profile.sources || []);
       setChecked('regions', profile.regions);
     } else {
@@ -1015,7 +1025,8 @@ function bindEventHandlers() {
         // Remember this search's choices: the next "Search Internships" and "Search more" start from them
         // (19 Oct: the window kept showing only the sites picked once in the profile form)
         if (profile) {
-          writeProfile({ ...profile, field: config.field, sources: config.sources, regions: config.regions });
+          // the field searched is not written into the profile: exploring a field doesn't change yours
+          writeProfile({ ...profile, sources: config.sources, regions: config.regions });
           saveProfileToAccount(profile);
           updateProfileUI();
           applyFiltersAndRender();   // the list shows the field just searched
@@ -1341,13 +1352,36 @@ function selectableBoxes(root, name) {
     .filter(cb => !cb.disabled && !(cb.closest('[data-site-region]') || {classList: {contains: () => false}}).classList.contains('hidden'));
 }
 
+// The Search dialog's field list: your fields first, then the rest to explore
+function fillFieldSelect(el) {
+  if (!el) return;
+  const mine = myFields(profile).filter(f => fieldLabels[f]);
+  const opt = (k) => `<option value="${escapeHtml(k)}">${escapeHtml(fieldLabels[k])}</option>`;
+  const others = Object.keys(fieldLabels).filter(k => !mine.includes(k));
+  el.innerHTML = mine.length
+    ? `<optgroup label="Your fields">${mine.map(opt).join('')}</optgroup><optgroup label="Explore another field">${others.map(opt).join('')}</optgroup>`
+    : Object.keys(fieldLabels).map(opt).join('');
+}
+// The profile form's field choice: up to MAX_FIELDS chips
+function renderFieldChips(selected) {
+  const box = document.getElementById('profile-fields');
+  if (!box) return;
+  box.innerHTML = Object.entries(fieldLabels).map(([k, label]) => `<label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900">
+      <input type="checkbox" name="p_fields" value="${escapeHtml(k)}" ${(selected || []).includes(k) ? 'checked' : ''}> ${escapeHtml(label)}</label>`).join('');
+}
+function checkedFields() {
+  const ticked = [...document.querySelectorAll('input[name="p_fields"]:checked')].map(cb => cb.value);
+  const main = profile && ticked.includes(profile.field) ? [profile.field] : [];   // the main field stays first
+  return [...main, ...ticked.filter(f => !main.includes(f))].slice(0, MAX_FIELDS);
+}
+
 async function initProfile() {
   await loadSites();
   try {
     const list = await fetch('/api/fields').then(r => r.json());
     fieldLabels = Object.fromEntries(list.map(f => [f.key, f.label]));
-    const options = list.map(f => `<option value="${escapeHtml(f.key)}">${escapeHtml(f.label)}</option>`).join('');
-    ['profile-field', 'scrape-field'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = options; });
+    fillFieldSelect(document.getElementById('scrape-field'));
+    renderFieldChips(myFields(profile));
   } catch (e) { /* app restarting: the defaults still work */ }
 
   document.getElementById('edit-profile-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleProfileMenu(); });
@@ -1382,8 +1416,14 @@ function bindProfileForm() {
     const btn = e.target.closest('.pstep');
     if (btn && !btn.disabled) showProfileStep(Number(btn.dataset.step));
   });
-  document.getElementById('profile-field').addEventListener('change', e => {
-    renderRoleChips(e.target.value, collectProfile().roles);
+  document.getElementById('profile-fields').addEventListener('change', e => {
+    if (e.target.name !== 'p_fields') return;
+    if (e.target.checked && document.querySelectorAll('input[name="p_fields"]:checked').length > MAX_FIELDS) {
+      e.target.checked = false;
+      showToast('info', `Up to ${MAX_FIELDS} fields`, 'Untick one to pick another.');
+      return;
+    }
+    renderRoleChips(checkedFields(), collectProfile().roles);
     renderSkills();
   });
   form.addEventListener('change', () => showProfileStep(profileStep));   // ticks follow the answers
@@ -1454,23 +1494,22 @@ const requiredDone = (p) => sectionDone(p, 1) && sectionDone(p, 2);
 const reachableUpTo = (p) => ([1, 2, 3, 4].find(k => !sectionDone(p, k)) || PROFILE_STEPS);
 const SECTION_TODO = {
   1: ['Finish "About you"', 'Add your name and pick where you are right now.'],
-  2: ['Finish "What you want"', 'Choose your field and at least one role.'],
+  2: ['Finish "What you want"', 'Choose up to 3 fields and at least one role.'],
   3: ['Add at least 3 skills', 'Pick from the suggestions or type your own. Or "Skip for now".'],
   4: ['Answer all three', 'Pick a work mode, a minimum stipend and a duration ("Any" is fine). Or "Skip for now".'],
   5: ['Pick your regions', 'Choose at least one region.'],
 };
 
-function renderRoleChips(field, selected) {
+function renderRoleChips(fieldsList, selected) {
   const box = document.getElementById('profile-roles');
   if (!box) return;
-  const roles = (window.PROFILE_ROLES || {})[field] || [];
+  const roles = rolesFor(Array.isArray(fieldsList) ? fieldsList : [fieldsList]);
   box.innerHTML = roles.length ? roles.map(r => `<label class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-white has-[:checked]:bg-orange-50 has-[:checked]:border-orange-300 has-[:checked]:text-orange-900">
       <input type="checkbox" name="p_roles" value="${escapeHtml(r.key)}" ${(selected || []).includes(r.key) ? 'checked' : ''}> ${escapeHtml(r.label)}</label>`).join('')
     : '<p class="text-slate-500 col-span-2">No role choices for this field yet.</p>';
 }
 
 function renderSkills() {
-  const field = document.getElementById('profile-field')?.value;
   const chosen = document.getElementById('profile-skills');
   const lower = draftSkills.map(x => x.toLowerCase());
   if (chosen) chosen.innerHTML = draftSkills.length
@@ -1478,7 +1517,7 @@ function renderSkills() {
         <button type="button" data-skill-remove="${i}" class="w-5 h-5 rounded-full hover:bg-white/20 flex items-center justify-center" aria-label="Remove ${escapeHtml(sk)}">×</button></span>`).join('')
     : '<span class="text-slate-400 px-1 py-1">No skills yet. Pick from the suggestions or type your own.</span>';
   const suggest = document.getElementById('profile-skill-suggest');
-  const list = ((window.PROFILE_SKILLS || {})[field] || []).filter(sk => !lower.includes(sk.toLowerCase()));
+  const list = skillsFor(checkedFields()).filter(sk => !lower.includes(sk.toLowerCase()));
   if (suggest) suggest.innerHTML = list.map(sk => `<button type="button" data-skill-add="${escapeHtml(sk)}" class="px-2.5 py-1 rounded-full border border-slate-300 bg-white text-[11px] font-bold text-slate-700 hover:border-orange-400 hover:text-orange-700">+ ${escapeHtml(sk)}</button>`).join('')
     || '<span class="text-slate-400">All suggestions added.</span>';
   const count = document.getElementById('profile-skill-count');
@@ -1506,7 +1545,8 @@ function collectProfile() {
     name: document.getElementById('profile-name').value.trim(),
     study_year: radio('study_year'),
     experience: radio('experience') || '0',
-    field: document.getElementById('profile-field').value || '',
+    field: checkedFields()[0] || '',
+    fields: checkedFields(),
     roles: checked('p_roles'),
     skills: draftSkills.slice(),
     work_mode: radio('work_mode'),
@@ -1550,10 +1590,10 @@ function openProfileModal(firstVisit, step) {
   profileMandatory = !!firstVisit || !requiredDone(profile);
   const p = profile || {};
   document.getElementById('profile-name').value = p.name || document.getElementById('profile-name').value || '';
-  if (p.field) document.getElementById('profile-field').value = p.field;
+  renderFieldChips(myFields(p));
   setRadio('study_year', p.study_year);
   setRadio('experience', p.experience || '0');
-  renderRoleChips(document.getElementById('profile-field').value, p.roles);
+  renderRoleChips(myFields(p), p.roles);
   draftSkills = (p.skills || []).slice(0, SKILL_LIMIT);
   renderSkills();
   setRadio('work_mode', p.work_mode);
@@ -1619,7 +1659,7 @@ async function onProfileNext() {
   }
   if (profileMandatory && profileStep === 1) { showProfileStep(2); return; }
   if (!draft.field) { showProfileStep(2); showToast('error', 'Choose a field', 'Pick the field you want an internship in.'); return; }
-  const hasRoles = ((window.PROFILE_ROLES || {})[draft.field] || []).length > 0;
+  const hasRoles = rolesFor(draft.fields).length > 0;
   if (profileMandatory && hasRoles && !draft.roles.length) {
     showToast('error', 'Pick at least one role', 'Choose the roles you want, so the right posts come first.');
     return;
@@ -1747,7 +1787,7 @@ function updateProfileUI() {
     if (box) box.classList.add('hidden');
     return;
   }
-  const field = fieldLabels[profile.field] || profile.field;
+  const field = fieldsLabel(profile);
   if (label) label.textContent = profile.name ? `${profile.name} · ${field}` : field;
   renderAvatars();
   if (box) {
@@ -2009,7 +2049,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function announceNewlyVerified(rows) {
   const mine = rows.filter(r => r.moderation_status === 'approved' &&
     !freshVisit && (!viewRun || r.last_run === viewRun) &&
-    (!profile || String(r.field || 'ai_ml').split(';').includes(profile.field)) &&
+    (!profile || viewRun || String(r.field || 'ai_ml').split(';').some(f => myFields(profile).includes(f))) &&
     !(profile && profile.experience !== '0' && isUnpaid(r)));
   const ids = new Set(mine.map(r => r.id));
   if (verifiedSeen) {
@@ -2173,7 +2213,7 @@ async function startSession() {
 // photo on the avatar, a sign-out button, and the Admin link for accounts with is_admin.
 function saveProfileToAccount(p) {
   if (!sb || !sbUserId || !p) return;
-  const row = { name: p.name || null, field: p.field || null, experience: p.experience || '0',
+  const row = { name: p.name || null, field: p.field || null, fields: myFields(p).slice(0, MAX_FIELDS), experience: p.experience || '0',
                 companies: p.companies || [], sources: p.sources || [], regions: p.regions || [],
                 study_year: p.study_year || null, roles: p.roles || [], skills: (p.skills || []).slice(0, 15),
                 work_mode: p.work_mode || null, max_duration: p.max_duration || null,
@@ -2211,7 +2251,7 @@ async function requireSignIn() {
 
   const meta = user.user_metadata || {};
   sbUserId = user.id;
-  const COLS = 'name,avatar_url,username,avatar_preset,banner_url,banner_preset,is_admin,field,experience,companies,sources,regions,study_year,roles,skills,work_mode,min_stipend,max_duration';
+  const COLS = 'name,avatar_url,username,avatar_preset,banner_url,banner_preset,is_admin,field,fields,experience,companies,sources,regions,study_year,roles,skills,work_mode,min_stipend,max_duration';
   let { data: account, error: accountError } = await sb.from('profiles').select(COLS).eq('id', user.id).maybeSingle();
   if (!accountError && !account) {   // the row is missing (deleted by hand): make it again
     await sb.rpc('ensure_profile');
@@ -2224,6 +2264,7 @@ async function requireSignIn() {
     writeProfile({
       name: account.name || meta.full_name || '',
       field: account.field,
+      fields: (account.fields && account.fields.length) ? account.fields : [account.field],
       experience: account.experience || '0',
       companies: account.companies || [],
       sources: account.sources || [],
@@ -2664,7 +2705,7 @@ function fillMe() {
   const { pct } = profileCompletion(profile);
   set('me-title', p.name || 'You');
   set('me-username', identity.username ? `@${identity.username}` : '@pick-a-username');
-  set('me-field', fieldLabels[p.field] || p.field || 'No field yet');
+  set('me-field', fieldsLabel(p) || 'No field yet');
   set('me-level', PROFILE_LEVELS[pct / 20]);
   set('me-pct', `${pct}% profile`);
   const count = (st) => allInternships.filter(r => r.moderation_status === st).length;
@@ -2692,7 +2733,7 @@ function renderMeSummary() {
   const box = document.getElementById('me-summary');
   if (!box) return;
   const p = profile || {};
-  const roleLabels = Object.fromEntries(((window.PROFILE_ROLES || {})[p.field] || []).map(r => [r.key, r.label]));
+  const roleLabels = Object.fromEntries(rolesFor(myFields(p)).map(r => [r.key, r.label]));
   const chips = (list) => (list || []).length ? (list || []).map(x => `<span class="me-tag">${escapeHtml(x)}</span>`).join('') : '<span class="me-empty">Not set</span>';
   const year = p.study_year ? (p.study_year === 'grad' ? 'Graduated' : `${p.study_year}${{ 1: 'st', 2: 'nd', 3: 'rd' }[p.study_year] || 'th'} year`) : '';
   const exp = { '0': 'No experience yet', '1-2': '1–2 years', '3+': '3+ years' }[p.experience] || '';
@@ -2701,7 +2742,7 @@ function renderMeSummary() {
   const dur = p.max_duration && p.max_duration !== 'any' ? `Up to ${p.max_duration} months` : (p.max_duration === 'any' ? 'Any length' : '');
   const parts = [
     [1, 'About you', chips([year, exp].filter(Boolean))],
-    [2, 'What you want', chips([fieldLabels[p.field] || p.field, ...(p.roles || []).map(r => roleLabels[r] || r)].filter(Boolean))],
+    [2, 'What you want', chips([...myFields(p).map(f => fieldLabels[f] || f), ...(p.roles || []).map(r => roleLabels[r] || r)].filter(Boolean))],
     [3, 'Skills', chips(p.skills)],
     [4, 'Preferences', chips([mode, stipend, dur, ...(p.companies || []).map(c => `★ ${c}`)].filter(Boolean))],
     [5, 'Search', chips((p.regions || []).map(r => r.charAt(0).toUpperCase() + r.slice(1)))],

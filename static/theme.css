@@ -885,3 +885,7 @@ html.dark .app-status select { background-color: #1E293B; border-color: #334155;
 html.dark .app-status-interview select { background-color: rgba(59, 130, 246, .15); border-color: rgba(59, 130, 246, .4); color: #93C5FD; }
 html.dark .app-status-offer select { background-color: rgba(16, 185, 129, .14); border-color: rgba(16, 185, 129, .4); color: #6EE7B7; }
 .apps-stats { flex-wrap: wrap; }
+
+/* onboarding: the first field picked is the main one (2 Nov) */
+.ob-main { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: #FFEDD5; color: #C2410C; }
+html.dark .ob-main { background: rgba(249, 115, 22, .18); color: #FDBA74; }

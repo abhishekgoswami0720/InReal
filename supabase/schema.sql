@@ -296,3 +296,13 @@ grant update (status, status_at) on public.applications to authenticated;
 drop policy if exists "own applications: change status" on public.applications;
 create policy "own applications: change status" on public.applications for update to authenticated
   using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Up to 3 fields per user (2 Nov 2026). `field` stays the main one (the first picked); `fields`
+-- holds all of them. A search is still for one field at a time.
+alter table public.profiles add column if not exists fields text[] not null default '{}';
+alter table public.profiles drop constraint if exists profiles_fields_max;
+alter table public.profiles add constraint profiles_fields_max
+  check (cardinality(fields) <= 3 and array_to_string(fields, ',') ~ '^[a-z_,]{0,80}$');
+grant update (fields) on public.profiles to authenticated;
+update public.profiles set fields = array[field] where field is not null and cardinality(fields) = 0;

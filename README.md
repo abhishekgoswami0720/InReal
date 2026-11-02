@@ -77,7 +77,8 @@ The home page has a 30-second game. One of these two posts is a scam. Which one?
 <p align="center"><img src="docs/readme/screen-onboarding.png" alt="Onboarding: one question per screen, starting with 'First, what's your name?'" width="70%"></p>
 
 - **Sign in with Google.** No password.
-- **Answer a few questions,** one per screen: your field, your year, the roles and skills you want.
+- **Answer a few questions,** one per screen: your fields (up to 3 to explore), your year, the roles and skills you want.
+  Each search is for one field; your fields are listed first in the search window.
 - **Your list sorts itself:** companies you like first, then your role, then your skills.
   Posts below your minimum stipend or outside your work mode are hidden, and each of those rules is
   shown as a chip above the list, so you can switch one off for a moment without editing your profile.

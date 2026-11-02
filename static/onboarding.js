@@ -7,7 +7,7 @@ const OB = { i: 0, answers: {}, phase: 'required', locked: false };
 
 function obQuestions() {
   const a = OB.answers;
-  const roles = ((window.PROFILE_ROLES || {})[a.field] || []).map(r => ({ v: r.key, t: r.label }));
+  const roles = rolesFor(a.fields || []).map(r => ({ v: r.key, t: r.label }));
   const fields = Object.entries(fieldLabels || {}).map(([v, t]) => ({ v, t }));
   return [
     { key: 'name', part: 'required', kind: 'text', q: "First, what's your name?", hint: 'Only you see it.', placeholder: 'Type your name' },
@@ -15,7 +15,8 @@ function obQuestions() {
       options: [{ v: '1', t: '1st year' }, { v: '2', t: '2nd year' }, { v: '3', t: '3rd year' }, { v: '4', t: '4th year' }, { v: 'grad', t: 'Graduated' }] },
     { key: 'experience', part: 'required', kind: 'one', q: 'How much work experience do you have?', hint: 'Unpaid internships are shown only with 0 years.',
       options: [{ v: '0', t: '0 years' }, { v: '1-2', t: '1–2 years' }, { v: '3+', t: '3+ years' }] },
-    { key: 'field', part: 'required', kind: 'one', q: 'Which field do you want an internship in?', options: fields },
+    { key: 'fields', part: 'required', kind: 'many', max: MAX_FIELDS, q: 'Which fields do you want an internship in?',
+      hint: 'Pick up to 3 to explore. The first one you pick is your main field; each search is for one of them.', options: fields },
     { key: 'roles', part: 'required', kind: 'many', q: 'Which roles? Pick all that fit.', hint: 'Posts for these roles come first in your list.', options: roles },
     { key: 'skills', part: 'optional', kind: 'skills', q: 'What are your skills?', hint: 'Pick at least 3. Each card shows how many of them the post asks for.' },
     { key: 'work_mode', part: 'optional', kind: 'one', q: 'How do you want to work?',
@@ -52,7 +53,7 @@ function openOnboarding() {
   const p = profile || {};
   OB.answers = {
     name: p.name || document.getElementById('profile-name')?.value || '',
-    study_year: p.study_year || null, experience: p.experience || null, field: p.field || null,
+    study_year: p.study_year || null, experience: p.experience || null, fields: myFields(p).slice(),
     roles: (p.roles || []).slice(), skills: (p.skills || []).slice(0, SKILL_LIMIT),
     work_mode: p.work_mode || null, min_stipend: p.min_stipend ?? null, max_duration: p.max_duration || null,
     companies: (p.companies || []).join(', '), regions: (p.regions && p.regions.length) ? p.regions.slice() : ['india', 'usa', 'europe', 'remote', 'worldwide'],
@@ -79,7 +80,8 @@ function obSave() {
   const a = OB.answers;
   const next = {
     ...(profile || {}),
-    name: String(a.name || '').trim(), study_year: a.study_year, experience: a.experience || '0', field: a.field,
+    name: String(a.name || '').trim(), study_year: a.study_year, experience: a.experience || '0',
+    field: (a.fields || [])[0] || null, fields: (a.fields || []).slice(0, MAX_FIELDS),
     roles: a.roles || [], skills: (a.skills || []).slice(0, SKILL_LIMIT),
     work_mode: a.work_mode || null, max_duration: a.max_duration || null,
     min_stipend: a.min_stipend == null || a.min_stipend === '' ? null : Number(a.min_stipend),
@@ -127,12 +129,12 @@ function obRender(dir) {
       input = `<div class="grid gap-2 ${q.options.length > 6 ? 'sm:grid-cols-2' : ''} max-w-xl">` + q.options.map((o, k) => {
         const on = sel.includes(String(o.v));
         return `<button type="button" data-ob-choice="${escapeHtml(String(o.v))}" class="ob-choice ${on ? 'on' : ''} flex items-center gap-3 text-left px-4 py-3 rounded-xl border text-base font-semibold">
-          <span class="ob-key">${letters[k]}</span><span class="flex-1">${escapeHtml(o.t)}</span>${on ? '<span class="text-orange-600">✓</span>' : ''}</button>`;
+          <span class="ob-key">${letters[k]}</span><span class="flex-1">${escapeHtml(o.t)}</span>${on && q.key === 'fields' && sel[0] === String(o.v) && sel.length > 1 ? '<span class="ob-main">Main</span>' : ''}${on ? '<span class="text-orange-600">✓</span>' : ''}</button>`;
       }).join('') + '</div>' + (q.options.length ? '' : '<p class="text-slate-500">No role choices for this field yet.</p>');
     } else if (q.kind === 'skills') {
       const have = (v || []);
       const lower = have.map(x => x.toLowerCase());
-      const sugg = ((window.PROFILE_SKILLS || {})[OB.answers.field] || []).filter(s => !lower.includes(s.toLowerCase()));
+      const sugg = skillsFor(OB.answers.fields || []).filter(s => !lower.includes(s.toLowerCase()));
       input = `<div class="flex flex-wrap gap-2 min-h-[44px] mb-3">${have.map((s, k) => `<span class="inline-flex items-center gap-1 pl-3 pr-1 py-1.5 rounded-full bg-orange-500 text-white text-sm font-bold">${escapeHtml(s)}<button type="button" data-ob-skill-rm="${k}" class="w-6 h-6 rounded-full hover:bg-white/20" aria-label="Remove ${escapeHtml(s)}">×</button></span>`).join('') || '<span class="text-slate-400 py-1.5">No skills yet.</span>'}</div>
         <input data-ob-skill type="text" maxlength="40" placeholder="Type a skill and press Enter" class="w-full bg-transparent border-0 border-b-2 border-slate-300 focus:border-orange-500 focus:outline-none text-lg py-2 text-slate-900 placeholder:text-slate-300">
         <div class="flex flex-wrap gap-2 mt-4">${sugg.map(s => `<button type="button" data-ob-skill-add="${escapeHtml(s)}" class="px-3 py-1.5 rounded-full border border-slate-300 bg-white text-sm font-bold text-slate-700 hover:border-orange-400 hover:text-orange-700">+ ${escapeHtml(s)}</button>`).join('')}</div>
@@ -144,7 +146,7 @@ function obRender(dir) {
       <div class="text-sm font-bold text-orange-600 mb-3 flex items-center gap-2">${OB.i + 1} <span class="text-slate-400">→</span> <span class="text-slate-400 font-semibold">${q.part === 'required' ? 'Required' : 'Optional'}</span></div>
       <h2 id="ob-q" class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 leading-tight">${escapeHtml(q.q)}${q.part === 'required' ? ' <span class="text-orange-500">*</span>' : ''}</h2>
       ${q.hint ? `<p class="text-slate-500 mt-2 text-base">${escapeHtml(q.hint)}</p>` : ''}
-      ${multi && q.kind === 'many' ? '<p class="text-slate-500 mt-1 text-sm">Choose as many as you like</p>' : ''}
+      ${multi && q.kind === 'many' ? `<p class="text-slate-500 mt-1 text-sm">${q.max ? `Choose up to ${q.max} (${(v || []).length} chosen)` : 'Choose as many as you like'}</p>` : ''}
       <div class="mt-6">${input}</div>
       <div class="flex items-center gap-3 mt-7">
         <button type="button" data-ob="next" class="glass-btn glass-btn-primary px-5 py-3 text-sm ${valid ? '' : 'opacity-50'}">${q.part === 'optional' && OB.i === total - 1 ? 'Finish' : 'OK'} ✓</button>
@@ -199,13 +201,19 @@ function obChoose(val) {
   const q = obQuestions()[OB.i];
   if (q.kind === 'one') {
     OB.answers[q.key] = val;
-    if (q.key === 'field') OB.answers.roles = (OB.answers.roles || []).filter(r => ((window.PROFILE_ROLES || {})[val] || []).some(x => x.key === r));
     obRender('none');
     setTimeout(() => obGo(1), 280);   // a single choice moves on by itself
   } else if (q.kind === 'many') {
-    const cur = new Set(OB.answers[q.key] || []);
-    cur.has(val) ? cur.delete(val) : cur.add(val);
-    OB.answers[q.key] = [...cur];
+    const cur = (OB.answers[q.key] || []).slice();   // kept in the order picked: the first field is the main one
+    const at = cur.indexOf(val);
+    if (at >= 0) cur.splice(at, 1);
+    else if (q.max && cur.length >= q.max) { showToast('info', `Up to ${q.max}`, 'Untick one to pick another.'); return; }
+    else cur.push(val);
+    OB.answers[q.key] = cur;
+    if (q.key === 'fields') {   // roles that no chosen field has any more are dropped
+      const keep = new Set(rolesFor(cur).map(r => r.key));
+      OB.answers.roles = (OB.answers.roles || []).filter(r => keep.has(r));
+    }
     obRender('none');
   }
 }

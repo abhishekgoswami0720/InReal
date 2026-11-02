@@ -615,10 +615,10 @@
 
         <!-- 2 · What you want -->
         <section data-section="2" class="space-y-4" hidden>
-          <div>
-            <label for="profile-field" class="font-bold text-slate-700 block mb-1.5">Field you want an internship in</label>
-            <select id="profile-field" required class="filter-select w-full"></select>
-          </div>
+          <fieldset>
+            <legend class="font-bold text-slate-700 mb-1.5">Fields you want an internship in <span class="font-medium text-slate-400">(up to 3; the first is your main one)</span></legend>
+            <div id="profile-fields" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+          </fieldset>
           <fieldset>
             <legend class="font-bold text-slate-700 mb-1.5">Which roles? <span class="font-medium text-slate-400">(pick any that fit)</span></legend>
             <div id="profile-roles" class="grid grid-cols-2 gap-2"></div>
