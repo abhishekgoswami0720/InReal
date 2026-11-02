@@ -158,3 +158,10 @@ def test_a_big_but_real_logo_is_kept(logo_dir):
     url = "https://internship.aicte-india.org/api/v1/media/logo/big.png"   # 2420 x 2420, as AICTE sent
     assert logos.download(url, get=lambda u, **k: (_Resp(_png(2420, 2420)), [u]))
     assert logos.cached(url)
+
+
+def test_image_servers_get_a_browser_like_request():
+    h = logos.request_headers("https://media.monsterindia.com/logos/x/jdlogo.gif")
+    assert h["Referer"] == "https://www.foundit.in/" and "Chrome" in h["User-Agent"]
+    assert logos.request_headers("https://apna-organization-logos.gumlet.io/p/a.png")["Referer"] == "https://apna.co/"
+    assert "Referer" not in logos.request_headers("https://evilgumlet.io/a.png")

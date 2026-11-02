@@ -84,13 +84,32 @@ def shrink(data: bytes) -> bytes:
     return out.getvalue()
 
 
+# Some image servers refuse a request that doesn't look like their own site's page asking (2 Nov:
+# Foundit's media.monsterindia.com answered 403, Apna's gumlet.io reset the connection).
+UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36")
+REFERERS = {"monsterindia.com": "https://www.foundit.in/", "gumlet.io": "https://apna.co/",
+            "apna.co": "https://apna.co/", "licdn.com": "https://www.linkedin.com/",
+            "naukimg.com": "https://www.naukri.com/", "internshala.com": "https://internshala.com/"}
+
+
+def request_headers(url: str) -> dict:
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or "").lower()
+    headers = {"Accept": "image/avif,image/webp,image/png,image/*;q=0.8", "User-Agent": UA}
+    for suffix, ref in REFERERS.items():
+        if host == suffix or host.endswith("." + suffix):
+            headers["Referer"] = ref
+    return headers
+
+
 def download(url: str, get=None) -> bool:
     """Fetches one logo and saves the copy. True when the copy exists afterwards."""
     if cached(url):
         return True
     if get is None:
         from moderation.safe_http import safe_get as get
-    got = get(url, timeout=TIMEOUT_S, headers={"Accept": "image/avif,image/webp,image/png,image/*;q=0.8"})
+    got = get(url, timeout=TIMEOUT_S, headers=request_headers(url))
     resp = got[0] if isinstance(got, tuple) else got   # safe_get returns (response, redirect chain)
     try:
         if resp.status_code != 200:
