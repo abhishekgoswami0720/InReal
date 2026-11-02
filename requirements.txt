@@ -11,14 +11,12 @@ playwright-stealth
 requests
 beautifulsoup4
 lxml
-feedparser
 
 # ── Search Engine (try ddgs first, fall back to duckduckgo-search) ─────────────
 ddgs
 duckduckgo-search>=6.0.0
 
 # ── Data Handling ──────────────────────────────────────────────────────────────
-pandas
 dateparser
 
 # ── Anti-Detection & Reliability ───────────────────────────────────────────────
