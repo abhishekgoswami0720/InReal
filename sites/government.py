@@ -36,10 +36,14 @@ BASE = "https://internship.aicte-india.org"
 
 
 def _logo(x: dict) -> str:
-    """The organisation's logo. The API writes its own server's internal address
-    (http://localhost:3090/api/v1/media/logo/...), which the public site serves under BASE; the
-    portal's own AICTE logo (given when an organisation has none) is not the company's logo."""
-    url = logo_in_json(x)
+    return fix_logo_url(logo_in_json(x))
+
+
+def fix_logo_url(url: str) -> str:
+    """The API writes its own server's internal address (http://localhost:3090/api/v1/media/logo/...),
+    which the public site serves under BASE; the portal's own AICTE logo (given when an organisation
+    has none) is not the company's logo. Also used by logos.py for posts saved before this fix."""
+    url = str(url or "")
     m = re.match(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?(/api/v1/media/.+)$", url)
     if m:
         url = BASE + m.group(3)

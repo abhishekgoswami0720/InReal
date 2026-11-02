@@ -144,3 +144,11 @@ def test_download_unpacks_what_safe_get_returns(logo_dir, monkeypatch):
     import moderation.safe_http as sh
     monkeypatch.setattr(sh, "safe_get", lambda url, **k: (_Resp(_png()), [url]))
     assert logos.download("https://cdn.example.com/real.png")   # 2 Nov: the tuple broke every download
+
+
+def test_aicte_posts_saved_before_the_fix_get_the_public_link():
+    row = {"source_platform": "AICTE Internship Portal (Govt of India)",
+           "company_logo": "http://localhost:3090/api/v1/media/logo/CORPORATE68.png"}
+    assert logos.source_logo(row) == "https://internship.aicte-india.org/api/v1/media/logo/CORPORATE68.png"
+    row["company_logo"] = "https://internship.aicte-india.org/images/new_logo/logo_internship_new.jpg"
+    assert logos.source_logo(row) == ""

@@ -44,6 +44,9 @@ _worker = {"thread": None}
 def source_logo(row: dict) -> str:
     """The logo link for one post: what its site showed, or its own career site's icon."""
     url = str(row.get("company_logo") or "").strip()
+    if url and "AICTE" in str(row.get("source_platform") or ""):
+        from sites.government import fix_logo_url
+        url = fix_logo_url(url)   # posts saved before 2 Nov kept the API's internal address
     if url:
         return url
     domain = OWN_SITES.get(str(row.get("source_platform") or ""))

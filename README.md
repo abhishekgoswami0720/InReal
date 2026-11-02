@@ -9,7 +9,7 @@
 ![Playwright](https://img.shields.io/badge/Playwright-Chromium-2EAD33?logo=playwright&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Auth%20%2B%20Postgres-3ECF8E?logo=supabase&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-scam%20check%20agent-1C3C3C?logo=langchain&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-201%20passing-2ea043)
+![Tests](https://img.shields.io/badge/tests-202%20passing-2ea043)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 </div>
