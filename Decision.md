@@ -575,6 +575,13 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
 - **Why:** tests that call Azure or live sites are slow, cost money and break when a site changes.
 - **Tradeoff:** a change in a live site shows up only in a manual run (`test_sites.py`).
 
+- **Added 2 Nov:**
+  - Tests never read the real `.env`. `conftest.py` sets `INREAL_TESTS=1`, and `load_env` then skips the file.
+  - Golden answers are keyed on floats rounded to 9 decimals.
+  - **Why:**
+    - On the laptop, one test built the pattern index with the real Azure deployment (`EMBED_PROVIDER=azure` from `.env`), and 3 tests failed there only.
+    - `math.cos` differs in the last bit between Windows and Linux, so one exact-bits key never matched on Windows.
+
 ### I2. Push only when asked; `.env` is never committed
 - **Decision:** commits stay local until Abhishek says "push". Secrets live only in `.env`, which is git-ignored.
 - **Why:** this is the owner's rule. The Azure and Supabase secret keys must never reach GitHub or the browser.

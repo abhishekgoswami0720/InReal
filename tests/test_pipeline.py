@@ -26,11 +26,27 @@ GOLDEN = Path(__file__).parent / "fixtures" / "n8n_golden.json"
 _golden = json.loads(GOLDEN.read_text(encoding="utf-8"))
 
 
+def _rounded(x):
+    """Floats cut to 9 decimals: math.cos/sin differ in the last bit between Windows and Linux
+    (2 Nov 2026: the exact-bits key of one sweep test only matched on Linux)."""
+    if isinstance(x, float):
+        return round(x, 9)
+    if isinstance(x, list):
+        return [_rounded(v) for v in x]
+    if isinstance(x, dict):
+        return {k: _rounded(v) for k, v in x.items()}
+    return x
+
+
+def _key(*parts):
+    import hashlib
+    return hashlib.sha256(json.dumps(list(parts), sort_keys=True).encode()).hexdigest()[:24]
+
+
 def js(files, fn, *args):
     """The recorded n8n answer for this call (files and fn name the old JavaScript)."""
-    import hashlib
     args = json.loads(json.dumps(args))
-    key = hashlib.sha256(json.dumps([files, fn, args], sort_keys=True).encode()).hexdigest()[:24]
+    key = "r" + _key(files, fn, _rounded(args))
     assert key in _golden, f"no recorded n8n answer for {fn}: the test input changed"
     return _golden[key]
 

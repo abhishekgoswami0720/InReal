@@ -14,8 +14,8 @@ def load_env(path: Path = ENV_FILE):
     AZURE_OPENAI_* left over from another project silently replaced the .env values -> 401.)
     AZURE_OPENAI_API_KEY (the name LangChain projects use) is accepted for AZURE_OPENAI_KEY.
     """
-    if not path.exists():
-        return
+    if not path.exists() or (os.environ.get("INREAL_TESTS") == "1" and path == ENV_FILE):
+        return   # tests never read the real .env (2 Nov 2026: one called the real Azure deployment)
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:

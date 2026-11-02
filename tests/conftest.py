@@ -2,7 +2,13 @@
 import sys
 from pathlib import Path
 
+import os
+
 import pytest
+
+# The laptop's .env (Azure keys, EMBED_PROVIDER=azure, Supabase) must not reach the tests: with it,
+# a test called the real Azure deployment and 3 tests failed on the laptop only (2 Nov 2026).
+os.environ["INREAL_TESTS"] = "1"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

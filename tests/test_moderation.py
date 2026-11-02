@@ -33,15 +33,18 @@ def gemini():
 @pytest.fixture(scope="module")
 def index(gemini, tmp_path_factory, monkeypatch_module=None):
     out = tmp_path_factory.mktemp("idx") / "pattern_index.json"
-    old = build_index.INDEX
+    old, old_load = build_index.INDEX, build_index.load_env
     build_index.INDEX = out
-    env = {"GEMINI_API_KEY": "test-key", "GEMINI_API_BASE": gemini}
+    # the laptop's .env (EMBED_PROVIDER=azure) must not leak in: load_env would override these
+    # and the test would call the real Azure deployment (2 Nov 2026: it did, and 3 tests failed)
+    build_index.load_env = lambda *a, **k: None
+    env = {"GEMINI_API_KEY": "test-key", "GEMINI_API_BASE": gemini, "EMBED_PROVIDER": "gemini"}
     saved = {k: build_index.os.environ.get(k) for k in env}
     build_index.os.environ.update(env)
     try:
         build_index.main()
     finally:
-        build_index.INDEX = old
+        build_index.INDEX, build_index.load_env = old, old_load
         for k, v in saved.items():
             if v is None:
                 build_index.os.environ.pop(k, None)

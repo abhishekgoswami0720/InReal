@@ -92,7 +92,7 @@ def test_only_the_sites_logo_never_a_lookup_by_name():
 def test_download_saves_a_small_webp_copy(logo_dir):
     url = "https://cdn.example.com/acme.png"
     assert logos.cached(url) == ""
-    assert logos.download(url, get=lambda u, **k: _Resp(_png()))
+    assert logos.download(url, get=lambda u, **k: (_Resp(_png()), [u]))
     path = logos.cached(url)
     assert path.startswith("/static/logos/") and path.endswith(".webp")
     img = Image.open(logo_dir / path.rsplit("/", 1)[1])
@@ -108,7 +108,7 @@ def test_download_saves_a_small_webp_copy(logo_dir):
 ])
 def test_download_refuses_what_is_not_a_logo(logo_dir, resp):
     with pytest.raises(Exception):
-        logos.download("https://cdn.example.com/bad.png", get=lambda u, **k: resp)
+        logos.download("https://cdn.example.com/bad.png", get=lambda u, **k: (resp, [u]))
     assert logos.cached("https://cdn.example.com/bad.png") == ""
 
 
@@ -122,7 +122,7 @@ def test_api_sends_only_the_local_copy(logo_dir, tmp_path, monkeypatch):
     import app as app_mod
     import output_handler as oh
     url = "https://cdn.example.com/acme.png"
-    logos.download(url, get=lambda u, **k: _Resp(_png()))
+    logos.download(url, get=lambda u, **k: (_Resp(_png()), [u]))
     rows = [{"id": "a", "company_name": "Acme", "company_logo": url, "source_platform": "Internshala"},
             {"id": "b", "company_name": "Beta", "company_logo": "https://cdn.example.com/missing.png"}]
     monkeypatch.setattr(oh, "read_all_rows", lambda: [dict(r) for r in rows])
@@ -131,3 +131,16 @@ def test_api_sends_only_the_local_copy(logo_dir, tmp_path, monkeypatch):
     by_id = {r["id"]: r for r in data}
     assert by_id["a"]["logo"] == logos.cached(url) and by_id["b"]["logo"] == ""
     assert all("company_logo" not in r for r in data)        # the other site's link never reaches the page
+
+
+def test_aicte_logo_links_point_to_the_public_site_and_skip_the_portals_own_logo():
+    from sites.government import _logo
+    assert _logo({"logo": "http://localhost:3090/api/v1/media/logo/CORPORATE68.png"}) == \
+        "https://internship.aicte-india.org/api/v1/media/logo/CORPORATE68.png"
+    assert _logo({"logo": "https://internship.aicte-india.org/images/new_logo/logo_internship_new.jpg"}) == ""
+
+
+def test_download_unpacks_what_safe_get_returns(logo_dir, monkeypatch):
+    import moderation.safe_http as sh
+    monkeypatch.setattr(sh, "safe_get", lambda url, **k: (_Resp(_png()), [url]))
+    assert logos.download("https://cdn.example.com/real.png")   # 2 Nov: the tuple broke every download

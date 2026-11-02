@@ -87,7 +87,8 @@ def download(url: str, get=None) -> bool:
         return True
     if get is None:
         from moderation.safe_http import safe_get as get
-    resp = get(url, timeout=TIMEOUT_S, headers={"Accept": "image/avif,image/webp,image/png,image/*;q=0.8"})
+    got = get(url, timeout=TIMEOUT_S, headers={"Accept": "image/avif,image/webp,image/png,image/*;q=0.8"})
+    resp = got[0] if isinstance(got, tuple) else got   # safe_get returns (response, redirect chain)
     try:
         if resp.status_code != 200:
             raise ValueError(f"HTTP {resp.status_code}")
