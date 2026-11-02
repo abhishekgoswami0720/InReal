@@ -152,3 +152,9 @@ def test_aicte_posts_saved_before_the_fix_get_the_public_link():
     assert logos.source_logo(row) == "https://internship.aicte-india.org/api/v1/media/logo/CORPORATE68.png"
     row["company_logo"] = "https://internship.aicte-india.org/images/new_logo/logo_internship_new.jpg"
     assert logos.source_logo(row) == ""
+
+
+def test_a_big_but_real_logo_is_kept(logo_dir):
+    url = "https://internship.aicte-india.org/api/v1/media/logo/big.png"   # 2420 x 2420, as AICTE sent
+    assert logos.download(url, get=lambda u, **k: (_Resp(_png(2420, 2420)), [u]))
+    assert logos.cached(url)

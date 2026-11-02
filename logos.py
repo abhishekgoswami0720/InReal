@@ -24,7 +24,7 @@ LOGO_DIR = Path(__file__).parent / "static" / "logos"
 WEB_PATH = "/static/logos/"
 SIZE = 128
 MAX_BYTES = 600_000         # a logo bigger than this is not a logo
-MAX_PIXELS = 4_000_000      # refuses "decompression bombs" before decoding
+MAX_PIXELS = 4096 * 4096    # refuses "decompression bombs" before decoding (2 Nov: 4 MP refused a real 2420 px AICTE logo)
 TIMEOUT_S = 8
 
 # Posts from a company's own career site: that company's icon (source_platform -> its domain)

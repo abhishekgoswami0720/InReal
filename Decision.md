@@ -542,7 +542,7 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
 - **Decision:**
   - Scrapers record the logo the source site shows with the post (`company_logo`). Big-tech posts get the company's own icon, because they come from its own careers site.
   - The laptop downloads each logo once in the background (`logos.py`, through `safe_get`).
-  - It is accepted only if it decodes as a real picture (no SVG, ≤ 600 KB, ≤ 4 MP). It is re-encoded as a 128 px WebP in `static/logos/`.
+  - It is accepted only if it decodes as a real picture (no SVG, ≤ 600 KB, ≤ 4096×4096 px). It is re-encoded as a 128 px WebP in `static/logos/`.
   - The page gets only that copy's path. Initials show underneath until it loads, and stay if there is none.
 - **Why:**
   - **Not looked up by company name** (logo services, favicons): a fake "Google internship" would get Google's real logo, and a scam-check app would then make scams look more real.
