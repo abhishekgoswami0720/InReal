@@ -474,6 +474,34 @@ def _share(row: dict):
         print(f"Supabase publish skipped: {e}")
 
 
+REPORTS_TO_REVIEW = 2   # different users who reported a verified post before a person must look at it
+
+
+def apply_reports(counts: dict) -> list:
+    """'Report this post' (2 Nov 2026): a VERIFIED post reported by REPORTS_TO_REVIEW or more different
+    users goes to "needs a look", with who said what. Reports never block a post: one person (or a
+    few) must not be able to take down a real company's internship. Returns the ids moved."""
+    from supabase_sync import REASON_WORDS
+    moved = []
+    with _CSV_LOCK:
+        rows = _read_rows()
+        for row in rows:
+            c = counts.get(row.get("id"))
+            if not c or c["users"] < REPORTS_TO_REVIEW or row.get("moderation_status") != "approved":
+                continue
+            said = ", ".join(f"{REASON_WORDS.get(k, k)} ×{n}" for k, n in sorted(c["reasons"].items(), key=lambda kv: -kv[1]))
+            row["moderation_status"] = "review"
+            row["moderation_reasons"] = " | ".join(filter(None, [
+                f"Reported by {c['users']} users ({said}), so a person should look", row.get("moderation_reasons", "")]))[:1500]
+            row["moderated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            moved.append(dict(row))
+        if moved:
+            _write_rows(rows)
+    for row in moved:
+        _share(row)
+    return [r["id"] for r in moved]
+
+
 def unblock(listing_id: str) -> bool:
     """A person says a blocked post is not a scam: it moves to "review" (needs a look), with a note,
     and keeps its scam reasons so anyone can still see why it was blocked."""

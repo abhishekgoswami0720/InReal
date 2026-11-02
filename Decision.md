@@ -75,8 +75,21 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
 - **Why:** inherited from the `frontend-parv` design (`3c045b8`). It can be edited without Node, and the backend serves the files as they are.
 - **Tradeoff:**
   - `app_radar.js` is ~3,000 lines held together by section comments.
-  - The Tailwind CDN script needs `'unsafe-eval'` in the CSP (E5).
-  - Replacing it with a built CSS file is the known fix, not done yet.
+  - The Tailwind CDN script needed `'unsafe-eval'` in the CSP (E5). **Reversed 2 Nov**, see A7.
+
+### A7. Tailwind as a built file, not the play CDN
+- **Date:** 2 Nov
+- **Status:** replaces the CDN part of A6.
+- **Decision:**
+  - `static/tailwind.css` is built with Tailwind 3.4.17 (the same version the CDN served) from `tailwind.config.js`, and committed.
+  - The `<link>` sits last in `<head>`, where the play CDN put its styles, so the same rules win as before.
+  - Only someone who adds new Tailwind classes needs Node, to rebuild (the command is in `tailwind.config.js`).
+- **Why:**
+  - `'unsafe-eval'` was the widest hole left in the CSP (E5).
+  - The page no longer downloads and runs a 260 KB compiler on every visit; the built file is 33 KB.
+- **Tradeoff:**
+  - A class added to a template without rebuilding has no style. This is the main way it can break.
+  - The local test browser uses a stand-in for the CDN, so the pixel comparison was done against a build of the same version, not against the live CDN.
 
 ---
 
@@ -284,6 +297,25 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
 - **Why:** portal pages carry their own boilerplate. Internshala advertises paid trainings on every page, which would look like "a course sold as an internship".
 - **Tradeoff:** a scam visible only on the landing page is missed by the first check (the agent can still read it, D8).
 
+### D10. Accuracy is measured against hand labels, with the verdict hidden while labelling
+- **Date:** 2 Nov
+- **Decision:**
+  - `python -m moderation.label` shows judged posts one by one, and a person answers scam / genuine / can't tell. Each answer goes to `moderation/labels.jsonl` with a copy of the post and the verdict it had.
+  - `python -m moderation.accuracy` reports:
+    - scams caught, flagged and missed (shown as Verified);
+    - genuine posts hidden, sent to needs a look, and verified;
+    - each rate with a 95% range (Wilson).
+  - `--rerun` judges the labelled posts again with today's check.
+- **Why:**
+  - "Every post checked for scams" needs a number behind it. The 18 test posts in `eval_judge` measure the AI judge alone, on posts written for the test.
+  - The verdict is hidden while labelling, because a person who sees "Verified" tends to agree, and then the labels measure nothing.
+  - Posts are offered by turns from each verdict, so the set isn't 90% verified posts.
+  - The copy of the post keeps a label usable after the post is pruned.
+  - The ranges stop anyone quoting "95%" from 20 posts.
+- **Tradeoff:**
+  - It needs a person's time: about 150–200 labels before the numbers mean much.
+  - The labels are one person's judgement.
+
 ---
 
 ## E. Security
@@ -322,15 +354,15 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
 - **Tradeoff:** an honest post that happens to contain such a phrase goes to review.
 - **Commit:** `ddd7c84`
 
-### E5. CSP with pinned CDNs, still allowing `'unsafe-eval'`
+### E5. CSP with pinned CDNs (no `'unsafe-eval'` since 2 Nov)
 - **Decision:**
   - Scripts may come only from self and four pinned CDNs.
   - `connect-src` is only self and Supabase.
   - Framing and plugins are blocked.
   - Request bodies are limited to 1 MB.
 - **Why:** CDN versions are pinned so an upstream change can't silently alter the page.
-- **Tradeoff:** `'unsafe-eval'` (and `'unsafe-inline'`) stay until the Tailwind play CDN is replaced by a built CSS file. It could not be verified whether that script evaluates code.
-- **Commit:** `ddd7c84`
+- **Tradeoff:** `'unsafe-inline'` stays for the inline handlers and the small inline config scripts. `'unsafe-eval'` was removed on 2 Nov, when Tailwind became a built file (A7).
+- **Commit:** `ddd7c84`; `'unsafe-eval'` removed in the 2 Nov commit
 
 ### E6. Email sign-up turned off in Supabase
 - **Decision:** the Email provider is disabled; the only sign-in is Google.
@@ -366,6 +398,21 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
 - **Why:** there is no payment system and a hackathon audience. A locked list would hide the product's point.
 - **Tradeoff:** the plan columns and pricing ideas are dormant.
 - **Commit:** `c893cd6`
+
+### F4. "Report this post": hides it for you; 2+ reporters send a verified post to a person
+- **Date:** 2 Nov
+- **Decision:**
+  - A signed-in user can report a post once, with a reason. It is stored in the Supabase `reports` table (RLS, at most 20 a day, only posts on the shared list).
+  - The post disappears from that user's list at once.
+  - The laptop reads all reports every 15 minutes (`supabase_sync.report_counts`). A **verified** post reported by **2 or more different users** goes to "needs a look", with who said what (`output_handler.apply_reports`).
+  - Reports never block a post.
+- **Why:**
+  - The scam check misses things, and students see scams the check can't (a WhatsApp message after applying, for example).
+  - One report is not enough to act on: a rival or a grudge could otherwise take down a real company's internship, so it takes two different people, and the result is a person looking, not a block.
+- **Tradeoff:**
+  - It reacts in up to 15 minutes, not at once.
+  - On a small user base, two reporters can take a long time.
+  - Reports don't add phrases to the scam bank automatically; that is still a person's job.
 
 ---
 
@@ -507,6 +554,18 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
   - New dependency: Pillow.
   - The logo selectors for each site were written without access to the live sites. Which sites actually return logos must be checked after a real search on the laptop.
 
+### H10. Application status and "closes soon"
+- **Date:** 2 Nov
+- **Decision:**
+  - Each application has a status the user picks on My applications: Applied, Interview, Offer, Not selected, No reply. It is stored in `applications.status`, and the user can update only that column.
+  - The stats show Interviews and Offers.
+  - Cards get a "Closes today / tomorrow / in N days" tag when "Apply by" is 3 days or less away and you haven't applied.
+  - Once per visit, a reminder appears if a saved post closes within 3 days.
+- **Why:** this gives a reason to come back after applying. The deadline was already in the data (`application_deadline`) but nobody saw it until they opened the post.
+- **Tradeoff:**
+  - The status is only what the user says (H1).
+  - Only sites that give a date (AICTE, Unstop, Foundit) get the tag. On the laptop's current list, only the AICTE posts have one.
+
 ---
 
 ## I. Process
@@ -520,3 +579,9 @@ Dates are 2026. "Laptop" means the machine that runs `python app.py`.
 - **Decision:** commits stay local until Abhishek says "push". Secrets live only in `.env`, which is git-ignored.
 - **Why:** this is the owner's rule. The Azure and Supabase secret keys must never reach GitHub or the browser.
 - **Tradeoff:** none worth noting.
+
+### I3. Unused packages are removed from requirements.txt
+- **Date:** 2 Nov
+- **Decision:** `feedparser` and `pandas` were removed. Nothing imports them; they were left over from the original project.
+- **Why:** a smaller, faster install, and fewer packages to keep patched.
+- **Tradeoff:** none. If either comes back, add it in the same commit as the code that uses it.

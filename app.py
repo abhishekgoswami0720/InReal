@@ -119,11 +119,11 @@ def _csp() -> str:
     connect = ["'self'"] + ([supa, supa.replace("https://", "wss://", 1)] if supa.startswith("https://") else [])
     return "; ".join([
         "default-src 'self'",
-        # inline handlers need 'unsafe-inline'; 'unsafe-eval' stays until the Tailwind play CDN is replaced
-        # by a built CSS file (it could not be checked from here whether that script evaluates code).
-        # The real locks are below: no framing, no plugins, no <base> or form hijack, and the page can
-        # only send data to this app and Supabase.
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+        # inline handlers and the small inline config scripts need 'unsafe-inline'. No 'unsafe-eval' since
+        # 2 Nov 2026: Tailwind is a built file (static/tailwind.css), not the play CDN. The other locks:
+        # no framing, no plugins, no <base> or form hijack, and the page can only send data to this app
+        # and Supabase.
+        "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
         "font-src 'self' data: https://fonts.gstatic.com https://unpkg.com",
         "img-src 'self' data: blob: https:",
@@ -499,8 +499,12 @@ def start_publish_loop():
         return None
 
     def loop():
+        from output_handler import apply_reports
         while True:
             try:
+                moved = apply_reports(supabase_sync.report_counts())   # "Report this post" (2+ users)
+                if moved:
+                    print(f"Reports: {len(moved)} verified post(s) moved to 'needs a look'")
                 n = supabase_sync.publish(read_all_rows())
                 if n:
                     print(f"Supabase: {n} judged post(s) up to date")

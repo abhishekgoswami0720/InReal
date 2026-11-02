@@ -11,7 +11,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   {% if user_mode %}
@@ -19,30 +18,9 @@
   <script>window.INREAL = {{ config | tojson }};</script>
   {% endif %}
 
-  <script>
-    if (window.tailwind) tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-            mono: ['"JetBrains Mono"', 'monospace'],
-          },
-          colors: {
-            brand: {
-              yellow: '#FBBF24',
-              orange: '#F97316',
-              blue: '#2563EB',
-              teal: '#0D9488',
-              emerald: '#059669',
-              slate: '#0F172A',
-            }
-          }
-        }
-      }
-    }
-  </script>
 
   <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tailwind.css') }}">   <!-- built (tailwind.config.js); last in <head>, where the Play CDN put its styles -->
 </head>
 
 <body class="{{ 'user-mode' if user_mode else 'admin-mode' }} min-h-screen text-[#0F172A] flex flex-col relative antialiased selection:bg-orange-500 selection:text-white">
@@ -361,6 +339,7 @@
           <div class="text-xs text-slate-500 border-t border-slate-200 pt-4 flex flex-wrap gap-x-4 gap-y-1 font-medium">
             <span>From <b id="drawer-source" class="text-slate-700">site</b></span>
             <span>Found <b id="drawer-date" class="text-slate-700">-</b></span>
+            {% if user_mode %}<button id="drawer-report-btn" type="button" class="jb-report-link"><i class="ph ph-flag"></i>Report this post</button>{% endif %}
           </div>
         </div>
 
@@ -517,6 +496,34 @@
       </div>
     </div>
   </div>
+
+  <!-- Report this post (2 Nov): hides it for you; 2+ people → a person checks it (output_handler.apply_reports) -->
+  {% if user_mode %}
+  <div id="report-modal" class="fixed inset-0 bg-slate-900/40 modal-blur z-[58] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="report-title">
+    <form id="report-form" class="glass-panel max-w-md w-full p-6 shadow-2xl">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 id="report-title" class="text-lg font-extrabold text-slate-900">Report this post</h2>
+          <p id="report-sub" class="text-xs text-slate-500 font-medium mt-0.5">What's wrong with it?</p>
+        </div>
+        <button id="report-close" type="button" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400" aria-label="Close"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="report-reasons mt-4" role="radiogroup">
+        <label><input type="radio" name="report-reason" value="asks_money" required> It asks me to pay (fee, deposit, kit, training)</label>
+        <label><input type="radio" name="report-reason" value="task_scam"> Pay-for-tasks or "earn per like" scheme</label>
+        <label><input type="radio" name="report-reason" value="wants_documents"> Wants Aadhaar, PAN, bank details or OTP early</label>
+        <label><input type="radio" name="report-reason" value="fake_company"> The company doesn't seem real</label>
+        <label><input type="radio" name="report-reason" value="other"> Something else</label>
+      </div>
+      <textarea id="report-note" maxlength="500" rows="2" class="report-note" placeholder="Anything else? (optional)"></textarea>
+      <p class="text-[11px] text-slate-500 mt-2">The post is hidden from your list at once. When two or more people report it, it goes to "Needs a look".</p>
+      <div class="flex justify-end gap-2 mt-4">
+        <button id="report-cancel" type="button" class="glass-btn px-4 py-2.5 text-sm">Cancel</button>
+        <button type="submit" class="glass-btn glass-btn-primary px-4 py-2.5 text-sm">Report</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
 
   <!-- Search Internships dialog: field, sites and regions for one search -->
   <div id="scrape-config-modal" class="fixed inset-0 bg-slate-900/30 modal-blur z-50 hidden flex items-center justify-center p-4">

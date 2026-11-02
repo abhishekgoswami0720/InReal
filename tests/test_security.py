@@ -108,3 +108,13 @@ def test_agent_cannot_approve_a_steering_post():
         {"source": "https://acme.com/careers", "quote": "Acme hires Python interns every year"},
         {"source": "https://acme.com/careers", "quote": "at our Pune office with a stipend"}]}
     assert Ag.apply_second_look(row, ans, src, {"blockAt": 0.7})["status"] == "review"
+
+
+def test_no_eval_and_tailwind_is_a_local_file(client):
+    # 2 Nov 2026: the Tailwind play CDN (which needed 'unsafe-eval') was replaced by static/tailwind.css
+    csp = client.get("/").headers["Content-Security-Policy"]
+    assert "unsafe-eval" not in csp and "cdn.tailwindcss.com" not in csp
+    for path in ("/", "/admin"):
+        html = client.get(path).get_data(as_text=True)
+        assert "cdn.tailwindcss.com" not in html and "/static/tailwind.css" in html
+    assert client.get("/static/tailwind.css").status_code == 200

@@ -542,12 +542,12 @@ html.dark .scan-resize { background: linear-gradient(45deg, transparent 45%, #47
 /* dialogs: the backdrop fades in, the panel rises and grows a little; closing plays it backwards */
 @keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-rise { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
-#scrape-config-modal:not(.hidden), #profile-modal:not(.hidden), #me-modal:not(.hidden), #crop-modal:not(.hidden) { animation: modal-fade .22s ease-out both; }
-#scrape-config-modal:not(.hidden) > .glass-panel, #profile-modal:not(.hidden) > .glass-panel > .glass-panel, #me-modal:not(.hidden) > .glass-panel, #crop-modal:not(.hidden) > .glass-panel { animation: modal-rise .32s cubic-bezier(.2, .9, .3, 1.15) both; }
+#scrape-config-modal:not(.hidden), #profile-modal:not(.hidden), #me-modal:not(.hidden), #crop-modal:not(.hidden), #report-modal:not(.hidden) { animation: modal-fade .22s ease-out both; }
+#scrape-config-modal:not(.hidden) > .glass-panel, #profile-modal:not(.hidden) > .glass-panel > .glass-panel, #me-modal:not(.hidden) > .glass-panel, #crop-modal:not(.hidden) > .glass-panel, #report-modal:not(.hidden) > .glass-panel { animation: modal-rise .32s cubic-bezier(.2, .9, .3, 1.15) both; }
 @keyframes modal-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes modal-sink { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(12px) scale(.97); } }
-#scrape-config-modal.closing, #profile-modal.closing, #me-modal.closing, #crop-modal.closing { animation: modal-fade-out .18s ease-in both; }
-#scrape-config-modal.closing > .glass-panel, #profile-modal.closing > .glass-panel > .glass-panel, #me-modal.closing > .glass-panel, #crop-modal.closing > .glass-panel { animation: modal-sink .18s ease-in both; }
+#scrape-config-modal.closing, #profile-modal.closing, #me-modal.closing, #crop-modal.closing, #report-modal.closing { animation: modal-fade-out .18s ease-in both; }
+#scrape-config-modal.closing > .glass-panel, #profile-modal.closing > .glass-panel > .glass-panel, #me-modal.closing > .glass-panel, #crop-modal.closing > .glass-panel, #report-modal.closing > .glass-panel { animation: modal-sink .18s ease-in both; }
 
 /* cards: new ones slide up one after another (only cards not on screen before; see app_radar.js) */
 @keyframes card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -852,3 +852,36 @@ html.dark .me-banner.on { box-shadow: 0 0 0 3px #111620, 0 0 0 5px #F97316; }
 #crop-modal.crop-banner .crop-panel { max-width: 40rem; }
 #crop-modal.crop-banner #crop-canvas { width: 100%; aspect-ratio: 4 / 1; border-radius: 14px; }
 @media (prefers-reduced-motion: reduce) { .me-banner, #me-banner-picker { animation: none !important; } .me-cover { transition: none; } }
+
+/* ---- Report this post (2 Nov) ---- */
+.jb-report-link { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: #94A3B8; }
+.jb-report-link:hover { color: #BE123C; }
+.report-reasons { display: flex; flex-direction: column; gap: 6px; }
+.report-reasons label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid #E2E8F0;
+  font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; background: #fff; transition: border-color .15s, background .15s; }
+.report-reasons label:hover { border-color: #CBD5E1; }
+.report-reasons label:has(input:checked) { border-color: #FDA4AF; background: #FFF1F2; color: #9F1239; }
+.report-reasons input { accent-color: #E11D48; }
+.report-note { width: 100%; margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid #E2E8F0; font-size: 13px; resize: vertical; background: #fff; color: #0F172A; }
+.report-note:focus { outline: 2px solid #FDBA74; outline-offset: 1px; }
+html.dark .jb-report-link { color: #64748B; }
+html.dark .jb-report-link:hover { color: #FDA4AF; }
+html.dark .report-reasons label { background: #161D29; border-color: #263042; color: #CBD5E1; }
+html.dark .report-reasons label:has(input:checked) { background: rgba(244, 63, 94, .12); border-color: rgba(244, 63, 94, .45); color: #FECDD3; }
+html.dark .report-note { background: #161D29; border-color: #263042; color: #F1F5F9; }
+
+/* ---- Closing soon and application status (2 Nov) ---- */
+.jb-tag-closing { background: #FFFBEB; color: #B45309; border-color: #FDE68A; }
+html.dark .jb-tag-closing { background: rgba(245, 158, 11, .14); color: #FCD34D; border-color: rgba(245, 158, 11, .4); }
+.app-status { display: inline-flex; margin-top: 8px; }
+.app-status select { appearance: none; -webkit-appearance: none; padding: 4px 26px 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  border: 1px solid #E2E8F0; background: #F8FAFC url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='3'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center;
+  color: #334155; cursor: pointer; }
+.app-status select:focus-visible { outline: 2px solid #F97316; outline-offset: 2px; }
+.app-status-interview select { background-color: #EFF6FF; border-color: #BFDBFE; color: #1D4ED8; }
+.app-status-offer select { background-color: #ECFDF5; border-color: #A7F3D0; color: #047857; }
+.app-status-rejected select, .app-status-no_reply select { background-color: #F8FAFC; color: #64748B; }
+html.dark .app-status select { background-color: #1E293B; border-color: #334155; color: #CBD5E1; }
+html.dark .app-status-interview select { background-color: rgba(59, 130, 246, .15); border-color: rgba(59, 130, 246, .4); color: #93C5FD; }
+html.dark .app-status-offer select { background-color: rgba(16, 185, 129, .14); border-color: rgba(16, 185, 129, .4); color: #6EE7B7; }
+.apps-stats { flex-wrap: wrap; }

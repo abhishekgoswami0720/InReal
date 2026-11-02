@@ -104,6 +104,33 @@ def known_verdicts(ids) -> dict:
     return out
 
 
+REASON_WORDS = {"asks_money": "asks for money", "fake_company": "fake company", "task_scam": "pay-for-tasks scheme",
+                "wants_documents": "wants ID or bank details", "other": "other"}
+
+
+def report_counts() -> dict:
+    """{listing_id: {"users": n, "reasons": {reason: n}}} from the `reports` table ("Report this post").
+    Read with the secret key, which sees every user's reports; {} when Supabase is off or unreachable."""
+    url, key = settings()
+    if not (url and key):
+        return {}
+    out = {}
+    try:
+        r = requests.get(f"{url}/rest/v1/reports", headers={"apikey": key, "Range": "0-9999"}, timeout=TIMEOUT,
+                         params={"select": "listing_id,user_id,reason"})
+        r.raise_for_status()
+        rows = r.json()
+    except (requests.RequestException, ValueError) as e:
+        logger.warning(f"Supabase: could not read reports ({type(e).__name__})")
+        return {}
+    for x in rows:
+        c = out.setdefault(x["listing_id"], {"users": set(), "reasons": {}})
+        if x["user_id"] not in c["users"]:
+            c["users"].add(x["user_id"])
+            c["reasons"][x["reason"]] = c["reasons"].get(x["reason"], 0) + 1
+    return {k: {"users": len(v["users"]), "reasons": v["reasons"]} for k, v in out.items()}
+
+
 def publish_later(rows):
     """Same, in the background, so saving a verdict is not slowed down."""
     if enabled():

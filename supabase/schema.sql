@@ -247,3 +247,52 @@ alter table public.profiles
   add constraint profiles_banner_url_https check (banner_url is null or (char_length(banner_url) <= 600 and banner_url ~* '^https://')),
   add constraint profiles_banner_preset_len check (banner_preset is null or char_length(banner_preset) <= 40);
 grant update (banner_url, banner_preset) on public.profiles to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- "Report this post" (2 Nov 2026). A signed-in user can report a post on the shared list once.
+-- The report hides the post for that user straight away. The laptop reads the reports every
+-- 15 minutes (supabase_sync.report_counts) and moves a verified post to "needs a look" once
+-- 2 or more different users have reported it. A report never blocks a post by itself, so one
+-- person can't take down a real company's internship.
+create table if not exists public.reports (
+  user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  listing_id text not null references public.listings(id) on delete cascade,
+  reason text not null check (reason in ('asks_money', 'fake_company', 'task_scam', 'wants_documents', 'other')),
+  note text check (char_length(note) <= 500),
+  created_at timestamptz not null default now(),
+  primary key (user_id, listing_id)
+);
+create index if not exists reports_listing_idx on public.reports (listing_id);
+alter table public.reports enable row level security;
+revoke all on public.reports from anon;
+revoke all on public.reports from authenticated;
+grant select, insert, delete on public.reports to authenticated;
+drop policy if exists "own reports: read" on public.reports;
+drop policy if exists "own reports: add" on public.reports;
+drop policy if exists "own reports: remove" on public.reports;
+create policy "own reports: read" on public.reports for select to authenticated
+  using ((select auth.uid()) = user_id);
+-- at most 20 reports a day per user (against spam), counted in a definer function (no policy recursion)
+create or replace function private.my_reports_today() returns bigint
+language sql stable security definer set search_path = '' as $$
+  select count(*) from public.reports r
+  where r.user_id = (select auth.uid()) and r.created_at > now() - interval '1 day';
+$$;
+revoke execute on function private.my_reports_today() from public, anon;
+grant execute on function private.my_reports_today() to authenticated;
+create policy "own reports: add" on public.reports for insert to authenticated
+  with check ((select auth.uid()) = user_id and private.my_reports_today() < 20);
+create policy "own reports: remove" on public.reports for delete to authenticated
+  using ((select auth.uid()) = user_id);
+
+-- ---------------------------------------------------------------------------
+-- My applications: where each application stands (2 Nov 2026), set by the user.
+alter table public.applications add column if not exists status text not null default 'applied';
+alter table public.applications add column if not exists status_at timestamptz;
+alter table public.applications drop constraint if exists applications_status_check;
+alter table public.applications add constraint applications_status_check
+  check (status in ('applied', 'interview', 'offer', 'rejected', 'no_reply'));
+grant update (status, status_at) on public.applications to authenticated;
+drop policy if exists "own applications: change status" on public.applications;
+create policy "own applications: change status" on public.applications for update to authenticated
+  using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);

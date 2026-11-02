@@ -62,6 +62,9 @@ The reasons behind the design choices are in [Decision.md](Decision.md). Functio
 | `python -m moderation.recheck [--all \| --source X]` | `moderation/recheck.py` | Puts judged posts back in the queue. |
 | `python -m moderation.check_azure` | `moderation/check_azure.py` | Live check that the Azure keys and deployments work. |
 | `python -m moderation.eval_judge` | `moderation/eval_judge.py` | Measures the AI judge on 9 scam and 9 genuine test posts. |
+| `python -m moderation.label` | `moderation/label.py` | Hand-label judged posts (scam / genuine) into `moderation/labels.jsonl`. The verdict is hidden. |
+| `python -m moderation.accuracy [--rerun] [--save]` | `moderation/accuracy.py` | Compares verdicts with the labels: caught, missed, wrongly hidden, with 95% ranges. |
+| `npx tailwindcss@3.4.17 -c tailwind.config.js -i static/tailwind.src.css -o static/tailwind.css --minify` | `tailwind.config.js` | Rebuilds the page styles. Needed only after adding Tailwind classes. |
 | `python -m supabase_sync` | `supabase_sync.py` | Pushes every judged row to Supabase. |
 | `pytest` | `tests/` | 177 tests. No live APIs (recorded answers). |
 
@@ -69,8 +72,8 @@ In the browser, the entry points are the three pages Flask renders:
 
 | URL | Template | Scripts, in load order |
 |---|---|---|
-| `/` | `templates/site.html` | `theme.js` → CDN (Tailwind, Phosphor, three.js, supabase-js) → `background.js` → `site.js` |
-| `/app`, `/app/applications` | `templates/index.html` (user mode) | `theme.js` → CDN → `background.js` → `profile_options.js` → `app_radar.js` → `onboarding.js` (`avatars.js` is lazy-loaded) |
+| `/` | `templates/site.html` | `theme.js` → CDN (Phosphor, three.js, supabase-js) → `background.js` → `site.js`. Styles: `theme.css`, then `tailwind.css` (built, last in `<head>`) |
+| `/app`, `/app/applications` | `templates/index.html` (user mode) | `theme.js` → CDN → `background.js` → `profile_options.js` → `app_radar.js` → `onboarding.js` (`avatars.js` is lazy-loaded). Same styles |
 | `/admin`, `/admin/applications` | same template, admin mode (laptop only) | same |
 
 ---
@@ -91,7 +94,9 @@ Then the `__main__` block runs:
 ```
 _hold_old_listings()            # output_handler.hold_unreleased(): unchecked rows → "held"
 logos.prefetch(read_all_rows()) # thread "logos": local copies of logos still missing
-start_publish_loop()            # thread "supabase-backfill": supabase_sync.publish(all rows), every 15 min
+start_publish_loop()            # thread "supabase-backfill", every 15 min:
+                                #   output_handler.apply_reports(supabase_sync.report_counts())  (2+ reporters → review)
+                                #   supabase_sync.publish(all rows)
 moderation.pipeline.start_worker()   # thread "scam-check": runner._loop(), waits for wake() or 30 min
 waitress.serve(app, 127.0.0.1:PORT, threads=8)   # blocks here; each request runs on a waitress thread
 ```
@@ -320,6 +325,18 @@ focus / visible / first mouse move or key → cameBack()
 refreshApplied() → applyFiltersAndRender() + updateDrawerApplied() + fillProfileMenu() + renderAppsList() if the page is open
 ```
 
+### Report this post, status, closing soon (sections 22 and 20)
+
+```
+drawer "Report this post" → openReport() → #report-modal → sendReport()
+   sb.from('reports').insert({listing_id, reason, note}) → reported.add(id) → applyFiltersAndRender() (hidden for you)
+   laptop, every 15 min: report_counts() → apply_reports(): approved + 2 different users → review
+startDashboard() → loadReports()                       # your earlier reports stay hidden
+loadData() → remindClosingSaved() (once per visit)    # saved, not applied, "Apply by" ≤ 3 days → toast
+renderListings() → closingTag(item) → daysLeft(item)  # "Closes in N days" on cards
+My applications: <select data-app-status> → setAppStatus() → sb.from('applications').update({status, status_at})
+```
+
 ### My applications page
 
 ```
@@ -346,7 +363,7 @@ avatars everywhere: renderAvatars() → sharpenAvatars() → thumbFor(src, px)  
 | Thread | Started by | Lives | Does |
 |---|---|---|---|
 | waitress workers (8) | `serve()` | always | HTTP requests |
-| `supabase-backfill` | `start_publish_loop()` at startup | always | `supabase_sync.publish(all rows)` every 15 min |
+| `supabase-backfill` | `start_publish_loop()` at startup | always | every 15 min: reads reports and applies them (`apply_reports`), then `supabase_sync.publish(all rows)` |
 | `scam-check` | `pipeline.start_worker()` at startup | always | `runner._loop` → `check_waiting()` on `wake()` or every 30 min |
 | scraper | `/api/scrape` | one search | `run_scrapers` + up to 6 site threads inside it |
 | `load-more` | `/api/moderation/load-more` | one click | `load_more.fill` |
@@ -366,7 +383,8 @@ The scraper and the scam check both write `internships.csv`. Every read and writ
 | Seen IDs, run history | `internships_log.json` | `sync_listings`, `update_run_history` | `budget.start`, `/api/logs` |
 | Scam phrase vectors | `moderation/pattern_index.json` | `build_index` | `vectors.load_bank` |
 | Shared judged list | Supabase `listings` | `supabase_sync.publish` (secret key, laptop) | landing page, `/app` |
-| Profiles, bookmarks, applications | Supabase tables (RLS) | the browser (publishable key) | the browser |
+| Profiles, bookmarks, applications (with status), reports | Supabase tables (RLS) | the browser (publishable key) | the browser; reports also by the laptop (secret key) |
+| Hand labels for accuracy | `moderation/labels.jsonl` | `moderation.label` | `moderation.accuracy` |
 | Photos and banners | Supabase Storage `avatars` | the browser | `<img>` |
 | Company logos | `static/logos/<sha1>.webp` (git-ignored) | `logos.download` | `/api/internships` adds `logo` → `logoHtml()` on cards, drawer, My applications |
 | Remembered search, theme, panel sizes | browser `localStorage` | `app_radar.js`, `theme.js` | same |

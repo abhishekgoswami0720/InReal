@@ -12,15 +12,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
   <script>window.INREAL = {{ config | tojson }};</script>
-  <script>
-    // separate from the config above: if the style CDN is slow or blocked, the page still works
-    if (window.tailwind) tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'] } } } };
-  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
   <style>
     .blurred { filter: blur(5px); pointer-events: none; user-select: none; }
@@ -218,6 +213,7 @@
     a:focus-visible, button:focus-visible { outline: 2px solid #F97316; outline-offset: 2px; }
     [hidden] { display: none !important; }
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='tailwind.css') }}">   <!-- built (tailwind.config.js); last in <head>, where the Play CDN put its styles -->
 </head>
 
 <body class="min-h-screen text-[#0F172A] flex flex-col relative antialiased selection:bg-orange-500 selection:text-white">

@@ -207,6 +207,7 @@ function startDashboard() {
   pollModeration();
   updateBookmarkCounter();
   loadApplications();
+  loadReports();
 }
 
 // ==========================================
@@ -232,6 +233,7 @@ async function loadData() {
       restoredRun = '';
     }
     announceNewlyVerified(allInternships);
+    setTimeout(remindClosingSaved, 1500);   // after bookmarks and applications have loaded
 
     populateSourceFilter(allInternships);
     applyFiltersAndRender();
@@ -303,6 +305,7 @@ function applyFiltersAndRender() {
       if (viewRun && item.last_run !== viewRun) return false;
     }
     if (showBookmarkedOnly && !bookmarks.includes(item.id)) return false;
+    if (reported.has(item.id)) return false;   // you reported it: gone from your list
 
     // The student's profile: only their field, and unpaid posts only for 0 years of experience
     if (profile && !ignoreProfile) {
@@ -550,6 +553,7 @@ function renderListings(items) {
             ${verdictTag(item)}
             ${isPreferred(item) ? '<span class="jb-tag jb-tag-pick"><i class="ph ph-star"></i>Your pick</span>' : ''}
             ${appliedTag(item)}
+            ${closingTag(item)}
             ${skillTag(item)}
             ${item.trust_flags ? `<span class="jb-tag jb-tag-warn" title="${escapeHtml(item.trust_flags)}"><i class="ph ph-warning"></i>Note</span>` : ''}
           </div>
@@ -1051,6 +1055,7 @@ function bindEventHandlers() {
       closeDetailDrawer();
       closeModal(modal);
       closeModal(document.getElementById('me-modal'));
+      closeModal(document.getElementById('report-modal'));
       closeProfileModal();
     }
   });
@@ -2274,7 +2279,7 @@ async function loadApplications() {
   let rows = null;
   if (sb && sbUserId) {
     const { data, error } = await sb.from('applications')
-      .select('listing_id,role_title,company_name,source_platform,apply_link,applied_at').order('applied_at', { ascending: false });
+      .select('listing_id,role_title,company_name,source_platform,apply_link,applied_at,status,status_at').order('applied_at', { ascending: false });
     if (!error && Array.isArray(data)) rows = data;
   }
   if (!rows) { try { rows = JSON.parse(localStorage.getItem(appsKey()) || '[]'); } catch (e) { rows = []; } }
@@ -2313,7 +2318,7 @@ async function markApplied(item) {
     apply_link: /^https?:\/\//i.test(item.apply_link || '') ? String(item.apply_link).slice(0, 2000) : null,
     applied_at: new Date().toISOString(),
   };
-  applications.set(row.listing_id, row);
+  applications.set(row.listing_id, { ...row, status: 'applied' });
   refreshApplied();
   if (sb && sbUserId) {
     const { error } = await sb.from('applications').insert(row);
@@ -2412,7 +2417,8 @@ function renderAppsList() {
   const stats = document.getElementById('apps-stats');
   if (stats) {
     const now = Date.now(), within = (days) => rows.filter(a => now - new Date(a.applied_at).getTime() < days * 864e5).length;
-    stats.innerHTML = rows.length ? [['Total', rows.length], ['Last 7 days', within(7)], ['Last 30 days', within(30)]]
+    const at = (st) => rows.filter(a => (a.status || 'applied') === st).length;
+    stats.innerHTML = rows.length ? [['Total', rows.length], ['Last 7 days', within(7)], ['Interviews', at('interview')], ['Offers', at('offer')]]
       .map(([k, v]) => `<div class="apps-stat"><b>${v}</b><span>${k}</span></div>`).join('') : '';
   }
   list.innerHTML = rows.length ? rows.map(a => {
@@ -2424,6 +2430,10 @@ function renderAppsList() {
         <div class="app-title">${escapeHtml(a.role_title || 'Internship')}</div>
         <div class="app-meta">${escapeHtml(a.company_name || '')}${a.source_platform ? ` · ${escapeHtml(a.source_platform)}` : ''}</div>
         <div class="app-date"><i class="ph ph-check-circle"></i> Applied ${escapeHtml(shortDate(a.applied_at))}</div>
+        <label class="app-status app-status-${escapeHtml(a.status || 'applied')}"><span class="sr-only">Status</span>
+          <select data-app-status="${escapeHtml(a.listing_id)}">${APP_STATUSES.map(([v, t]) =>
+            `<option value="${v}"${(a.status || 'applied') === v ? ' selected' : ''}>${t}</option>`).join('')}</select>
+        </label>
       </div>
       <div class="flex flex-col gap-1.5 shrink-0">
         ${link ? `<a class="app-btn" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">Open <i class="ph ph-arrow-up-right"></i></a>` : ''}
@@ -2483,6 +2493,51 @@ document.addEventListener('DOMContentLoaded', () => {
   }, true);
   if (location.pathname === APPS_PATH) showAppsPage(false);   // opened at /app/applications (a refresh, a link)
 });
+// Where an application stands (2 Nov): set by the user, like "Applied" itself
+const APP_STATUSES = [['applied', 'Applied, waiting'], ['interview', 'Interview'], ['offer', 'Offer'],
+  ['rejected', 'Not selected'], ['no_reply', 'No reply']];
+async function setAppStatus(id, status) {
+  const a = applications.get(id);
+  if (!a || !APP_STATUSES.some(([v]) => v === status)) return;
+  const before = a.status || 'applied';
+  a.status = status; a.status_at = new Date().toISOString();
+  renderAppsList();
+  if (sb && sbUserId) {
+    const { error } = await sb.from('applications').update({ status, status_at: a.status_at }).eq('listing_id', id);
+    if (error) { a.status = before; renderAppsList(); showToast('error', 'Not saved', 'The status could not be saved. Try again.'); }
+  } else saveAppsLocally();
+}
+document.addEventListener('change', (e) => {
+  const sel = e.target.closest && e.target.closest('[data-app-status]');
+  if (sel) setAppStatus(sel.dataset.appStatus, sel.value);
+});
+
+// Closing soon (2 Nov): "Apply by" within 3 days, on cards not applied to yet, and one reminder per
+// visit for saved posts about to close. Only sites that give a date (AICTE, Unstop, Foundit, ...).
+function daysLeft(item) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(item && item.application_deadline || ''));
+  if (!m) return null;
+  const end = new Date(+m[1], +m[2] - 1, +m[3], 23, 59, 59);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return Math.floor((end - today) / 864e5);
+}
+function closingTag(item) {
+  const d = daysLeft(item);
+  if (d === null || d < 0 || d > 3 || appliedFor(item)) return '';
+  return `<span class="jb-tag jb-tag-closing"><i class="ph ph-hourglass-medium"></i>${d === 0 ? 'Closes today' : d === 1 ? 'Closes tomorrow' : `Closes in ${d} days`}</span>`;
+}
+let closingReminded = false;
+function remindClosingSaved() {
+  if (closingReminded || !allInternships.length) return;
+  const soon = allInternships.filter(i => bookmarks.includes(i.id) && !appliedFor(i) && !reported.has(i.id)
+    && (d => d !== null && d >= 0 && d <= 3)(daysLeft(i)));
+  closingReminded = true;
+  if (!soon.length) return;
+  const first = soon.sort((a, b) => daysLeft(a) - daysLeft(b))[0];
+  showToast('info', soon.length === 1 ? 'A saved internship closes soon' : `${soon.length} saved internships close soon`,
+    `${first.role_title || 'Internship'}${first.company_name ? ' at ' + first.company_name : ''}: ${daysLeft(first) === 0 ? 'today is the last day' : `apply by ${shortDate(first.application_deadline)}`}. Open "Saved" to see ${soon.length === 1 ? 'it' : 'them'}.`);
+}
+
 document.addEventListener('click', (e) => {
   const rm = e.target.closest('[data-app-remove]');
   if (rm) unmarkApplied(rm.dataset.appRemove);
@@ -3068,3 +3123,52 @@ document.addEventListener('keydown', (e) => {
     btns[(at + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
   }
 }, true);
+
+
+// ==========================================
+// 22. Report this post (2 Nov): hides it for you at once; the laptop moves a verified post to
+//     "needs a look" when 2+ different people report it (output_handler.apply_reports).
+// ==========================================
+const reported = new Set();
+let reportItem = null;
+async function loadReports() {
+  if (!sb || !sbUserId) return;
+  const { data, error } = await sb.from('reports').select('listing_id');
+  if (!error && Array.isArray(data)) { data.forEach(r => reported.add(r.listing_id)); if (data.length) applyFiltersAndRender(); }
+}
+function openReport() {
+  if (!activeDrawerJob) return;
+  reportItem = activeDrawerJob;
+  const form = document.getElementById('report-form');
+  form?.reset();
+  const sub = document.getElementById('report-sub');
+  if (sub) sub.textContent = `${reportItem.role_title || 'Internship'}${reportItem.company_name ? ' at ' + reportItem.company_name : ''}`;
+  openModal(document.getElementById('report-modal'));
+}
+async function sendReport(e) {
+  e.preventDefault();
+  const item = reportItem;
+  const reason = document.querySelector('input[name="report-reason"]:checked')?.value;
+  if (!item || !reason || !sb) return;
+  const note = (document.getElementById('report-note')?.value || '').trim().slice(0, 500);
+  const { error } = await sb.from('reports').insert({ listing_id: String(item.id).slice(0, 200), reason, note: note || null });
+  if (error && error.code !== '23505') {   // 23505: reported before, which is fine
+    showToast('error', 'Not sent', error.code === '23503'
+      ? "This post isn't on the shared list yet, so it can't be reported. Try again in a few minutes."
+      : (/row-level security/i.test(error.message || '') ? 'You can report up to 20 posts a day.' : 'Check the connection and try again.'));
+    return;
+  }
+  closeModal(document.getElementById('report-modal'));
+  reported.add(item.id);
+  closeDetailDrawer();
+  applyFiltersAndRender();
+  showToast('success', 'Thanks, reported', "It's hidden from your list. If others report it too, a person checks it.");
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const m = document.getElementById('report-modal');
+  if (!m) return;
+  document.getElementById('drawer-report-btn')?.addEventListener('click', openReport);
+  document.getElementById('report-form')?.addEventListener('submit', sendReport);
+  ['report-close', 'report-cancel'].forEach(id => document.getElementById(id)?.addEventListener('click', () => closeModal(m)));
+  closeOnBackdrop(m, () => closeModal(m));
+});

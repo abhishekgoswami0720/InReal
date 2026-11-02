@@ -9,7 +9,7 @@
 ![Playwright](https://img.shields.io/badge/Playwright-Chromium-2EAD33?logo=playwright&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Auth%20%2B%20Postgres-3ECF8E?logo=supabase&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-scam%20check%20agent-1C3C3C?logo=langchain&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-190%20passing-2ea043)
+![Tests](https://img.shields.io/badge/tests-199%20passing-2ea043)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 </div>
@@ -118,7 +118,18 @@ when you come back to InReal it asks **"Did you apply?"**. Say yes, and:
 - the post gets an **Applied** tag, also when the same internship turns up again on another site;
 - it's added to **My applications** (`/app/applications`), your list with the date you applied and how
   many you sent in the last 7 and 30 days;
-- applied somewhere else? Open the post and click **Mark it** under the Apply button. **Undo** fixes a mistake.
+- applied somewhere else? Open the post and click **Mark it** under the Apply button. **Undo** fixes a mistake;
+- set where each one stands: **Interview**, **Offer**, **Not selected** or **No reply**. The page counts your interviews and offers.
+
+**Don't miss a deadline:** posts that close within 3 days get a **Closes in N days** tag, and InReal reminds
+you once per visit when a post you saved is about to close.
+
+### Report a post
+
+Something the check missed? Open the post and click **Report this post**, then pick what's wrong (asks for money,
+pay-for-tasks, wants your documents, fake company). It disappears from your list at once. When two or more people
+report a verified post, it moves to *Needs a look* for a person to check. A report never hides a post for
+everyone on its own, so nobody can take down a real company's internship.
 
 ---
 
@@ -270,10 +281,12 @@ InReal/
 │   ├── profile_options.js # Roles and skills per field, skill autocomplete
 │   ├── background.js      # Animated glass background
 │   ├── theme.js           # Light / dark toggle; adds the app's header to every /api call
-│   └── theme.css          # Shared theme, dark mode, dashboard layout
+│   ├── theme.css          # Shared theme, dark mode, dashboard layout
+│   └── tailwind.css       # Built Tailwind utilities (rebuild with the command in tailwind.config.js)
 ├── tests/                 # pytest suite with saved HTML fixtures and the scam check's recorded answers
 ├── Decision.md            # Why things are built the way they are: each decision, its reason and tradeoff
 ├── flow.md                # How the code runs: entry points, startup order, which function calls which
+├── tailwind.config.js     # Builds static/tailwind.css (no CDN, so no 'unsafe-eval')
 ├── run_public.bat         # Optional: share a read-only public link (Cloudflare tunnel)
 └── autopilot.py           # Old automatic run. Not started by the app; don't use.
 ```
@@ -304,6 +317,17 @@ python -m moderation.eval_judge            # 18 tricky posts: does the AI judge 
 python -m moderation.recheck               # put posts whose AI check failed back in the queue
 ```
 
+**How accurate is it?** Label real checked posts by hand, then measure:
+
+```bash
+python -m moderation.label                 # s = scam, g = genuine, u = can't tell (InReal's verdict is hidden)
+python -m moderation.accuracy --save       # scams caught / missed, real posts wrongly hidden, with 95% ranges
+python -m moderation.accuracy --rerun      # the same labelled posts through today's check (after a change)
+```
+
+The labels are kept in `moderation/labels.jsonl` with a copy of each post. Below about 100 labelled posts the
+ranges are wide; the report says so.
+
 `tests/test_pipeline.py` compares the scam check with answers recorded in
 `tests/fixtures/n8n_golden.json` (from the n8n workflow it replaced), so a changed threshold or prompt shows up.
 
@@ -327,7 +351,7 @@ Checked and fixed in a full review (27 Oct 2026). No app is unhackable; these ar
 | Database | Row-level security on every table, only the grants the app needs, size limits on profiles, caps on bookmarks (500), applications (2,000) and uploaded pictures (10, 1 MB each), email sign-up off |
 | Public link visitors | Read-only: no scraping, clearing, scam-check buttons, logs or `/admin` |
 
-Known gaps: the CSP still allows inline scripts and `eval` (the Tailwind CDN and inline handlers need it), and
+Known gaps: the CSP still allows inline scripts (inline handlers need it; `eval` is no longer allowed since Tailwind became a built file), and
 `internships.csv` is not protected against spreadsheet formulas if you open it in Excel.
 The tests for all of this are in `tests/test_security.py` and `tests/test_public_guard.py`.
 
