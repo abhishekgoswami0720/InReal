@@ -165,6 +165,16 @@
     html.dark .hp-ok { color: #6EE7B7; background: rgba(16, 185, 129, .12); border-color: rgba(16, 185, 129, .35); }
     html.dark .hp-no { color: #FDA4AF; background: rgba(244, 63, 94, .12); border-color: rgba(244, 63, 94, .35); }
     @media (max-width: 767px) { .hp-bad { margin-left: 0; } }
+    /* a small lift on hover (5 Nov); mouse only, and none for people who turn motion off */
+    .hp-card { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+    @media (hover: hover) and (pointer: fine) {
+      .hp-card:hover { transform: translateY(-3px); box-shadow: 0 18px 34px -20px rgba(15, 23, 42, .45); border-color: #CBD5E1; }
+      .hp-bad:hover { border-color: #FDA4AF; }
+      .hp-card:hover .hp-quote mark { background: #FECDD3; }
+      html.dark .hp-card:hover { box-shadow: 0 18px 34px -18px rgba(0, 0, 0, .9); border-color: #334155; }
+      html.dark .hp-bad:hover { border-color: rgba(244, 63, 94, .55); }
+    }
+    @media (prefers-reduced-motion: reduce) { .hp-card { transition: none; } .hp-card:hover { transform: none; } }
     .spot-card { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
     .spot-card:not([disabled]):hover { transform: translateY(-4px); border-color: #FDBA74; box-shadow: 0 16px 32px -12px rgba(15, 23, 42, .18); }
     .spot-card mark { background: #FECACA; color: #7F1D1D; border-radius: 4px; padding: 0 3px; }
