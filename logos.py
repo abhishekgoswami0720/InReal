@@ -70,7 +70,7 @@ def shrink(data: bytes) -> bytes:
     Re-encoding also means no file from another site is ever served as it came."""
     from PIL import Image
     img = Image.open(io.BytesIO(data))
-    if img.format not in ("PNG", "JPEG", "WEBP", "GIF", "ICO", "BMP"):
+    if img.format not in ("PNG", "JPEG", "WEBP", "GIF", "ICO", "BMP", "AVIF"):   # AVIF: Apna's CDN (5 Nov)
         raise ValueError(f"not a picture ({img.format})")
     w, h = img.size
     if w * h > MAX_PIXELS or w < 8 or h < 8:
@@ -96,7 +96,8 @@ REFERERS = {"monsterindia.com": "https://www.foundit.in/", "gumlet.io": "https:/
 def request_headers(url: str) -> dict:
     from urllib.parse import urlparse
     host = (urlparse(url).hostname or "").lower()
-    headers = {"Accept": "image/avif,image/webp,image/png,image/*;q=0.8", "User-Agent": UA}
+    # no image/avif: servers that honour Accept then send WebP or PNG, which every Pillow can read
+    headers = {"Accept": "image/webp,image/png,image/jpeg,image/*;q=0.8", "User-Agent": UA}
     for suffix, ref in REFERERS.items():
         if host == suffix or host.endswith("." + suffix):
             headers["Referer"] = ref

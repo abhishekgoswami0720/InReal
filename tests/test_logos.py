@@ -165,3 +165,13 @@ def test_image_servers_get_a_browser_like_request():
     assert h["Referer"] == "https://www.foundit.in/" and "Chrome" in h["User-Agent"]
     assert logos.request_headers("https://apna-organization-logos.gumlet.io/p/a.png")["Referer"] == "https://apna.co/"
     assert "Referer" not in logos.request_headers("https://evilgumlet.io/a.png")
+
+
+def test_avif_logos_are_kept(logo_dir):
+    # 5 Nov: Apna's image CDN answered with AVIF, which the format check refused
+    from PIL import features
+    if not features.check("avif"):
+        pytest.skip("this Pillow has no AVIF support")
+    url = "https://apna-organization-logos.gumlet.io/production/logos/a.png?w=128"
+    assert logos.download(url, get=lambda u, **k: (_Resp(_png(fmt="AVIF"), "image/avif"), [u]))
+    assert "image/avif" not in logos.request_headers(url)["Accept"]
